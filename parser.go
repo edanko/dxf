@@ -528,9 +528,11 @@ func ParseEntities(d *drawing.Drawing, line int, data [][2]string) error {
 			if len(tmpdata) > 0 {
 				e, err := ParseEntity(d, tmpdata)
 				if err != nil {
-					return fmt.Errorf("line %d: %s", line+2*i, err.Error())
+					//return fmt.Errorf("line %d: %s", line+2*i, err.Error())
+					goto skip
 				}
 				d.AddEntity(e)
+				skip:
 				tmpdata = make([][2]string, 0)
 			}
 		}
