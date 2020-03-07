@@ -523,7 +523,7 @@ func ParseBlock(d *drawing.Drawing, data [][2]string) error {
 // ParseEntities parses ENTITIES section.
 func ParseEntities(d *drawing.Drawing, line int, data [][2]string) error {
 	tmpdata := make([][2]string, 0)
-	for i, dt := range data {
+	for _, dt := range data {
 		if dt[0] == "0" {
 			if len(tmpdata) > 0 {
 				e, err := ParseEntity(d, tmpdata)
@@ -532,7 +532,7 @@ func ParseEntities(d *drawing.Drawing, line int, data [][2]string) error {
 					goto skip
 				}
 				d.AddEntity(e)
-				skip:
+			skip:
 				tmpdata = make([][2]string, 0)
 			}
 		}
