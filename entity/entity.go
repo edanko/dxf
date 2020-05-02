@@ -1,9 +1,10 @@
 package entity
 
 import (
-	"github.com/yofu/dxf/format"
-	"github.com/yofu/dxf/handle"
-	"github.com/yofu/dxf/table"
+	"github.com/edanko/dxf/color"
+	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/table"
 )
 
 // Entity is interface for DXF Entities.
@@ -17,17 +18,19 @@ type Entity interface {
 	SetLayer(*table.Layer)
 	SetLtscale(float64)
 	BBox() ([]float64, []float64)
+	SetColor(color.ColorNumber)
 }
 
 // entity is common part of Entities.
 // It is embedded in each entities to implement Entity interface.
 type entity struct {
-	Type        EntityType     // 0
-	handle      int            // 5
-	blockRecord handle.Handler // 102 330
-	owner       handle.Handler // 330
-	layer       *table.Layer   // 8
-	ltscale     float64        // 48
+	Type        EntityType        // 0
+	handle      int               // 5
+	blockRecord handle.Handler    // 102 330
+	owner       handle.Handler    // 330
+	layer       *table.Layer      // 8
+	ltscale     float64           // 48
+	color       color.ColorNumber // 62
 }
 
 // NewEntity creates a new entity.
@@ -39,8 +42,13 @@ func NewEntity(t EntityType) *entity {
 		owner:       nil,
 		layer:       table.LY_0,
 		ltscale:     1.0,
+		color:       0,
 	}
 	return e
+}
+
+func (e *entity) SetColor(cl color.ColorNumber) {
+	e.color = cl
 }
 
 // Format writes data to formatter.
@@ -60,6 +68,7 @@ func (e *entity) Format(f format.Formatter) {
 	if e.ltscale != 1.0 {
 		f.WriteFloat(48, e.ltscale)
 	}
+	f.WriteInt(62, int(e.color))
 }
 
 // String outputs data using default formatter.

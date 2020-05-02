@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"github.com/yofu/dxf/format"
+	"github.com/edanko/dxf/format"
 )
 
 // Circle represents CIRCLE Entity.
