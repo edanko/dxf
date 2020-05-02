@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yofu/dxf/format"
+	"github.com/edanko/dxf/format"
 )
 
 // Table represents each TABLE.

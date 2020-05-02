@@ -8,15 +8,15 @@ import (
 	"io"
 	"os"
 
-	"github.com/yofu/dxf/block"
-	"github.com/yofu/dxf/class"
-	"github.com/yofu/dxf/color"
-	"github.com/yofu/dxf/entity"
-	"github.com/yofu/dxf/format"
-	"github.com/yofu/dxf/handle"
-	"github.com/yofu/dxf/header"
-	"github.com/yofu/dxf/object"
-	"github.com/yofu/dxf/table"
+	"github.com/edanko/dxf/block"
+	"github.com/edanko/dxf/class"
+	"github.com/edanko/dxf/color"
+	"github.com/edanko/dxf/entity"
+	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/header"
+	"github.com/edanko/dxf/object"
+	"github.com/edanko/dxf/table"
 )
 
 // Drawing contains DXF drawing data.

@@ -1,8 +1,8 @@
 package table
 
 import (
-	"github.com/yofu/dxf/format"
-	"github.com/yofu/dxf/handle"
+	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 )
 
 // Default Styles.

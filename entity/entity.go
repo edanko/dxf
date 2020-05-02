@@ -1,9 +1,9 @@
 package entity
 
 import (
-	"github.com/yofu/dxf/format"
-	"github.com/yofu/dxf/handle"
-	"github.com/yofu/dxf/table"
+	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/table"
 )
 
 // Entity is interface for DXF Entities.
@@ -39,6 +39,7 @@ func NewEntity(t EntityType) *entity {
 		owner:       nil,
 		layer:       table.LY_0,
 		ltscale:     1.0,
+		color:       0,
 	}
 	return e
 }
