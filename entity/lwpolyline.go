@@ -4,12 +4,19 @@ import (
 	"github.com/edanko/dxf/format"
 )
 
+type LwPolylineVertex struct {
+	X     float64
+	Y     float64
+	Bulge float64
+}
+
 // LwPolyline represents LWPOLYLINE Entity.
 type LwPolyline struct {
 	*entity
-	Num      int // 90
-	Closed   bool
-	Vertices [][]float64
+	Num    int // 90
+	Closed bool
+	//Vertices [][]float64
+	Vertices []*LwPolylineVertex
 }
 
 // IsEntity is for Entity interface.
@@ -19,10 +26,11 @@ func (l *LwPolyline) IsEntity() bool {
 
 // NewLwPolyline creates a new LwPolyline.
 func NewLwPolyline(size int) *LwPolyline {
-	vs := make([][]float64, size)
-	for i := 0; i < size; i++ {
+	//vs := make([][]float64, size)
+	vs := make([]*LwPolylineVertex, 0, size)
+	/*for i := 0; i < size; i++ {
 		vs[i] = make([]float64, 2)
-	}
+	}*/
 	l := &LwPolyline{
 		entity:   NewEntity(LWPOLYLINE),
 		Num:      size,
@@ -30,6 +38,16 @@ func NewLwPolyline(size int) *LwPolyline {
 		Vertices: vs,
 	}
 	return l
+}
+
+func (l *LwPolyline) AddVertex(x, y, b float64) *LwPolylineVertex {
+	v := &LwPolylineVertex{X: x, Y: y, Bulge: b}
+	l.Vertices = append(l.Vertices, v)
+	l.Num++
+	//p.size++
+	//v.SetLayer(p.Layer())
+	//v.SetOwner(p)
+	return v
 }
 
 // Format writes data to formatter.
@@ -43,9 +61,12 @@ func (l *LwPolyline) Format(f format.Formatter) {
 		f.WriteInt(70, 0)
 	}
 	for i := 0; i < l.Num; i++ {
-		for j := 0; j < 2; j++ {
-			f.WriteFloat((j+1)*10, l.Vertices[i][j])
-		}
+		//for j := 0; j < 2; j++ {
+		//f.WriteFloat((j+1)*10, l.Vertices[i][j])
+		f.WriteFloat(10, l.Vertices[i].X)
+		f.WriteFloat(20, l.Vertices[i].Y)
+		//}
+		f.WriteFloat(42, l.Vertices[i].Bulge)
 	}
 }
 
@@ -69,15 +90,21 @@ func (l *LwPolyline) Close() {
 func (l *LwPolyline) BBox() ([]float64, []float64) {
 	mins := make([]float64, 3)
 	maxs := make([]float64, 3)
-	for _, p := range l.Vertices {
-		for i := 0; i < len(p); i++ {
-			if p[i] < mins[i] {
-				mins[i] = p[i]
-			}
-			if p[i] > maxs[i] {
-				maxs[i] = p[i]
-			}
+	for i, p := range l.Vertices {
+		//for i := 0; i < 2; i++ {
+		if p.X < mins[i] {
+			mins[i] = p.X
 		}
+		if p.Y < mins[i] {
+			mins[i] = p.Y
+		}
+		if p.X > maxs[i] {
+			maxs[i] = p.X
+		}
+		if p.Y > maxs[i] {
+			maxs[i] = p.Y
+		}
+		//}
 	}
 	return mins, maxs
 }

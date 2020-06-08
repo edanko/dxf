@@ -14,6 +14,7 @@ const (
 	POINT
 	ARC
 	TEXT
+	MTEXT
 	SPLINE
 )
 
@@ -39,6 +40,8 @@ func EntityTypeString(t EntityType) string {
 		return "ARC"
 	case TEXT:
 		return "TEXT"
+	case MTEXT:
+		return "MTEXT"
 	case SPLINE:
 		return "SPLINE"
 	default:
@@ -68,6 +71,8 @@ func EntityTypeValue(t string) EntityType {
 		return ARC
 	case "TEXT":
 		return TEXT
+	case "MTEXT":
+		return MTEXT
 	case "SPLINE":
 		return SPLINE
 	default:

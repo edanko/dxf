@@ -267,12 +267,15 @@ func (d *Drawing) Polyline(closed bool, vertices ...[]float64) (*entity.Polyline
 }
 
 // LwPolyline creates a new LWPOLYLINE with given vertices.
-func (d *Drawing) LwPolyline(closed bool, vertices ...[]float64) (*entity.LwPolyline, error) {
+func (d *Drawing) LwPolyline(closed bool, vertices ...*entity.LwPolylineVertex) (*entity.LwPolyline, error) {
 	size := len(vertices)
 	l := entity.NewLwPolyline(size)
-	for i := 0; i < size; i++ {
-		l.Vertices[i] = vertices[i]
-	}
+
+	l.Vertices = append(l.Vertices, vertices...)
+
+	/*for i := 0; i < size; i++ {
+		l.Vertices = append(l.Vertices, vertices[i])
+	}*/
 	if closed {
 		l.Close()
 	}
@@ -303,6 +306,21 @@ func (d *Drawing) ThreeDFace(points [][]float64) (*entity.ThreeDFace, error) {
 // Text creates a new TEXT str at (x, y, z) with given height.
 func (d *Drawing) Text(str string, x, y, z, height float64) (*entity.Text, error) {
 	t := entity.NewText()
+	t.Coord1 = []float64{x, y, z}
+	t.Height = height
+	t.Value = str
+	t.SetLayer(d.CurrentLayer)
+	t.Style = d.CurrentStyle
+	t.WidthFactor = t.Style.WidthFactor
+	t.ObliqueAngle = t.Style.ObliqueAngle
+	t.Style.LastHeightUsed = height
+	d.AddEntity(t)
+	return t, nil
+}
+
+// MText creates a new MTEXT str at (x, y, z) with given height.
+func (d *Drawing) MText(str string, x, y, z, height float64) (*entity.MText, error) {
+	t := entity.NewMText()
 	t.Coord1 = []float64{x, y, z}
 	t.Height = height
 	t.Value = str
