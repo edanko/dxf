@@ -691,7 +691,7 @@ func Parse3DFace(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 
 // ParseLwPolyline parses LWPOLYLINE entities.
 func ParseLwPolyline(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
-	lw := entity.NewLwPolyline(0)
+	lw := entity.NewLwPolyline()
 	ind := 0
 	read := 0
 	var err error
@@ -709,16 +709,11 @@ func ParseLwPolyline(d *drawing.Drawing, data [][2]string) (entity.Entity, error
 		case "90":
 			err = setInt(dt, func(val int) {
 				lw.Num = val
-				//lw.Vertices = make([][]float64, val)
 				lw.Vertices = make([]*entity.LwPolylineVertex, val)
-				//for i := 0; i < val; i++ {
-				//	lw.Vertices[i] = make([]float64, 2)
-				//}
 			})
 		case "10":
 			if lw.Num > ind {
 				err = setFloat(dt, func(val float64) {
-					//lw.Vertices[ind][0] = val
 					lw.Vertices[ind].X = val
 					read |= 1
 				})
@@ -728,7 +723,6 @@ func ParseLwPolyline(d *drawing.Drawing, data [][2]string) (entity.Entity, error
 		case "20":
 			if lw.Num > ind {
 				err = setFloat(dt, func(val float64) {
-					//lw.Vertices[ind][1] = val
 					lw.Vertices[ind].Y = val
 					read |= 2
 				})
@@ -738,7 +732,6 @@ func ParseLwPolyline(d *drawing.Drawing, data [][2]string) (entity.Entity, error
 		case "42":
 			if lw.Num > ind {
 				err = setFloat(dt, func(val float64) {
-					//lw.Vertices[ind][1] = val
 					lw.Vertices[ind].Bulge = val
 					read |= 3
 				})

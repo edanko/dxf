@@ -13,9 +13,8 @@ type LwPolylineVertex struct {
 // LwPolyline represents LWPOLYLINE Entity.
 type LwPolyline struct {
 	*entity
-	Num    int // 90
-	Closed bool
-	//Vertices [][]float64
+	Num      int
+	Closed   bool
 	Vertices []*LwPolylineVertex
 }
 
@@ -25,15 +24,11 @@ func (l *LwPolyline) IsEntity() bool {
 }
 
 // NewLwPolyline creates a new LwPolyline.
-func NewLwPolyline(size int) *LwPolyline {
-	//vs := make([][]float64, size)
-	vs := make([]*LwPolylineVertex, 0, size)
-	/*for i := 0; i < size; i++ {
-		vs[i] = make([]float64, 2)
-	}*/
+func NewLwPolyline() *LwPolyline {
+	vs := make([]*LwPolylineVertex, 0)
 	l := &LwPolyline{
 		entity:   NewEntity(LWPOLYLINE),
-		Num:      size,
+		Num:      0,
 		Closed:   false,
 		Vertices: vs,
 	}
@@ -44,9 +39,6 @@ func (l *LwPolyline) AddVertex(x, y, b float64) *LwPolylineVertex {
 	v := &LwPolylineVertex{X: x, Y: y, Bulge: b}
 	l.Vertices = append(l.Vertices, v)
 	l.Num++
-	//p.size++
-	//v.SetLayer(p.Layer())
-	//v.SetOwner(p)
 	return v
 }
 
@@ -61,11 +53,8 @@ func (l *LwPolyline) Format(f format.Formatter) {
 		f.WriteInt(70, 0)
 	}
 	for i := 0; i < l.Num; i++ {
-		//for j := 0; j < 2; j++ {
-		//f.WriteFloat((j+1)*10, l.Vertices[i][j])
 		f.WriteFloat(10, l.Vertices[i].X)
 		f.WriteFloat(20, l.Vertices[i].Y)
-		//}
 		f.WriteFloat(42, l.Vertices[i].Bulge)
 	}
 }

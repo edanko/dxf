@@ -5,22 +5,6 @@ import (
 	"github.com/edanko/dxf/table"
 )
 
-// MText Anchor
-/*const (
-	LEFT_BASE = iota
-	CENTER_BASE
-	RIGHT_BASE
-	LEFT_BOTTOM
-	CENTER_BOTTOM
-	RIGHT_BOTTOM
-	LEFT_CENTER
-	CENTER_CENTER
-	RIGHT_CENTER
-	LEFT_TOP
-	CENTER_TOP
-	RIGHT_TOP
-)*/
-
 // MText represents MTEXT Entity.
 type MText struct {
 	*entity
@@ -99,24 +83,6 @@ func (t *MText) FormatString(f format.Formatter) string {
 	t.Format(f)
 	return f.Output()
 }
-
-func (t *MText) togglegenflag(val int) {
-	if t.GenFlag&val != 0 {
-		t.GenFlag &= ^val
-	} else {
-		t.GenFlag |= val
-	}
-}
-
-// FlipHorizontal flips MText horizontally.
-/*func (t *MText) FlipHorizontal() {
-	t.togglegenflag(2)
-}*/
-
-// FlipVertical flips MText vertically.
-/*func (t *MText) FlipVertical() {
-	t.togglegenflag(4)
-}*/
 
 // Anchor sets anchor point flags.
 func (t *MText) Anchor(pos int) {

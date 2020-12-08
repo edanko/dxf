@@ -47,5 +47,4 @@ func (cs Classes) Format(f format.Formatter) {
 
 // SetHandle sets handles to each class.
 func (cs Classes) SetHandle(v *int) {
-	return
 }

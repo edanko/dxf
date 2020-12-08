@@ -59,12 +59,12 @@ func New() *Drawing {
 	d.dictionary = object.NewDictionary()
 	d.addObject(d.dictionary)
 	wd, ph := object.NewAcDbDictionaryWDFLT(d.dictionary)
-	d.dictionary.AddItem("ACAD_PLOTSTYLENAME", wd)
+	_ = d.dictionary.AddItem("ACAD_PLOTSTYLENAME", wd)
 	d.addObject(wd)
 	d.addObject(ph)
 	d.groupdict = object.NewDictionary()
 	d.addObject(d.groupdict)
-	d.dictionary.AddItem("ACAD_GROUP", d.groupdict)
+	_ = d.dictionary.AddItem("ACAD_GROUP", d.groupdict)
 	d.PlotStyle = ph
 	d.Layers["0"].SetPlotStyle(d.PlotStyle)
 	return d
@@ -268,14 +268,10 @@ func (d *Drawing) Polyline(closed bool, vertices ...[]float64) (*entity.Polyline
 
 // LwPolyline creates a new LWPOLYLINE with given vertices.
 func (d *Drawing) LwPolyline(closed bool, vertices ...*entity.LwPolylineVertex) (*entity.LwPolyline, error) {
-	size := len(vertices)
-	l := entity.NewLwPolyline(size)
+	l := entity.NewLwPolyline()
 
 	l.Vertices = append(l.Vertices, vertices...)
 
-	/*for i := 0; i < size; i++ {
-		l.Vertices = append(l.Vertices, vertices[i])
-	}*/
 	if closed {
 		l.Close()
 	}
