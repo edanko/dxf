@@ -37,7 +37,7 @@ func NewGroup(name, desc string, es ...entity.Entity) *Group {
 // SetOwner sets an owner(Dictionary).
 func (g *Group) SetOwner(d *Dictionary) {
 	g.owner = d
-	d.AddItem(g.Name, g)
+	_ = d.AddItem(g.Name, g)
 }
 
 // Format writes data to formatter.
