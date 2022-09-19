@@ -6,14 +6,13 @@ import (
 
 	"github.com/edanko/dxf"
 	"github.com/edanko/dxf/color"
-	"github.com/edanko/dxf/table"
 )
 
 func main() {
 	d := dxf.NewDrawing()
 	d.Header().LtScale = 100.0
-	d.AddLayer("Toroidal", dxf.DefaultColor, dxf.DefaultLineType, true)
-	d.AddLayer("Poloidal", color.Red, table.LT_HIDDEN, true)
+	d.AddLayer("Toroidal", color.White, d.LtContinuous(), true)
+	d.AddLayer("Poloidal", color.Red, d.LtHidden(), true)
 	z := 0.0
 	r1 := 200.0
 	r2 := 500.0

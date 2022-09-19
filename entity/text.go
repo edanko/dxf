@@ -50,7 +50,6 @@ func NewText() *Text {
 		Coord2:         []float64{0.0, 0.0, 0.0},
 		Height:         1.0,
 		Value:          "",
-		Style:          table.ST_STANDARD,
 		GenFlag:        0,
 		HorizontalFlag: 0,
 		VerticalFlag:   0,
@@ -165,4 +164,9 @@ func (t *Text) BBox() ([]float64, []float64) {
 	mins := []float64{t.Coord1[0], t.Coord1[1], t.Coord1[2]}
 	maxs := []float64{t.Coord1[0], t.Coord1[1] + t.Height, t.Coord1[2]}
 	return mins, maxs
+}
+
+// SetStyle sets text entity style.
+func (t *Text) SetStyle(style *table.Style) {
+	t.Style = style
 }

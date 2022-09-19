@@ -40,7 +40,6 @@ func NewEntity(t EntityType) *entity {
 		handle:      0,
 		blockRecord: nil,
 		owner:       nil,
-		layer:       table.LY_0,
 		ltscale:     1.0,
 		color:       0,
 	}

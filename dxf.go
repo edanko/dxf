@@ -12,13 +12,6 @@ import (
 
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/drawing"
-	"github.com/edanko/dxf/table"
-)
-
-// Default values.
-var (
-	DefaultColor    = color.White
-	DefaultLineType = table.LT_CONTINUOUS
 )
 
 // NewDrawing creates a drawing.

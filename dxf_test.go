@@ -12,11 +12,9 @@ import (
 	"testing"
 
 	"github.com/edanko/dxf/color"
-	"github.com/edanko/dxf/insunit"
-	"github.com/edanko/dxf/table"
-
 	"github.com/edanko/dxf/drawing"
 	"github.com/edanko/dxf/entity"
+	"github.com/edanko/dxf/insunit"
 )
 
 // TOLERANCE is the epsilon value used in comparing floats.
@@ -288,8 +286,8 @@ func TestNewDrawing(t *testing.T) {
 			filename: "torus.dxf",
 			draw: func(d *drawing.Drawing) {
 				d.Header().LtScale = 100.0
-				d.AddLayer("Toroidal", DefaultColor, DefaultLineType, true)
-				d.AddLayer("Poloidal", color.Red, table.LT_HIDDEN, true)
+				d.AddLayer("Toroidal", color.White, d.LtContinuous(), true)
+				d.AddLayer("Poloidal", color.Red, d.LtHidden(), true)
 				z := 0.0
 				r1 := 200.0
 				r2 := 500.0

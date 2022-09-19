@@ -5,11 +5,6 @@ import (
 	"github.com/edanko/dxf/handle"
 )
 
-// Default Styles.
-var (
-	ST_STANDARD = NewStyle("Standard")
-)
-
 // Style represents STYLE SymbolTable.
 type Style struct {
 	handle          int

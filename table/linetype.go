@@ -7,15 +7,6 @@ import (
 	"github.com/edanko/dxf/handle"
 )
 
-// Default LineTypes.
-var (
-	LT_CONTINUOUS = NewLineType("Continuous", "Solid Line")
-	LT_BYLAYER    = NewLineType("ByLayer", "")
-	LT_BYBLOCK    = NewLineType("ByBlock", "")
-	LT_HIDDEN     = NewLineType("HIDDEN", "Hidden __ __ __ __ __ __ __ __ __ __ __ __ __ _", 0.25, -0.125)
-	LT_DASHDOT    = NewLineType("DASHDOT", "Dash dot __ . __ . __ . __ . __ . __ . __ . __", 0.5, -0.25, 0.0, -0.25)
-)
-
 // LineType represents LTYPE SymbolTable.
 type LineType struct {
 	handle      int

@@ -6,11 +6,6 @@ import (
 	"github.com/edanko/dxf/handle"
 )
 
-// Default layers.
-var (
-	LY_0 = NewLayer("0", color.White, LT_CONTINUOUS)
-)
-
 // Layer represents LAYER SymbolTable.
 type Layer struct {
 	handle    int

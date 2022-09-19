@@ -9,19 +9,17 @@ import (
 type Tables []*Table
 
 // New creates a new Tables.
-func New() Tables {
+func New(lts []*LineType, layer *Layer, style *Style) Tables {
 	t := make([]*Table, 9)
 	t[0] = NewTable("VPORT")
 	t[1] = NewTable("LTYPE")
-	t[1].Add(LT_BYLAYER)
-	t[1].Add(LT_BYBLOCK)
-	t[1].Add(LT_CONTINUOUS)
-	t[1].Add(LT_HIDDEN)
-	t[1].Add(LT_DASHDOT)
+	for _, lt := range lts {
+		t[1].Add(lt)
+	}
 	t[2] = NewTable("LAYER")
-	t[2].Add(LY_0)
+	t[2].Add(layer)
 	t[3] = NewTable("STYLE")
-	t[3].Add(ST_STANDARD)
+	t[3].Add(style)
 	t[4] = NewTable("VIEW")
 	t[5] = NewTable("UCS")
 	t[6] = NewTable("APPID")
