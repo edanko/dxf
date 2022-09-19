@@ -544,6 +544,8 @@ POINT
 AcDbEntity
 8
 0
+62
+0
 100
 AcDbPoint
 10
@@ -560,6 +562,8 @@ POINT
 AcDbEntity
 8
 0
+62
+0
 100
 AcDbPoint
 10
@@ -575,6 +579,8 @@ POINT
 100
 AcDbEntity
 8
+0
+62
 0
 100
 AcDbPoint
