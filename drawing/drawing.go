@@ -39,20 +39,29 @@ type Drawing struct {
 // New creates a new Drawing.
 func New() *Drawing {
 	d := new(Drawing)
+
+	lineTypes := []*table.LineType{
+		table.NewLineType("ByLayer", ""),
+		table.NewLineType("ByBlock", ""),
+		table.NewLineType("Continuous", "Solid Line"),
+		table.NewLineType("HIDDEN", "Hidden __ __ __ __ __ __ __ __ __ __ __ __ __ _", 0.25, -0.125),
+		table.NewLineType("DASHDOT", "Dash dot __ . __ . __ . __ . __ . __ . __ . __", 0.5, -0.25, 0.0, -0.25),
+	}
+
 	d.Layers = make(map[string]*table.Layer)
-	d.Layers["0"] = table.LY_0
+	d.Layers["0"] = table.NewLayer("0", color.White, lineTypes[2])
 	d.Groups = make(map[string]*object.Group)
 	d.CurrentLayer = d.Layers["0"]
 	d.Styles = make(map[string]*table.Style)
-	d.Styles["STANDARD"] = table.ST_STANDARD
+	d.Styles["STANDARD"] = table.NewStyle("Standard")
 	d.CurrentStyle = d.Styles["STANDARD"]
 	d.formatter = format.NewASCII()
 	d.formatter.SetPrecision(16)
 	d.Sections = []Section{
 		header.New(),
 		class.New(),
-		table.New(),
-		block.New(),
+		table.New(lineTypes, d.Layers["0"], d.Styles["STANDARD"]),
+		block.New(d.Layers["0"]),
 		entity.New(),
 		object.New(),
 	}
@@ -414,4 +423,34 @@ func (d *Drawing) SetExt() {
 		h.ExtMin[i] = mins[i]
 		h.ExtMax[i] = maxs[i]
 	}
+}
+
+// LtByLayer returns standard "ByLayer" line type.
+func (d *Drawing) LtByLayer() *table.LineType {
+	lt, _ := d.LineType("ByLayer")
+	return lt
+}
+
+// LtByBlock returns standard "ByBlock" line type.
+func (d *Drawing) LtByBlock() *table.LineType {
+	lt, _ := d.LineType("ByBlock")
+	return lt
+}
+
+// LtContinuous returns standard "Continuous" line type.
+func (d *Drawing) LtContinuous() *table.LineType {
+	lt, _ := d.LineType("Continuous")
+	return lt
+}
+
+// LtHidden returns standard "Hidden" line type.
+func (d *Drawing) LtHidden() *table.LineType {
+	lt, _ := d.LineType("HIDDEN")
+	return lt
+}
+
+// LtDashDot returns standard "DashDot" line type.
+func (d *Drawing) LtDashDot() *table.LineType {
+	lt, _ := d.LineType("DASHDOT")
+	return lt
 }

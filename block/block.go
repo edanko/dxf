@@ -22,7 +22,6 @@ func NewBlock(name, desc string) *Block {
 		Name:        name,
 		Description: desc,
 		handle:      0,
-		layer:       table.LY_0,
 		Flag:        0,
 		Coord:       []float64{0.0, 0.0, 0.0},
 	}

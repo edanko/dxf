@@ -3,17 +3,21 @@ package block
 
 import (
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/table"
 )
 
 // Blocks represents BLOCKS section.
 type Blocks []*Block
 
 // New creates a new Blocks.
-func New() Blocks {
+func New(layer *table.Layer) Blocks {
 	b := make([]*Block, 3)
 	b[0] = NewBlock("*Model_Space", "")
+	b[0].SetLayer(layer)
 	b[1] = NewBlock("*Paper_Space", "")
+	b[1].SetLayer(layer)
 	b[2] = NewBlock("*Paper_Space0", "")
+	b[2].SetLayer(layer)
 	return b
 }
 
