@@ -324,6 +324,21 @@ func (d *Drawing) Text(str string, x, y, z, height float64) (*entity.Text, error
 	return t, nil
 }
 
+// MText creates a new MTEXT str at (x, y, z) with given height.
+func (d *Drawing) MText(str string, x, y, z, height float64) (*entity.MText, error) {
+	t := entity.NewMText()
+	t.Coord1 = []float64{x, y, z}
+	t.Height = height
+	t.Value = str
+	t.SetLayer(d.CurrentLayer)
+	t.Style = d.CurrentStyle
+	t.WidthFactor = t.Style.WidthFactor
+	t.ObliqueAngle = t.Style.ObliqueAngle
+	t.Style.LastHeightUsed = height
+	d.AddEntity(t)
+	return t, nil
+}
+
 func (d *Drawing) addObject(o object.Object) {
 	d.Sections[5] = d.Sections[5].(object.Objects).Add(o)
 }
