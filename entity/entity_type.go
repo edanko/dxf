@@ -15,6 +15,7 @@ const (
 	ARC
 	TEXT
 	SPLINE
+	MTEXT
 )
 
 // EntityTypeString converts EntityType to string.
@@ -41,6 +42,8 @@ func EntityTypeString(t EntityType) string {
 		return "TEXT"
 	case SPLINE:
 		return "SPLINE"
+	case MTEXT:
+		return "MTEXT"
 	default:
 		return ""
 	}
