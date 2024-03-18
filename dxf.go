@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/drawing"
 )
 
@@ -107,29 +106,4 @@ func FromReader(r io.Reader) (*drawing.Drawing, error) {
 		}
 	}
 	return d, nil
-}
-
-// ColorIndex converts RGB value to corresponding color number.
-func ColorIndex(cl []int) color.ColorNumber {
-	minind := 0
-	minval := 1000000
-	for i, c := range color.ColorRGB {
-		tmpval := 0
-		for j := 0; j < 3; j++ {
-			tmpval += (cl[j] - int(c[j])) * (cl[j] - int(c[j]))
-		}
-		if tmpval < minval {
-			minind = i
-			minval = tmpval
-			if minval == 0 {
-				break
-			}
-		}
-	}
-	return color.ColorNumber(minind)
-}
-
-// IndexColor converts color number to RGB value.
-func IndexColor(index uint8) []uint8 {
-	return color.ColorRGB[index]
 }
