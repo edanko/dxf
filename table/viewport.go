@@ -99,18 +99,6 @@ func (v *Viewport) Format(f format.Formatter) {
 	f.WriteFloat(51, v.TwistAngle)
 }
 
-// String outputs data using default formatter.
-func (v *Viewport) String() string {
-	f := format.NewASCII()
-	return v.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (v *Viewport) FormatString(f format.Formatter) string {
-	v.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (v *Viewport) Handle() int {
 	return v.handle

@@ -35,10 +35,3 @@ func (a *Arc) Format(f format.Formatter) {
 		f.WriteFloat(50+i, a.Angle[i])
 	}
 }
-
-// String write out the String representation
-func (a *Arc) String() string {
-	f := format.NewASCII()
-	a.Format(f)
-	return f.Output()
-}

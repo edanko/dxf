@@ -42,18 +42,6 @@ func (t *Table) Format(f format.Formatter) {
 	f.WriteString(0, "ENDTAB")
 }
 
-// String outputs data using default formatter.
-func (t *Table) String() string {
-	f := format.NewASCII()
-	return t.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (t *Table) FormatString(f format.Formatter) string {
-	t.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value of TABLE.
 func (t *Table) Handle() int {
 	return t.handle

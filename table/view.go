@@ -36,18 +36,6 @@ func (v *View) Format(f format.Formatter) {
 	f.WriteString(2, v.name)
 }
 
-// String outputs data using default formatter.
-func (v *View) String() string {
-	f := format.NewASCII()
-	return v.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (v *View) FormatString(f format.Formatter) string {
-	v.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (v *View) Handle() int {
 	return v.handle

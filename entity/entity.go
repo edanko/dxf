@@ -71,18 +71,6 @@ func (e *entity) Format(f format.Formatter) {
 	f.WriteInt(62, int(e.color))
 }
 
-// String outputs data using default formatter.
-func (e *entity) String() string {
-	f := format.NewASCII()
-	return e.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (e *entity) FormatString(f format.Formatter) string {
-	e.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value of TABLE.
 func (e *entity) Handle() int {
 	return e.handle

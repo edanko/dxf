@@ -61,18 +61,6 @@ func (g *Group) Format(f format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (g *Group) String() string {
-	f := format.NewASCII()
-	return g.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (g *Group) FormatString(f format.Formatter) string {
-	g.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (g *Group) Handle() int {
 	return g.handle

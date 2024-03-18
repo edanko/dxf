@@ -36,18 +36,6 @@ func (u *Ucs) Format(f format.Formatter) {
 	f.WriteString(2, u.name)
 }
 
-// String outputs data using default formatter.
-func (u *Ucs) String() string {
-	f := format.NewASCII()
-	return u.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (u *Ucs) FormatString(f format.Formatter) string {
-	u.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (u *Ucs) Handle() int {
 	return u.handle

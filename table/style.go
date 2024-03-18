@@ -55,18 +55,6 @@ func (st *Style) Format(f format.Formatter) {
 	f.WriteString(4, st.BigFontName)
 }
 
-// String outputs data using default formatter.
-func (st *Style) String() string {
-	f := format.NewASCII()
-	return st.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (st *Style) FormatString(f format.Formatter) string {
-	st.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (st *Style) Handle() int {
 	return st.handle

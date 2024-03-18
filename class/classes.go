@@ -14,18 +14,6 @@ func (c *Class) Format(f format.Formatter) {
 	f.WriteString(0, "CLASS")
 }
 
-// String outputs data using default formatter.
-func (c *Class) String() string {
-	f := format.NewASCII()
-	return c.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (c *Class) FormatString(f format.Formatter) string {
-	c.Format(f)
-	return f.Output()
-}
-
 // Classes represents CLASSES section.
 type Classes []*Class
 

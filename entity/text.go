@@ -87,18 +87,6 @@ func (t *Text) Format(f format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (t *Text) String() string {
-	f := format.NewASCII()
-	return t.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (t *Text) FormatString(f format.Formatter) string {
-	t.Format(f)
-	return f.Output()
-}
-
 func (t *Text) togglegenflag(val int) {
 	if t.GenFlag&val != 0 {
 		t.GenFlag &= ^val

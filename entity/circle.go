@@ -41,18 +41,6 @@ func (c *Circle) Format(f format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (c *Circle) String() string {
-	f := format.NewASCII()
-	return c.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (c *Circle) FormatString(f format.Formatter) string {
-	c.Format(f)
-	return f.Output()
-}
-
 // CurrentDirection returns extrusion direction.
 func (c *Circle) CurrentDirection() []float64 {
 	return c.Direction

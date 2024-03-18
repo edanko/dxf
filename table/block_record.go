@@ -39,18 +39,6 @@ func (b *BlockRecord) Format(f format.Formatter) {
 	f.WriteInt(281, 0)
 }
 
-// String outputs data using default formatter.
-func (b *BlockRecord) String() string {
-	f := format.NewASCII()
-	return b.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (b *BlockRecord) FormatString(f format.Formatter) string {
-	b.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (b *BlockRecord) Handle() int {
 	return b.handle
