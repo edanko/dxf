@@ -3,6 +3,7 @@ package class
 
 import (
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 )
 
 // Class represents each CLASS.
@@ -34,5 +35,4 @@ func (cs Classes) Format(f format.Formatter) {
 }
 
 // SetHandle sets handles to each class.
-func (cs Classes) SetHandle(v *int) {
-}
+func (cs Classes) SetHandle(_ *handle.HandleGenerator) {}

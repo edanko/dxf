@@ -10,7 +10,7 @@ import (
 type Group struct {
 	Name        string
 	Description string
-	handle      int
+	handle      string
 	owner       handle.Handler
 	entities    []entity.Entity
 	selectable  bool
@@ -26,7 +26,6 @@ func NewGroup(name, desc string, es ...entity.Entity) *Group {
 	g := &Group{
 		Name:        name,
 		Description: desc,
-		handle:      0,
 		owner:       nil,
 		entities:    es,
 		selectable:  true,
@@ -43,11 +42,11 @@ func (g *Group) SetOwner(d *Dictionary) error {
 // Format writes data to formatter.
 func (g *Group) Format(f format.Formatter) {
 	f.WriteString(0, "GROUP")
-	f.WriteHex(5, g.handle)
+	f.WriteString(5, g.handle)
 	f.WriteString(102, "{ACAD_REACTORS")
-	f.WriteHex(330, g.owner.Handle())
+	f.WriteString(330, g.owner.Handle())
 	f.WriteString(102, "}")
-	f.WriteHex(330, g.owner.Handle())
+	f.WriteString(330, g.owner.Handle())
 	f.WriteString(100, "AcDbGroup")
 	f.WriteString(300, g.Description)
 	f.WriteInt(70, 0)
@@ -57,19 +56,18 @@ func (g *Group) Format(f format.Formatter) {
 		f.WriteInt(71, 0)
 	}
 	for _, e := range g.entities {
-		f.WriteHex(340, e.Handle())
+		f.WriteString(340, e.Handle())
 	}
 }
 
 // Handle returns a handle value.
-func (g *Group) Handle() int {
+func (g *Group) Handle() string {
 	return g.handle
 }
 
 // SetHandle sets a handle.
-func (g *Group) SetHandle(v *int) {
-	g.handle = *v
-	*v++
+func (g *Group) SetHandle(hg *handle.HandleGenerator) {
+	g.handle = hg.Next()
 }
 
 // AddEntity adds entities to Group.

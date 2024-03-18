@@ -7,7 +7,7 @@ import (
 
 // DimStyle represents DIMSTYLE SymbolTable.
 type DimStyle struct {
-	handle int
+	handle string
 	owner  handle.Handler
 	name   string
 }
@@ -27,9 +27,9 @@ func (d *DimStyle) IsSymbolTable() bool {
 // Format writes data to formatter.
 func (d *DimStyle) Format(f format.Formatter) {
 	f.WriteString(0, "DIMSTYLE")
-	f.WriteHex(105, d.handle)
+	f.WriteString(105, d.handle)
 	if d.owner != nil {
-		f.WriteHex(330, d.owner.Handle())
+		f.WriteString(330, d.owner.Handle())
 	}
 	f.WriteString(100, "AcDbSymbolTableRecord")
 	f.WriteString(100, "AcDbDimStyleTableRecord")
@@ -38,14 +38,13 @@ func (d *DimStyle) Format(f format.Formatter) {
 }
 
 // Handle returns a handle value.
-func (d *DimStyle) Handle() int {
+func (d *DimStyle) Handle() string {
 	return d.handle
 }
 
 // SetHandle sets a handle.
-func (d *DimStyle) SetHandle(v *int) {
-	d.handle = *v
-	*v++
+func (d *DimStyle) SetHandle(hg *handle.HandleGenerator) {
+	d.handle = hg.Next()
 }
 
 // SetOwner sets an owner.

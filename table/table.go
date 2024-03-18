@@ -5,12 +5,13 @@ import (
 	"strings"
 
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 )
 
 // Table represents each TABLE.
 type Table struct {
 	name   string // 2
-	handle int    // 5
+	handle string // 5
 	size   int    // 70
 	tables []SymbolTable
 }
@@ -26,14 +27,14 @@ func NewTable(name string) *Table {
 func (t *Table) Format(f format.Formatter) {
 	f.WriteString(0, "TABLE")
 	f.WriteString(2, t.name)
-	f.WriteHex(5, t.handle)
+	f.WriteString(5, t.handle)
 	f.WriteString(100, "AcDbSymbolTable")
 	f.WriteInt(70, t.size)
 	if t.name == "DIMSTYLE" {
 		f.WriteString(100, "AcDbDimStyleTable")
 		f.WriteInt(71, t.size)
 		for i := 0; i < t.size; i++ {
-			f.WriteHex(340, t.tables[i].Handle())
+			f.WriteString(340, t.tables[i].Handle())
 		}
 	}
 	for i := 0; i < t.size; i++ {
@@ -43,16 +44,15 @@ func (t *Table) Format(f format.Formatter) {
 }
 
 // Handle returns a handle value of TABLE.
-func (t *Table) Handle() int {
+func (t *Table) Handle() string {
 	return t.handle
 }
 
 // SetHandle sets handles to TABLE itself and each SymbolTable.
-func (t *Table) SetHandle(v *int) {
-	t.handle = *v
-	*v++
+func (t *Table) SetHandle(hg *handle.HandleGenerator) {
+	t.handle = hg.Next()
 	for i := 0; i < t.size; i++ {
-		t.tables[i].SetHandle(v)
+		t.tables[i].SetHandle(hg)
 	}
 }
 

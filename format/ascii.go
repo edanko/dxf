@@ -48,12 +48,6 @@ func (f *ASCII) String(num int, val string) string {
 	return fmt.Sprintf("%d\n%s\n", num, val)
 }
 
-// Hex outputs given code & hex in DXF format.
-// It is used for outputting handles.
-func (f *ASCII) Hex(num int, h int) string {
-	return fmt.Sprintf("%d\n%X\n", num, h)
-}
-
 // Int outputs given code & int in DXF format.
 func (f *ASCII) Int(num int, val int) string {
 	return fmt.Sprintf("%d\n%d\n", num, val)
@@ -67,11 +61,6 @@ func (f *ASCII) Float(num int, val float64) string {
 // WriteString appends string data to the buffer.
 func (f *ASCII) WriteString(num int, val string) {
 	f.buffer.WriteString(f.String(num, val))
-}
-
-// WriteHex appends hex data to the buffer.
-func (f *ASCII) WriteHex(num int, h int) {
-	f.buffer.WriteString(f.Hex(num, h))
 }
 
 // WriteInt appends int data to the buffer.

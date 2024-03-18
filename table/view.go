@@ -7,7 +7,7 @@ import (
 
 // View represents VIEW SymbolTable.
 type View struct {
-	handle int
+	handle string
 	owner  handle.Handler
 	name   string // 2
 }
@@ -27,9 +27,9 @@ func (v *View) IsSymbolTable() bool {
 // Format writes data to formatter.
 func (v *View) Format(f format.Formatter) {
 	f.WriteString(0, "VIEW")
-	f.WriteHex(5, v.handle)
+	f.WriteString(5, v.handle)
 	if v.owner != nil {
-		f.WriteHex(330, v.owner.Handle())
+		f.WriteString(330, v.owner.Handle())
 	}
 	f.WriteString(100, "AcDbSymbolTableRecord")
 	f.WriteString(100, "AcDbViewTableRecord")
@@ -37,14 +37,13 @@ func (v *View) Format(f format.Formatter) {
 }
 
 // Handle returns a handle value.
-func (v *View) Handle() int {
+func (v *View) Handle() string {
 	return v.handle
 }
 
 // SetHandle sets a handle.
-func (v *View) SetHandle(h *int) {
-	v.handle = *h
-	*h++
+func (v *View) SetHandle(hg *handle.HandleGenerator) {
+	v.handle = hg.Next()
 }
 
 // SetOwner sets an owner.

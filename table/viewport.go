@@ -7,7 +7,7 @@ import (
 
 // Viewport represents VPORT SymbolTable.
 type Viewport struct {
-	handle        int
+	handle        string
 	owner         handle.Handler
 	name          string // 2
 	LowerLeft     []float64
@@ -58,9 +58,9 @@ func (v *Viewport) IsSymbolTable() bool {
 // Format writes data to formatter.
 func (v *Viewport) Format(f format.Formatter) {
 	f.WriteString(0, "VPORT")
-	f.WriteHex(5, v.handle)
+	f.WriteString(5, v.handle)
 	if v.owner != nil {
-		f.WriteHex(330, v.owner.Handle())
+		f.WriteString(330, v.owner.Handle())
 	}
 	f.WriteString(100, "AcDbSymbolTableRecord")
 	f.WriteString(100, "AcDbViewportTableRecord")
@@ -100,14 +100,13 @@ func (v *Viewport) Format(f format.Formatter) {
 }
 
 // Handle returns a handle value.
-func (v *Viewport) Handle() int {
+func (v *Viewport) Handle() string {
 	return v.handle
 }
 
 // SetHandle sets a handle.
-func (v *Viewport) SetHandle(h *int) {
-	v.handle = *h
-	*h++
+func (v *Viewport) SetHandle(hg *handle.HandleGenerator) {
+	v.handle = hg.Next()
 }
 
 // SetOwner sets an owner.

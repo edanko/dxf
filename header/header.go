@@ -3,6 +3,7 @@ package header
 
 import (
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 	"github.com/edanko/dxf/insunit"
 )
 
@@ -15,7 +16,7 @@ type Header struct {
 	ExtMin   []float64
 	ExtMax   []float64
 	LtScale  float64
-	handseed int
+	handseed string
 }
 
 // New creates a new Header.
@@ -55,11 +56,11 @@ func (h *Header) Format(f format.Formatter) {
 	f.WriteString(9, "$LTSCALE")
 	f.WriteFloat(40, h.LtScale)
 	f.WriteString(9, "$HANDSEED")
-	f.WriteHex(5, h.handseed)
+	f.WriteString(5, h.handseed)
 	f.WriteString(0, "ENDSEC")
 }
 
 // SetHandle sets $HANDSEED.
-func (h *Header) SetHandle(v *int) {
-	h.handseed = *v
+func (h *Header) SetHandle(hg *handle.HandleGenerator) {
+	h.handseed = hg.String()
 }

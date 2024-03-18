@@ -3,6 +3,7 @@ package entity
 
 import (
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 )
 
 // Entities represents ENTITIES section.
@@ -31,8 +32,8 @@ func (es Entities) Add(e Entity) Entities {
 }
 
 // SetHandle sets handles to each entity.
-func (es Entities) SetHandle(v *int) {
+func (es Entities) SetHandle(hg *handle.HandleGenerator) {
 	for _, e := range es {
-		e.SetHandle(v)
+		e.SetHandle(hg)
 	}
 }

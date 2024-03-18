@@ -2,6 +2,7 @@ package block
 
 import (
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 	"github.com/edanko/dxf/table"
 )
 
@@ -9,8 +10,8 @@ import (
 type Block struct {
 	Name        string
 	Description string
-	handle      int
-	endhandle   int
+	handle      string
+	endhandle   string
 	layer       *table.Layer
 	Flag        int
 	Coord       []float64
@@ -21,7 +22,6 @@ func NewBlock(name, desc string) *Block {
 	b := &Block{
 		Name:        name,
 		Description: desc,
-		handle:      0,
 		Flag:        0,
 		Coord:       []float64{0.0, 0.0, 0.0},
 	}
@@ -31,7 +31,7 @@ func NewBlock(name, desc string) *Block {
 // Format writes data to formatter.
 func (b *Block) Format(f format.Formatter) {
 	f.WriteString(0, "BLOCK")
-	f.WriteHex(5, b.handle)
+	f.WriteString(5, b.handle)
 	f.WriteString(100, "AcDbEntity")
 	f.WriteString(8, b.layer.Name())
 	f.WriteString(100, "AcDbBlockBegin")
@@ -43,23 +43,21 @@ func (b *Block) Format(f format.Formatter) {
 	f.WriteString(3, b.Name)
 	f.WriteString(1, b.Description)
 	f.WriteString(0, "ENDBLK")
-	f.WriteHex(5, b.endhandle)
+	f.WriteString(5, b.endhandle)
 	f.WriteString(100, "AcDbEntity")
 	f.WriteString(8, b.layer.Name())
 	f.WriteString(100, "AcDbBlockEnd")
 }
 
 // Handle returns a handle value of BLOCK.
-func (b *Block) Handle() int {
+func (b *Block) Handle() string {
 	return b.handle
 }
 
 // SetHandle sets handles to BLOCK and ENDBLK.
-func (b *Block) SetHandle(v *int) {
-	b.handle = *v
-	*v++
-	b.endhandle = *v
-	*v++
+func (b *Block) SetHandle(hg *handle.HandleGenerator) {
+	b.handle = hg.Next()
+	b.endhandle = hg.Next()
 }
 
 // Layer returns BLOCK's Layer.

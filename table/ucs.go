@@ -7,7 +7,7 @@ import (
 
 // UCS represents UCS SymbolTable.
 type Ucs struct {
-	handle int
+	handle string
 	owner  handle.Handler
 	name   string // 2
 }
@@ -27,9 +27,9 @@ func (u *Ucs) IsSymbolTable() bool {
 // Format writes data to formatter.
 func (u *Ucs) Format(f format.Formatter) {
 	f.WriteString(0, "UCS")
-	f.WriteHex(5, u.handle)
+	f.WriteString(5, u.handle)
 	if u.owner != nil {
-		f.WriteHex(330, u.owner.Handle())
+		f.WriteString(330, u.owner.Handle())
 	}
 	f.WriteString(100, "AcDbSymbolTableRecord")
 	f.WriteString(100, "AcDbUCSTableRecord")
@@ -37,14 +37,13 @@ func (u *Ucs) Format(f format.Formatter) {
 }
 
 // Handle returns a handle value.
-func (u *Ucs) Handle() int {
+func (u *Ucs) Handle() string {
 	return u.handle
 }
 
 // SetHandle sets a handle.
-func (u *Ucs) SetHandle(h *int) {
-	u.handle = *h
-	*h++
+func (u *Ucs) SetHandle(hg *handle.HandleGenerator) {
+	u.handle = hg.Next()
 }
 
 // SetOwner sets an owner.

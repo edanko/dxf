@@ -41,11 +41,15 @@ type Drawing struct {
 	PlotStyle  handle.Handler
 	// savebuff is used internally for the io.Reader options.
 	savebuff *bytes.Buffer
+
+	handleGenarator *handle.HandleGenerator
 }
 
 // New creates a new Drawing.
 func New() (*Drawing, error) {
 	d := new(Drawing)
+
+	d.handleGenarator = handle.NewHandleGenerator()
 
 	lineTypes := []*table.LineType{
 		table.NewLineType("ByLayer", ""),
@@ -119,15 +123,13 @@ func (d *Drawing) SaveAs(filename string) error {
 
 // setHandle sets all the handles contained in Drawing.
 func (d *Drawing) setHandle() {
-	h := 1
+	d.classesSection.SetHandle(d.handleGenarator)
+	d.tablesSection.SetHandle(d.handleGenarator)
+	d.blocksSection.SetHandle(d.handleGenarator)
+	d.entitiesSection.SetHandle(d.handleGenarator)
+	d.objectsSection.SetHandle(d.handleGenarator)
 
-	d.classesSection.SetHandle(&h)
-	d.tablesSection.SetHandle(&h)
-	d.blocksSection.SetHandle(&h)
-	d.entitiesSection.SetHandle(&h)
-	d.objectsSection.SetHandle(&h)
-
-	d.headerSection.SetHandle(&h)
+	d.headerSection.SetHandle(d.handleGenarator)
 }
 
 func (d *Drawing) Header() *header.Header {

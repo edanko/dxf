@@ -11,21 +11,21 @@ import (
 type Entity interface {
 	IsEntity() bool
 	Format(format.Formatter)
-	Handle() int
-	SetHandle(*int)
 	SetBlockRecord(handle.Handler)
 	Layer() *table.Layer
 	SetLayer(*table.Layer)
 	SetLtscale(float64)
 	BBox() ([]float64, []float64)
 	SetColor(color.ColorNumber)
+
+	handle.Handler
 }
 
 // entity is common part of Entities.
 // It is embedded in each entities to implement Entity interface.
 type entity struct {
 	Type        EntityType        // 0
-	handle      int               // 5
+	handle      string            // 5
 	blockRecord handle.Handler    // 102 330
 	owner       handle.Handler    // 330
 	layer       *table.Layer      // 8
@@ -37,7 +37,6 @@ type entity struct {
 func NewEntity(t EntityType) *entity {
 	e := &entity{
 		Type:        t,
-		handle:      0,
 		blockRecord: nil,
 		owner:       nil,
 		ltscale:     1.0,
@@ -54,14 +53,14 @@ func (e *entity) SetColor(cl color.ColorNumber) {
 // Format writes data to formatter.
 func (e *entity) Format(f format.Formatter) {
 	f.WriteString(0, EntityTypeString(e.Type))
-	f.WriteHex(5, e.handle)
+	f.WriteString(5, e.handle)
 	if e.blockRecord != nil {
 		f.WriteString(102, "{ACAD_REACTORS")
-		f.WriteHex(330, e.blockRecord.Handle())
+		f.WriteString(330, e.blockRecord.Handle())
 		f.WriteString(102, "}")
 	}
 	if e.owner != nil {
-		f.WriteHex(330, e.owner.Handle())
+		f.WriteString(330, e.owner.Handle())
 	}
 	f.WriteString(100, "AcDbEntity")
 	f.WriteString(8, e.layer.Name())
@@ -72,14 +71,13 @@ func (e *entity) Format(f format.Formatter) {
 }
 
 // Handle returns a handle value of TABLE.
-func (e *entity) Handle() int {
+func (e *entity) Handle() string {
 	return e.handle
 }
 
 // SetHandle sets handles to TABLE itself and each SymbolTable.
-func (e *entity) SetHandle(v *int) {
-	e.handle = *v
-	*v++
+func (e *entity) SetHandle(hg *handle.HandleGenerator) {
+	e.handle = hg.Next()
 }
 
 // SetBlockRecord sets BLOCK_RECORD to entity (code 330).

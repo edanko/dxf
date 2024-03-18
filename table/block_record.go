@@ -7,7 +7,7 @@ import (
 
 // BlockRecord represents BLOCK_RECORD SymbolTable.
 type BlockRecord struct {
-	handle int
+	handle string
 	owner  handle.Handler
 	name   string
 }
@@ -27,9 +27,9 @@ func (b *BlockRecord) IsSymbolTable() bool {
 // Format writes data to formatter.
 func (b *BlockRecord) Format(f format.Formatter) {
 	f.WriteString(0, "BLOCK_RECORD")
-	f.WriteHex(5, b.handle)
+	f.WriteString(5, b.handle)
 	if b.owner != nil {
-		f.WriteHex(330, b.owner.Handle())
+		f.WriteString(330, b.owner.Handle())
 	}
 	f.WriteString(100, "AcDbSymbolTableRecord")
 	f.WriteString(100, "AcDbBlockTableRecord")
@@ -40,14 +40,13 @@ func (b *BlockRecord) Format(f format.Formatter) {
 }
 
 // Handle returns a handle value.
-func (b *BlockRecord) Handle() int {
+func (b *BlockRecord) Handle() string {
 	return b.handle
 }
 
 // SetHandle sets a handle.
-func (b *BlockRecord) SetHandle(v *int) {
-	b.handle = *v
-	*v++
+func (b *BlockRecord) SetHandle(hg *handle.HandleGenerator) {
+	b.handle = hg.Next()
 }
 
 // SetOwner sets an owner.

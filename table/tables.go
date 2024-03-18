@@ -3,6 +3,7 @@ package table
 
 import (
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 )
 
 // Tables represents TABLES section.
@@ -49,9 +50,9 @@ func (ts Tables) Add(t *Table) Tables {
 }
 
 // SetHandle sets handles to each table.
-func (ts Tables) SetHandle(h *int) {
+func (ts Tables) SetHandle(hg *handle.HandleGenerator) {
 	for _, t := range ts {
-		t.SetHandle(h)
+		t.SetHandle(hg)
 	}
 }
 
