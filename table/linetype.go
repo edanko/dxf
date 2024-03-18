@@ -75,7 +75,7 @@ func (lt *LineType) Handle() int {
 // SetHandle sets a handle.
 func (lt *LineType) SetHandle(v *int) {
 	lt.handle = *v
-	(*v)++
+	*v++
 }
 
 // SetOwner sets an owner.

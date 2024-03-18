@@ -75,7 +75,7 @@ func (d *AcDbDictionaryWDFLT) Handle() int {
 // SetHandle sets a handle.
 func (d *AcDbDictionaryWDFLT) SetHandle(v *int) {
 	d.handle = *v
-	(*v)++
+	*v++
 }
 
 // AddItem adds new a new item to AcDbDictionaryWDFLT.

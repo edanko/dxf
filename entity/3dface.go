@@ -20,10 +20,10 @@ func (f *ThreeDFace) IsEntity() bool {
 func New3DFace() *ThreeDFace {
 	f := &ThreeDFace{
 		entity: NewEntity(THREEDFACE),
-		Points: [][]float64{[]float64{0.0, 0.0, 0.0},
-			[]float64{0.0, 0.0, 0.0},
-			[]float64{0.0, 0.0, 0.0},
-			[]float64{0.0, 0.0, 0.0},
+		Points: [][]float64{{0.0, 0.0, 0.0},
+			{0.0, 0.0, 0.0},
+			{0.0, 0.0, 0.0},
+			{0.0, 0.0, 0.0},
 		},
 		Flag: 0,
 	}

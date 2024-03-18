@@ -59,7 +59,7 @@ func (b *BlockRecord) Handle() int {
 // SetHandle sets a handle.
 func (b *BlockRecord) SetHandle(v *int) {
 	b.handle = *v
-	(*v)++
+	*v++
 }
 
 // SetOwner sets an owner.

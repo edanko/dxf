@@ -62,7 +62,7 @@ func (t *Table) Handle() int {
 // SetHandle sets handles to TABLE itself and each SymbolTable.
 func (t *Table) SetHandle(v *int) {
 	t.handle = *v
-	(*v)++
+	*v++
 	for i := 0; i < t.size; i++ {
 		t.tables[i].SetHandle(v)
 	}

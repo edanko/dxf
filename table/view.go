@@ -56,7 +56,7 @@ func (v *View) Handle() int {
 // SetHandle sets a handle.
 func (v *View) SetHandle(h *int) {
 	v.handle = *h
-	(*h)++
+	*h++
 }
 
 // SetOwner sets an owner.

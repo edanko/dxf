@@ -83,7 +83,7 @@ func (p *Polyline) SetHandle(h *int) {
 		v.SetHandle(h)
 	}
 	p.endhandle = *h
-	(*h)++
+	*h++
 }
 
 func (p *Polyline) BBox() ([]float64, []float64) {

@@ -71,7 +71,7 @@ func (d *Dictionary) Handle() int {
 // SetHandle sets a handle.
 func (d *Dictionary) SetHandle(v *int) {
 	d.handle = *v
-	(*v)++
+	*v++
 	for _, val := range d.item {
 		val.SetHandle(v)
 	}

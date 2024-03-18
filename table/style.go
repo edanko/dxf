@@ -75,7 +75,7 @@ func (st *Style) Handle() int {
 // SetHandle sets a handle.
 func (st *Style) SetHandle(v *int) {
 	st.handle = *v
-	(*v)++
+	*v++
 }
 
 // SetOwner sets an owner.

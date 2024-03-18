@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	d := dxf.NewDrawing()
+	d, _ := dxf.NewDrawing()
 	d.Header().LtScale = 100.0
 	d.AddLayer("Toroidal", color.White, d.LtContinuous(), true)
 	d.AddLayer("Poloidal", color.Red, d.LtHidden(), true)

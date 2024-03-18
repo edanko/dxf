@@ -91,7 +91,7 @@ func (e *entity) Handle() int {
 // SetHandle sets handles to TABLE itself and each SymbolTable.
 func (e *entity) SetHandle(v *int) {
 	e.handle = *v
-	(*v)++
+	*v++
 }
 
 // SetBlockRecord sets BLOCK_RECORD to entity (code 330).

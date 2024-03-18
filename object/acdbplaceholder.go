@@ -57,5 +57,5 @@ func (p *AcDbPlaceHolder) Handle() int {
 // SetHandle sets a handle.
 func (p *AcDbPlaceHolder) SetHandle(v *int) {
 	p.handle = *v
-	(*v)++
+	*v++
 }

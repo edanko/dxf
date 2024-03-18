@@ -15,7 +15,7 @@ import (
 )
 
 // NewDrawing creates a drawing.
-func NewDrawing() *drawing.Drawing {
+func NewDrawing() (*drawing.Drawing, error) {
 	return drawing.New()
 }
 
@@ -38,9 +38,11 @@ func FromStringData(d string) (*drawing.Drawing, error) {
 
 // Main logic to create a drawing
 func FromReader(r io.Reader) (*drawing.Drawing, error) {
-	var err error
 	scanner := bufio.NewScanner(r)
-	d := NewDrawing()
+	d, err := NewDrawing()
+	if err != nil {
+		return nil, err
+	}
 	var code, value string
 	parsers := []func(*drawing.Drawing, int, [][2]string) error{
 		ParseHeader,
@@ -59,9 +61,6 @@ func FromReader(r io.Reader) (*drawing.Drawing, error) {
 		line++
 		if line%2 == 1 {
 			code = strings.TrimSpace(scanner.Text())
-			if err != nil {
-				return d, err
-			}
 		} else {
 			value = scanner.Text()
 			if setparser {

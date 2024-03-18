@@ -56,7 +56,7 @@ func (u *Ucs) Handle() int {
 // SetHandle sets a handle.
 func (u *Ucs) SetHandle(h *int) {
 	u.handle = *h
-	(*h)++
+	*h++
 }
 
 // SetOwner sets an owner.

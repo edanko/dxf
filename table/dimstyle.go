@@ -57,7 +57,7 @@ func (d *DimStyle) Handle() int {
 // SetHandle sets a handle.
 func (d *DimStyle) SetHandle(v *int) {
 	d.handle = *v
-	(*v)++
+	*v++
 }
 
 // SetOwner sets an owner.

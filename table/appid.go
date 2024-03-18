@@ -57,7 +57,7 @@ func (a *AppID) Handle() int {
 // SetHandle sets a handle.
 func (a *AppID) SetHandle(v *int) {
 	a.handle = *v
-	(*v)++
+	*v++
 }
 
 // SetOwner sets an owner.

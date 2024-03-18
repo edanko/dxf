@@ -70,7 +70,7 @@ func (l *Layer) Handle() int {
 // SetHandle sets a handle.
 func (l *Layer) SetHandle(v *int) {
 	l.handle = *v
-	(*v)++
+	*v++
 }
 
 // SetOwner sets an owner.
