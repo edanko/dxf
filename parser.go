@@ -906,6 +906,8 @@ func ParseText(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 			err = setFloat(dt, func(val float64) { t.Coord2[2] = val })
 		case "40":
 			err = setFloat(dt, func(val float64) { t.Height = val })
+		case "41":
+			err = setFloat(dt, func(val float64) { t.WidthFactor = val })
 		case "50":
 			err = setFloat(dt, func(val float64) { t.Rotation = val })
 		case "1":
@@ -956,6 +958,8 @@ func ParseMText(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 			err = setFloat(dt, func(val float64) { t.Coord2[2] = val })
 		case "40":
 			err = setFloat(dt, func(val float64) { t.Height = val })
+		case "41":
+			err = setFloat(dt, func(val float64) { t.WidthFactor = val })
 		case "50":
 			err = setFloat(dt, func(val float64) { t.Rotation = val })
 		case "1":
