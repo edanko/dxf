@@ -16,6 +16,7 @@ const (
 	TEXT
 	SPLINE
 	MTEXT
+	SOLID
 )
 
 // EntityTypeString converts EntityType to string.
@@ -44,6 +45,8 @@ func EntityTypeString(t EntityType) string {
 		return "SPLINE"
 	case MTEXT:
 		return "MTEXT"
+	case SOLID:
+		return "SOLID"
 	default:
 		return ""
 	}

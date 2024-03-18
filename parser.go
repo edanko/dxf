@@ -588,6 +588,8 @@ func ParseEntityFunc(t string) (func(*drawing.Drawing, [][2]string) (entity.Enti
 		return ParseText, nil
 	case "MTEXT":
 		return ParseMText, nil
+	case "SOLID":
+		return ParseSolid, nil
 	default:
 		return nil, errors.New("unknown entity type")
 	}
@@ -982,6 +984,61 @@ func ParseMText(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 		}
 	}
 	return t, nil
+}
+
+// ParseSolid parses SOLID entity
+func ParseSolid(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	s := entity.NewSolid()
+	var err error
+	for _, dt := range data {
+		switch dt[0] {
+		default:
+			continue
+		case "8":
+			layer, err := d.Layer(dt[1], false)
+			if err == nil {
+				s.SetLayer(layer)
+			}
+		case "48":
+			err = setFloat(dt, func(val float64) { s.SetLtscale(val) })
+		case "10":
+			err = setFloat(dt, func(val float64) { s.FirstPoint[0] = val })
+		case "20":
+			err = setFloat(dt, func(val float64) { s.FirstPoint[1] = val })
+		case "30":
+			err = setFloat(dt, func(val float64) { s.FirstPoint[2] = val })
+		case "11":
+			err = setFloat(dt, func(val float64) { s.SecondPoint[0] = val })
+		case "21":
+			err = setFloat(dt, func(val float64) { s.SecondPoint[1] = val })
+		case "31":
+			err = setFloat(dt, func(val float64) { s.SecondPoint[2] = val })
+		case "12":
+			err = setFloat(dt, func(val float64) { s.ThirdPoint[0] = val })
+		case "22":
+			err = setFloat(dt, func(val float64) { s.ThirdPoint[1] = val })
+		case "32":
+			err = setFloat(dt, func(val float64) { s.ThirdPoint[2] = val })
+		case "13":
+			err = setFloat(dt, func(val float64) { s.FourthPoint[0] = val })
+		case "23":
+			err = setFloat(dt, func(val float64) { s.FourthPoint[1] = val })
+		case "33":
+			err = setFloat(dt, func(val float64) { s.FourthPoint[2] = val })
+		case "39":
+			err = setFloat(dt, func(val float64) { s.Thickness = val })
+		case "210":
+			err = setFloat(dt, func(val float64) { s.StretchingDirection[0] = val })
+		case "220":
+			err = setFloat(dt, func(val float64) { s.StretchingDirection[1] = val })
+		case "230":
+			err = setFloat(dt, func(val float64) { s.StretchingDirection[2] = val })
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
 }
 
 // OBJECTS
