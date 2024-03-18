@@ -578,6 +578,8 @@ func ParseEntityFunc(t string) (func(*drawing.Drawing, [][2]string) (entity.Enti
 		return ParsePoint, nil
 	case "TEXT":
 		return ParseText, nil
+	case "MTEXT":
+		return ParseMText, nil
 	default:
 		return nil, errors.New("unknown entity type")
 	}
@@ -865,6 +867,56 @@ func ParsePoint(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 // ParseText parses TEXT entities.
 func ParseText(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 	t := entity.NewText()
+	var err error
+	for _, dt := range data {
+		switch dt[0] {
+		default:
+			continue
+		case "8":
+			layer, err := d.Layer(dt[1], false)
+			if err == nil {
+				t.SetLayer(layer)
+			}
+		case "48":
+			err = setFloat(dt, func(val float64) { t.SetLtscale(val) })
+		case "10":
+			err = setFloat(dt, func(val float64) { t.Coord1[0] = val })
+		case "20":
+			err = setFloat(dt, func(val float64) { t.Coord1[1] = val })
+		case "30":
+			err = setFloat(dt, func(val float64) { t.Coord1[2] = val })
+		case "11":
+			err = setFloat(dt, func(val float64) { t.Coord2[0] = val })
+		case "21":
+			err = setFloat(dt, func(val float64) { t.Coord2[1] = val })
+		case "31":
+			err = setFloat(dt, func(val float64) { t.Coord2[2] = val })
+		case "40":
+			err = setFloat(dt, func(val float64) { t.Height = val })
+		case "50":
+			err = setFloat(dt, func(val float64) { t.Rotation = val })
+		case "1":
+			t.Value = dt[1]
+		case "7":
+			if s, ok := d.Styles[dt[1]]; ok {
+				t.Style = s
+			}
+		case "71":
+			err = setInt(dt, func(val int) { t.GenFlag = val })
+		case "72":
+			err = setInt(dt, func(val int) { t.HorizontalFlag = val })
+		case "73":
+			err = setInt(dt, func(val int) { t.VerticalFlag = val })
+		}
+		if err != nil {
+			return t, err
+		}
+	}
+	return t, nil
+}
+
+func ParseMText(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	t := entity.NewMText()
 	var err error
 	for _, dt := range data {
 		switch dt[0] {
