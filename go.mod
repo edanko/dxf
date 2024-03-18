@@ -1,3 +1,3 @@
 module github.com/edanko/dxf
 
-go 1.19
+go 1.25.0
