@@ -45,32 +45,3 @@ func EntityTypeString(t EntityType) string {
 		return ""
 	}
 }
-
-// EntityTypeValue converts string to EntityType.
-// If string is unknown EntityType, it returns -1.
-func EntityTypeValue(t string) EntityType {
-	switch t {
-	case "LINE":
-		return LINE
-	case "3DFACE":
-		return THREEDFACE
-	case "LWPOLYLINE":
-		return LWPOLYLINE
-	case "CIRCLE":
-		return CIRCLE
-	case "POLYLINE":
-		return POLYLINE
-	case "VERTEX":
-		return VERTEX
-	case "POINT":
-		return POINT
-	case "ARC":
-		return ARC
-	case "TEXT":
-		return TEXT
-	case "SPLINE":
-		return SPLINE
-	default:
-		return -1
-	}
-}
