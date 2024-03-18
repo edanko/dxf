@@ -911,7 +911,7 @@ func ParseText(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 		case "1":
 			t.Value = dt[1]
 		case "7":
-			if s, ok := d.Styles[dt[1]]; ok {
+			if s, ok := d.Styles[strings.ToUpper(dt[1])]; ok {
 				t.Style = s
 			}
 		case "71":
@@ -961,7 +961,7 @@ func ParseMText(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 		case "1":
 			t.Value = dt[1]
 		case "7":
-			if s, ok := d.Styles[dt[1]]; ok {
+			if s, ok := d.Styles[strings.ToUpper(dt[1])]; ok {
 				t.Style = s
 			}
 		case "71":
