@@ -37,7 +37,7 @@ type Drawing struct {
 }
 
 // New creates a new Drawing.
-func New() *Drawing {
+func New() (*Drawing, error) {
 	d := new(Drawing)
 
 	lineTypes := []*table.LineType{
@@ -68,15 +68,21 @@ func New() *Drawing {
 	d.dictionary = object.NewDictionary()
 	d.addObject(d.dictionary)
 	wd, ph := object.NewAcDbDictionaryWDFLT(d.dictionary)
-	d.dictionary.AddItem("ACAD_PLOTSTYLENAME", wd)
+	err := d.dictionary.AddItem("ACAD_PLOTSTYLENAME", wd)
+	if err != nil {
+		return nil, err
+	}
 	d.addObject(wd)
 	d.addObject(ph)
 	d.groupdict = object.NewDictionary()
 	d.addObject(d.groupdict)
-	d.dictionary.AddItem("ACAD_GROUP", d.groupdict)
+	err = d.dictionary.AddItem("ACAD_GROUP", d.groupdict)
+	if err != nil {
+		return nil, err
+	}
 	d.PlotStyle = ph
 	d.Layers["0"].SetPlotStyle(d.PlotStyle)
-	return d
+	return d, nil
 }
 
 func (d *Drawing) saveFile(filename string) error {
@@ -337,7 +343,10 @@ func (d *Drawing) Group(name, desc string, es ...entity.Entity) (*object.Group, 
 	}
 	g := object.NewGroup(name, desc, es...)
 	d.Groups[name] = g
-	g.SetOwner(d.groupdict)
+	err := g.SetOwner(d.groupdict)
+	if err != nil {
+		return nil, err
+	}
 	d.addObject(g)
 	return g, nil
 }

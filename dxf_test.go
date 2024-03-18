@@ -5,7 +5,6 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -75,7 +74,7 @@ func hashFile(filename string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	text, err := ioutil.ReadAll(f)
+	text, err := io.ReadAll(f)
 	f.Close()
 	if err != nil {
 		return "", err
@@ -93,7 +92,7 @@ func TestFromStringData(t *testing.T) {
 		return tc.filename, func(t *testing.T) {
 			tfile := filepath.Join("testdata", tc.filename)
 
-			data, err := ioutil.ReadFile(tfile)
+			data, err := os.ReadFile(tfile)
 			if err != nil {
 				t.Errorf("file, could not open file %v : %v", tfile, err)
 			}
@@ -230,7 +229,7 @@ func TestNewDrawing(t *testing.T) {
 				t.Errorf("hash of file(%v) error, expected nil got %v", tc.filename, err)
 				return
 			}
-			d := drawing.New()
+			d, _ := drawing.New()
 			tc.draw(d)
 			var buff bytes.Buffer
 			_, err = io.Copy(&buff, d)

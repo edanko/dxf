@@ -35,9 +35,9 @@ func NewGroup(name, desc string, es ...entity.Entity) *Group {
 }
 
 // SetOwner sets an owner(Dictionary).
-func (g *Group) SetOwner(d *Dictionary) {
+func (g *Group) SetOwner(d *Dictionary) error {
 	g.owner = d
-	d.AddItem(g.Name, g)
+	return d.AddItem(g.Name, g)
 }
 
 // Format writes data to formatter.
@@ -81,7 +81,7 @@ func (g *Group) Handle() int {
 // SetHandle sets a handle.
 func (g *Group) SetHandle(v *int) {
 	g.handle = *v
-	(*v)++
+	*v++
 }
 
 // AddEntity adds entities to Group.

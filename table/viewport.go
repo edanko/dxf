@@ -119,7 +119,7 @@ func (v *Viewport) Handle() int {
 // SetHandle sets a handle.
 func (v *Viewport) SetHandle(h *int) {
 	v.handle = *h
-	(*h)++
+	*h++
 }
 
 // SetOwner sets an owner.

@@ -10,27 +10,27 @@ import (
 type Unit uint8
 
 const (
-	Unitless     Unit = 0
-	Inches            = 1
-	Feet              = 2
-	Miles             = 3
-	Millimeters       = 4
-	Centimeters       = 5
-	Meters            = 6
-	Kilometers        = 7
-	Microinches       = 8
-	Mils              = 9
-	Yards             = 10
-	Angstroms         = 11
-	Nanometers        = 12
-	Microns           = 13
-	Decimeters        = 14
-	Decameters        = 15
-	Hectometers       = 16
-	Gigameters        = 17
-	Astronomical      = 18
-	LightYears        = 19
-	Parsecs           = 20
+	Unitless Unit = iota
+	Inches
+	Feet
+	Miles
+	Millimeters
+	Centimeters
+	Meters
+	Kilometers
+	Microinches
+	Mils
+	Yards
+	Angstroms
+	Nanometers
+	Microns
+	Decimeters
+	Decameters
+	Hectometers
+	Gigameters
+	Astronomical
+	LightYears
+	Parsecs
 )
 
 func (u Unit) Format(f format.Formatter) {

@@ -69,9 +69,9 @@ func (b *Block) Handle() int {
 // SetHandle sets handles to BLOCK and ENDBLK.
 func (b *Block) SetHandle(v *int) {
 	b.handle = *v
-	(*v)++
+	*v++
 	b.endhandle = *v
-	(*v)++
+	*v++
 }
 
 // Layer returns BLOCK's Layer.
