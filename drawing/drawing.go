@@ -28,10 +28,17 @@ type Drawing struct {
 	CurrentLayer *table.Layer
 	CurrentStyle *table.Style
 	formatter    format.Formatter
-	Sections     []Section
-	dictionary   *object.Dictionary
-	groupdict    *object.Dictionary
-	PlotStyle    handle.Handler
+
+	headerSection   *header.Header
+	classesSection  class.Classes
+	tablesSection   table.Tables
+	blocksSection   block.Blocks
+	entitiesSection entity.Entities
+	objectsSection  object.Objects
+
+	dictionary *object.Dictionary
+	groupdict  *object.Dictionary
+	PlotStyle  handle.Handler
 	// savebuff is used internally for the io.Reader options.
 	savebuff *bytes.Buffer
 }
@@ -57,14 +64,14 @@ func New() (*Drawing, error) {
 	d.CurrentStyle = d.Styles["STANDARD"]
 	d.formatter = format.NewASCII()
 	d.formatter.SetPrecision(16)
-	d.Sections = []Section{
-		header.New(),
-		class.New(),
-		table.New(lineTypes, d.Layers["0"], d.Styles["STANDARD"]),
-		block.New(d.Layers["0"]),
-		entity.New(),
-		object.New(),
-	}
+
+	d.headerSection = header.New()
+	d.classesSection = class.New()
+	d.tablesSection = table.New(lineTypes, d.Layers["0"], d.Styles["STANDARD"])
+	d.blocksSection = block.New(d.Layers["0"])
+	d.entitiesSection = entity.New()
+	d.objectsSection = object.New()
+
 	d.dictionary = object.NewDictionary()
 	d.addObject(d.dictionary)
 	wd, ph := object.NewAcDbDictionaryWDFLT(d.dictionary)
@@ -113,14 +120,22 @@ func (d *Drawing) SaveAs(filename string) error {
 // setHandle sets all the handles contained in Drawing.
 func (d *Drawing) setHandle() {
 	h := 1
-	for _, s := range d.Sections[1:] {
-		s.SetHandle(&h)
-	}
-	d.Sections[0].SetHandle(&h)
+
+	d.classesSection.SetHandle(&h)
+	d.tablesSection.SetHandle(&h)
+	d.blocksSection.SetHandle(&h)
+	d.entitiesSection.SetHandle(&h)
+	d.objectsSection.SetHandle(&h)
+
+	d.headerSection.SetHandle(&h)
 }
 
 func (d *Drawing) Header() *header.Header {
-	return d.Sections[0].(*header.Header)
+	return d.headerSection
+}
+
+func (d *Drawing) Tables() table.Tables {
+	return d.tablesSection
 }
 
 // Layer returns the named layer if exists.
@@ -147,7 +162,7 @@ func (d *Drawing) AddLayer(name string, cl color.ColorNumber, lt *table.LineType
 	l := table.NewLayer(name, cl, lt)
 	l.SetPlotStyle(d.PlotStyle)
 	d.Layers[name] = l
-	d.Sections[2].(table.Tables).AddLayer(l)
+	d.tablesSection.AddLayer(l)
 	if setcurrent {
 		d.CurrentLayer = l
 	}
@@ -188,7 +203,7 @@ func (d *Drawing) AddStyle(name string, fontname, bigfontname string, setcurrent
 	s.FontName = fontname
 	s.BigFontName = bigfontname
 	d.Styles[name] = s
-	d.Sections[TABLES].(table.Tables)[table.STYLE].Add(s)
+	d.tablesSection[table.STYLE].Add(s)
 	if setcurrent {
 		d.CurrentStyle = s
 	}
@@ -197,7 +212,7 @@ func (d *Drawing) AddStyle(name string, fontname, bigfontname string, setcurrent
 
 // LineType returns the named line type if exists.
 func (d *Drawing) LineType(name string) (*table.LineType, error) {
-	lt, err := d.Sections[TABLES].(table.Tables)[table.LTYPE].Contains(name)
+	lt, err := d.tablesSection[table.LTYPE].Contains(name)
 	if err != nil {
 		return nil, fmt.Errorf("linetype %s", err.Error())
 	}
@@ -206,23 +221,23 @@ func (d *Drawing) LineType(name string) (*table.LineType, error) {
 
 // AddLineType adds a new linetype.
 func (d *Drawing) AddLineType(name string, desc string, ls ...float64) (*table.LineType, error) {
-	lt, _ := d.Sections[TABLES].(table.Tables)[table.LTYPE].Contains(name)
+	lt, _ := d.tablesSection[table.LTYPE].Contains(name)
 	if lt != nil {
 		return lt.(*table.LineType), fmt.Errorf("linetype %s already exists", name)
 	}
 	newlt := table.NewLineType(name, desc, ls...)
-	d.Sections[TABLES].(table.Tables)[table.LTYPE].Add(newlt)
+	d.tablesSection[table.LTYPE].Add(newlt)
 	return newlt, nil
 }
 
 // Entities returns slice of all entities contained in Drawing.
 func (d *Drawing) Entities() entity.Entities {
-	return d.Sections[ENTITIES].(entity.Entities)
+	return d.entitiesSection
 }
 
 // AddEntity adds a new entity.
 func (d *Drawing) AddEntity(e entity.Entity) {
-	d.Sections[4] = d.Sections[4].(entity.Entities).Add(e)
+	d.entitiesSection = d.entitiesSection.Add(e)
 }
 
 // Point creates a new POINT at (x, y, z).
@@ -331,7 +346,7 @@ func (d *Drawing) Text(str string, x, y, z, height float64) (*entity.Text, error
 }
 
 func (d *Drawing) addObject(o object.Object) {
-	d.Sections[5] = d.Sections[5].(object.Objects).Add(o)
+	d.objectsSection = d.objectsSection.Add(o)
 }
 
 // Group adds given entities to the named group.
@@ -370,9 +385,13 @@ func (d *Drawing) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	d.setHandle()
 	d.formatter.Reset()
-	for _, s := range d.Sections {
-		s.Format(d.formatter)
-	}
+	d.headerSection.Format(d.formatter)
+	d.classesSection.Format(d.formatter)
+	d.tablesSection.Format(d.formatter)
+	d.blocksSection.Format(d.formatter)
+	d.entitiesSection.Format(d.formatter)
+	d.objectsSection.Format(d.formatter)
+
 	d.formatter.WriteString(0, "EOF")
 	return d.formatter.WriteTo(w)
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/drawing"
 	"github.com/edanko/dxf/entity"
-	"github.com/edanko/dxf/header"
 	"github.com/edanko/dxf/insunit"
 	"github.com/edanko/dxf/table"
 )
@@ -39,7 +38,7 @@ func setInt(data [2]string, f func(int)) error {
 
 // ParseHeader parses HEADER section.
 func ParseHeader(d *drawing.Drawing, line int, data [][2]string) error {
-	h := d.Sections[drawing.HEADER].(*header.Header)
+	h := d.Header()
 	var name string
 	var err error
 	for _, dt := range data {
@@ -168,7 +167,7 @@ func ParseTables(d *drawing.Drawing, line int, data [][2]string) error {
 
 // ParseTable parses each TABLE, which starts with "0\nTABLE\n" and ends with "0\nENDTAB\n".
 func ParseTable(d *drawing.Drawing, data [][2]string, index int, parser func(*drawing.Drawing, [][2]string) (table.SymbolTable, error)) error {
-	t := d.Sections[drawing.TABLES].(table.Tables)[index]
+	t := d.Tables()[index]
 	t.Clear()
 	tmpdata := make([][2]string, 0)
 	add := false // skip before first 0-code
