@@ -358,6 +358,7 @@ func ParseLayer(d *drawing.Drawing, data [][2]string) (table.SymbolTable, error)
 // ParseStyle parses STYLE tables.
 func ParseStyle(d *drawing.Drawing, data [][2]string) (table.SymbolTable, error) {
 	var name, font, bigfont string
+	lastHeightUsed := 100.0
 	for _, dt := range data {
 		switch dt[0] {
 		case "2":
@@ -366,11 +367,18 @@ func ParseStyle(d *drawing.Drawing, data [][2]string) (table.SymbolTable, error)
 			font = dt[1]
 		case "4":
 			bigfont = dt[1]
+		case "42":
+			var err error
+			lastHeightUsed, err = strconv.ParseFloat(dt[1], 64)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	s := table.NewStyle(name)
 	s.FontName = font
 	s.BigFontName = bigfont
+	s.LastHeightUsed = lastHeightUsed
 	return s, nil
 }
 
