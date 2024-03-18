@@ -922,6 +922,8 @@ func ParseText(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 			err = setInt(dt, func(val int) { t.HorizontalFlag = val })
 		case "73":
 			err = setInt(dt, func(val int) { t.VerticalFlag = val })
+		case "62":
+			err = setInt(dt, func(val int) { t.SetColor(color.ColorNumber(val)) })
 		}
 		if err != nil {
 			return t, err
