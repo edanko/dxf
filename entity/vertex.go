@@ -37,18 +37,6 @@ func (v *Vertex) Format(f format.Formatter) {
 	f.WriteInt(70, v.Flag)
 }
 
-// String outputs data using default formatter.
-func (v *Vertex) String() string {
-	f := format.NewASCII()
-	return v.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (v *Vertex) FormatString(f format.Formatter) string {
-	v.Format(f)
-	return f.Output()
-}
-
 func (v *Vertex) BBox() ([]float64, []float64) {
 	mins := []float64{v.Coord[0], v.Coord[1], v.Coord[2]}
 	maxs := []float64{v.Coord[0], v.Coord[1], v.Coord[2]}

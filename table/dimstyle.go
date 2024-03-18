@@ -37,18 +37,6 @@ func (d *DimStyle) Format(f format.Formatter) {
 	f.WriteInt(70, 0)
 }
 
-// String outputs data using default formatter.
-func (d *DimStyle) String() string {
-	f := format.NewASCII()
-	return d.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (d *DimStyle) FormatString(f format.Formatter) string {
-	d.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (d *DimStyle) Handle() int {
 	return d.handle

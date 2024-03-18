@@ -50,18 +50,6 @@ func (l *Layer) Format(f format.Formatter) {
 	f.WriteHex(390, l.PlotStyle.Handle())
 }
 
-// String outputs data using default formatter.
-func (l *Layer) String() string {
-	f := format.NewASCII()
-	return l.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (l *Layer) FormatString(f format.Formatter) string {
-	l.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (l *Layer) Handle() int {
 	return l.handle

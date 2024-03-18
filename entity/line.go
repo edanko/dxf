@@ -40,18 +40,6 @@ func (l *Line) Format(f format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (l *Line) String() string {
-	f := format.NewASCII()
-	return l.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (l *Line) FormatString(f format.Formatter) string {
-	l.Format(f)
-	return f.Output()
-}
-
 func (l *Line) BBox() ([]float64, []float64) {
 	mins := make([]float64, 3)
 	maxs := make([]float64, 3)

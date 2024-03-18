@@ -49,18 +49,6 @@ func (p *Polyline) Format(f format.Formatter) {
 	f.WriteString(8, p.Layer().Name())
 }
 
-// String outputs data using default formatter.
-func (p *Polyline) String() string {
-	f := format.NewASCII()
-	return p.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (p *Polyline) FormatString(f format.Formatter) string {
-	p.Format(f)
-	return f.Output()
-}
-
 // Close closes Polyline.
 func (p *Polyline) Close() {
 	p.Flag |= 1

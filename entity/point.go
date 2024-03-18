@@ -45,18 +45,6 @@ func (p *Point) Format(f format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (p *Point) String() string {
-	f := format.NewASCII()
-	return p.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (p *Point) FormatString(f format.Formatter) string {
-	p.Format(f)
-	return f.Output()
-}
-
 func (p *Point) BBox() ([]float64, []float64) {
 	return []float64{p.Coord[0], p.Coord[1], p.Coord[2]}, []float64{p.Coord[0], p.Coord[1], p.Coord[2]}
 }

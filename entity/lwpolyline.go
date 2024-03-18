@@ -49,18 +49,6 @@ func (l *LwPolyline) Format(f format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (l *LwPolyline) String() string {
-	f := format.NewASCII()
-	return l.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (l *LwPolyline) FormatString(f format.Formatter) string {
-	l.Format(f)
-	return f.Output()
-}
-
 // Close closes LwPolyline.
 func (l *LwPolyline) Close() {
 	l.Closed = true

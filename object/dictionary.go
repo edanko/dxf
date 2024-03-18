@@ -51,18 +51,6 @@ func (d *Dictionary) Format(f format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (d *Dictionary) String() string {
-	f := format.NewASCII()
-	return d.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (d *Dictionary) FormatString(f format.Formatter) string {
-	d.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (d *Dictionary) Handle() int {
 	return d.handle

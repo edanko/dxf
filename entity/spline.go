@@ -66,18 +66,6 @@ func (s *Spline) Format(f format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (s *Spline) String() string {
-	f := format.NewASCII()
-	return s.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (s *Spline) FormatString(f format.Formatter) string {
-	s.Format(f)
-	return f.Output()
-}
-
 // func (s *Spline) BBox() ([]float64, []float64) {
 // 	mins := make([]float64, 3)
 // 	maxs := make([]float64, 3)

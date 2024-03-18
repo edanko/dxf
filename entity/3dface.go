@@ -44,18 +44,6 @@ func (f *ThreeDFace) Format(fm format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (f *ThreeDFace) String() string {
-	fm := format.NewASCII()
-	return f.FormatString(fm)
-}
-
-// FormatString outputs data using given formatter.
-func (f *ThreeDFace) FormatString(fm format.Formatter) string {
-	f.Format(fm)
-	return fm.Output()
-}
-
 func (f *ThreeDFace) BBox() ([]float64, []float64) {
 	mins := make([]float64, 3)
 	maxs := make([]float64, 3)

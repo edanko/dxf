@@ -37,18 +37,6 @@ func (p *AcDbPlaceHolder) Format(f format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (p *AcDbPlaceHolder) String() string {
-	f := format.NewASCII()
-	return p.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (p *AcDbPlaceHolder) FormatString(f format.Formatter) string {
-	p.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (p *AcDbPlaceHolder) Handle() int {
 	return p.handle

@@ -49,18 +49,6 @@ func (b *Block) Format(f format.Formatter) {
 	f.WriteString(100, "AcDbBlockEnd")
 }
 
-// String outputs data using default formatter.
-func (b *Block) String() string {
-	f := format.NewASCII()
-	return b.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (b *Block) FormatString(f format.Formatter) string {
-	b.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value of BLOCK.
 func (b *Block) Handle() int {
 	return b.handle

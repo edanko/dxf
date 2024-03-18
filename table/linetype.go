@@ -55,18 +55,6 @@ func (lt *LineType) Format(f format.Formatter) {
 	}
 }
 
-// String outputs data using default formatter.
-func (lt *LineType) String() string {
-	f := format.NewASCII()
-	return lt.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (lt *LineType) FormatString(f format.Formatter) string {
-	lt.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (lt *LineType) Handle() int {
 	return lt.handle

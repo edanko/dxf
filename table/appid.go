@@ -37,18 +37,6 @@ func (a *AppID) Format(f format.Formatter) {
 	f.WriteInt(70, 0)
 }
 
-// String outputs data using default formatter.
-func (a *AppID) String() string {
-	f := format.NewASCII()
-	return a.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (a *AppID) FormatString(f format.Formatter) string {
-	a.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (a *AppID) Handle() int {
 	return a.handle

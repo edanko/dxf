@@ -55,18 +55,6 @@ func (d *AcDbDictionaryWDFLT) Format(f format.Formatter) {
 	f.WriteHex(340, d.defaulthandle.Handle())
 }
 
-// String outputs data using default formatter.
-func (d *AcDbDictionaryWDFLT) String() string {
-	f := format.NewASCII()
-	return d.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (d *AcDbDictionaryWDFLT) FormatString(f format.Formatter) string {
-	d.Format(f)
-	return f.Output()
-}
-
 // Handle returns a handle value.
 func (d *AcDbDictionaryWDFLT) Handle() int {
 	return d.handle
