@@ -10,7 +10,7 @@ import (
 
 // Dictionary represents DICTIONARY Object.
 type Dictionary struct {
-	handle int
+	handle string
 	item   map[string]handle.Handler
 }
 
@@ -23,8 +23,7 @@ func (d *Dictionary) IsObject() bool {
 func NewDictionary() *Dictionary {
 	ds := make(map[string]handle.Handler)
 	d := &Dictionary{
-		handle: 0,
-		item:   ds,
+		item: ds,
 	}
 	return d
 }
@@ -32,7 +31,7 @@ func NewDictionary() *Dictionary {
 // Format writes data to formatter.
 func (d *Dictionary) Format(f format.Formatter) {
 	f.WriteString(0, "DICTIONARY")
-	f.WriteHex(5, d.handle)
+	f.WriteString(5, d.handle)
 	f.WriteString(100, "AcDbDictionary")
 	f.WriteInt(281, 1)
 	keys := make([]string, len(d.item))
@@ -47,21 +46,20 @@ func (d *Dictionary) Format(f format.Formatter) {
 
 	for _, k := range keys {
 		f.WriteString(3, k)
-		f.WriteHex(350, d.item[k].Handle())
+		f.WriteString(350, d.item[k].Handle())
 	}
 }
 
 // Handle returns a handle value.
-func (d *Dictionary) Handle() int {
+func (d *Dictionary) Handle() string {
 	return d.handle
 }
 
 // SetHandle sets a handle.
-func (d *Dictionary) SetHandle(v *int) {
-	d.handle = *v
-	*v++
+func (d *Dictionary) SetHandle(hg *handle.HandleGenerator) {
+	d.handle = hg.Next()
 	for _, val := range d.item {
-		val.SetHandle(v)
+		val.SetHandle(hg)
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 
 // AcDbPlaceHolder represents ACDBPLACEHOLDER Object.
 type AcDbPlaceHolder struct {
-	handle int
+	handle string
 	owner  handle.Handler
 }
 
@@ -19,8 +19,7 @@ func (p *AcDbPlaceHolder) IsObject() bool {
 // NewAcDbPlaceHolder creates a new AcDbPlaceHolder.
 func NewAcDbPlaceHolder() *AcDbPlaceHolder {
 	p := &AcDbPlaceHolder{
-		handle: 0,
-		owner:  nil,
+		owner: nil,
 	}
 	return p
 }
@@ -28,22 +27,21 @@ func NewAcDbPlaceHolder() *AcDbPlaceHolder {
 // Format writes data to formatter.
 func (p *AcDbPlaceHolder) Format(f format.Formatter) {
 	f.WriteString(0, "ACDBPLACEHOLDER")
-	f.WriteHex(5, p.handle)
+	f.WriteString(5, p.handle)
 	if p.owner != nil {
 		f.WriteString(102, "{ACAD_REACTORS")
-		f.WriteHex(330, p.owner.Handle())
+		f.WriteString(330, p.owner.Handle())
 		f.WriteString(102, "}")
-		f.WriteHex(330, p.owner.Handle())
+		f.WriteString(330, p.owner.Handle())
 	}
 }
 
 // Handle returns a handle value.
-func (p *AcDbPlaceHolder) Handle() int {
+func (p *AcDbPlaceHolder) Handle() string {
 	return p.handle
 }
 
 // SetHandle sets a handle.
-func (p *AcDbPlaceHolder) SetHandle(v *int) {
-	p.handle = *v
-	*v++
+func (p *AcDbPlaceHolder) SetHandle(hg *handle.HandleGenerator) {
+	p.handle = hg.Next()
 }

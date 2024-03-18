@@ -9,7 +9,7 @@ import (
 
 // LineType represents LTYPE SymbolTable.
 type LineType struct {
-	handle      int
+	handle      string
 	owner       handle.Handler
 	name        string // 2
 	Description string // 3
@@ -37,9 +37,9 @@ func (lt *LineType) IsSymbolTable() bool {
 // Format writes data to formatter.
 func (lt *LineType) Format(f format.Formatter) {
 	f.WriteString(0, "LTYPE")
-	f.WriteHex(5, lt.handle)
+	f.WriteString(5, lt.handle)
 	if lt.owner != nil {
-		f.WriteHex(330, lt.owner.Handle())
+		f.WriteString(330, lt.owner.Handle())
 	}
 	f.WriteString(100, "AcDbSymbolTableRecord")
 	f.WriteString(100, "AcDbLinetypeTableRecord")
@@ -56,14 +56,13 @@ func (lt *LineType) Format(f format.Formatter) {
 }
 
 // Handle returns a handle value.
-func (lt *LineType) Handle() int {
+func (lt *LineType) Handle() string {
 	return lt.handle
 }
 
 // SetHandle sets a handle.
-func (lt *LineType) SetHandle(v *int) {
-	lt.handle = *v
-	*v++
+func (lt *LineType) SetHandle(hg *handle.HandleGenerator) {
+	lt.handle = hg.Next()
 }
 
 // SetOwner sets an owner.

@@ -2,6 +2,7 @@ package entity
 
 import (
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 )
 
 // Polyline represents POLYLINE Entity.
@@ -10,7 +11,7 @@ type Polyline struct {
 	Flag      int
 	size      int
 	Vertices  []*Vertex
-	endhandle int
+	endhandle string
 }
 
 // IsEntity is for Entity interface.
@@ -22,11 +23,10 @@ func (p *Polyline) IsEntity() bool {
 func NewPolyline() *Polyline {
 	vs := make([]*Vertex, 0)
 	p := &Polyline{
-		entity:    NewEntity(POLYLINE),
-		Flag:      8,
-		size:      0,
-		Vertices:  vs,
-		endhandle: 0,
+		entity:   NewEntity(POLYLINE),
+		Flag:     8,
+		size:     0,
+		Vertices: vs,
 	}
 	return p
 }
@@ -44,7 +44,7 @@ func (p *Polyline) Format(f format.Formatter) {
 		v.Format(f)
 	}
 	f.WriteString(0, "SEQEND")
-	f.WriteHex(5, p.endhandle)
+	f.WriteString(5, p.endhandle)
 	f.WriteString(100, "AcDbEntity")
 	f.WriteString(8, p.Layer().Name())
 }
@@ -65,13 +65,12 @@ func (p *Polyline) AddVertex(x, y, z float64) *Vertex {
 }
 
 // SetHandle sets handles to itself and its vertices.
-func (p *Polyline) SetHandle(h *int) {
-	p.entity.SetHandle(h)
+func (p *Polyline) SetHandle(hg *handle.HandleGenerator) {
+	p.entity.SetHandle(hg)
 	for _, v := range p.Vertices {
-		v.SetHandle(h)
+		v.SetHandle(hg)
 	}
-	p.endhandle = *h
-	*h++
+	p.endhandle = hg.Next()
 }
 
 func (p *Polyline) BBox() ([]float64, []float64) {

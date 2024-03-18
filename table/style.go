@@ -7,7 +7,7 @@ import (
 
 // Style represents STYLE SymbolTable.
 type Style struct {
-	handle          int
+	handle          string
 	owner           handle.Handler
 	name            string  // 2
 	FontName        string  // 3
@@ -38,9 +38,9 @@ func (st *Style) IsSymbolTable() bool {
 // Format writes data to formatter.
 func (st *Style) Format(f format.Formatter) {
 	f.WriteString(0, "STYLE")
-	f.WriteHex(5, st.handle)
+	f.WriteString(5, st.handle)
 	if st.owner != nil {
-		f.WriteHex(330, st.owner.Handle())
+		f.WriteString(330, st.owner.Handle())
 	}
 	f.WriteString(100, "AcDbSymbolTableRecord")
 	f.WriteString(100, "AcDbTextStyleTableRecord")
@@ -56,14 +56,13 @@ func (st *Style) Format(f format.Formatter) {
 }
 
 // Handle returns a handle value.
-func (st *Style) Handle() int {
+func (st *Style) Handle() string {
 	return st.handle
 }
 
 // SetHandle sets a handle.
-func (st *Style) SetHandle(v *int) {
-	st.handle = *v
-	*v++
+func (st *Style) SetHandle(hg *handle.HandleGenerator) {
+	st.handle = hg.Next()
 }
 
 // SetOwner sets an owner.

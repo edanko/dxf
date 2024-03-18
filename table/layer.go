@@ -8,7 +8,7 @@ import (
 
 // Layer represents LAYER SymbolTable.
 type Layer struct {
-	handle    int
+	handle    string
 	owner     handle.Handler
 	name      string
 	flag      int
@@ -36,9 +36,9 @@ func (l *Layer) IsSymbolTable() bool {
 // Format writes data to formatter.
 func (l *Layer) Format(f format.Formatter) {
 	f.WriteString(0, "LAYER")
-	f.WriteHex(5, l.handle)
+	f.WriteString(5, l.handle)
 	if l.owner != nil {
-		f.WriteHex(330, l.owner.Handle())
+		f.WriteString(330, l.owner.Handle())
 	}
 	f.WriteString(100, "AcDbSymbolTableRecord")
 	f.WriteString(100, "AcDbLayerTableRecord")
@@ -47,18 +47,17 @@ func (l *Layer) Format(f format.Formatter) {
 	f.WriteInt(62, int(l.Color))
 	f.WriteString(6, l.LineType.Name())
 	f.WriteInt(370, l.lineWidth)
-	f.WriteHex(390, l.PlotStyle.Handle())
+	f.WriteString(390, l.PlotStyle.Handle())
 }
 
 // Handle returns a handle value.
-func (l *Layer) Handle() int {
+func (l *Layer) Handle() string {
 	return l.handle
 }
 
 // SetHandle sets a handle.
-func (l *Layer) SetHandle(v *int) {
-	l.handle = *v
-	*v++
+func (l *Layer) SetHandle(hg *handle.HandleGenerator) {
+	l.handle = hg.Next()
 }
 
 // SetOwner sets an owner.

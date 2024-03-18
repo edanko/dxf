@@ -9,7 +9,7 @@ import (
 
 // AcDbDictionaryWDFLT represents ACDBDICTIONARYWDFLT Object.
 type AcDbDictionaryWDFLT struct {
-	handle        int
+	handle        string
 	item          map[string]handle.Handler
 	owner         handle.Handler
 	defaulthandle handle.Handler
@@ -26,7 +26,6 @@ func NewAcDbDictionaryWDFLT(owner handle.Handler) (*AcDbDictionaryWDFLT, *AcDbPl
 	p := NewAcDbPlaceHolder()
 	ds["Normal"] = p
 	d := &AcDbDictionaryWDFLT{
-		handle:        0,
 		item:          ds,
 		owner:         owner,
 		defaulthandle: p,
@@ -38,32 +37,31 @@ func NewAcDbDictionaryWDFLT(owner handle.Handler) (*AcDbDictionaryWDFLT, *AcDbPl
 // Format writes data to formatter.
 func (d *AcDbDictionaryWDFLT) Format(f format.Formatter) {
 	f.WriteString(0, "ACDBDICTIONARYWDFLT")
-	f.WriteHex(5, d.handle)
+	f.WriteString(5, d.handle)
 	if d.owner != nil {
 		f.WriteString(102, "{ACAD_REACTORS")
-		f.WriteHex(330, d.owner.Handle())
+		f.WriteString(330, d.owner.Handle())
 		f.WriteString(102, "}")
-		f.WriteHex(330, d.owner.Handle())
+		f.WriteString(330, d.owner.Handle())
 	}
 	f.WriteString(100, "AcDbDictionary")
 	f.WriteInt(281, 1)
 	for k, v := range d.item {
 		f.WriteString(3, k)
-		f.WriteHex(350, v.Handle())
+		f.WriteString(350, v.Handle())
 	}
 	f.WriteString(100, "AcDbDictionaryWithDefault")
-	f.WriteHex(340, d.defaulthandle.Handle())
+	f.WriteString(340, d.defaulthandle.Handle())
 }
 
 // Handle returns a handle value.
-func (d *AcDbDictionaryWDFLT) Handle() int {
+func (d *AcDbDictionaryWDFLT) Handle() string {
 	return d.handle
 }
 
 // SetHandle sets a handle.
-func (d *AcDbDictionaryWDFLT) SetHandle(v *int) {
-	d.handle = *v
-	*v++
+func (d *AcDbDictionaryWDFLT) SetHandle(hg *handle.HandleGenerator) {
+	d.handle = hg.Next()
 }
 
 // AddItem adds new a new item to AcDbDictionaryWDFLT.

@@ -7,7 +7,7 @@ import (
 
 // AppID represents APPID SymbolTable.
 type AppID struct {
-	handle int
+	handle string
 	owner  handle.Handler
 	name   string
 }
@@ -27,9 +27,9 @@ func (a *AppID) IsSymbolTable() bool {
 // Format writes data to formatter.
 func (a *AppID) Format(f format.Formatter) {
 	f.WriteString(0, "APPID")
-	f.WriteHex(5, a.handle)
+	f.WriteString(5, a.handle)
 	if a.owner != nil {
-		f.WriteHex(330, a.owner.Handle())
+		f.WriteString(330, a.owner.Handle())
 	}
 	f.WriteString(100, "AcDbSymbolTableRecord")
 	f.WriteString(100, "AcDbRegAppTableRecord")
@@ -38,14 +38,13 @@ func (a *AppID) Format(f format.Formatter) {
 }
 
 // Handle returns a handle value.
-func (a *AppID) Handle() int {
+func (a *AppID) Handle() string {
 	return a.handle
 }
 
 // SetHandle sets a handle.
-func (a *AppID) SetHandle(v *int) {
-	a.handle = *v
-	*v++
+func (a *AppID) SetHandle(hg *handle.HandleGenerator) {
+	a.handle = hg.Next()
 }
 
 // SetOwner sets an owner.
