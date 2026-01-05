@@ -2,6 +2,7 @@ package entity
 
 import (
 	"github.com/edanko/dxf/format"
+	dxfmath "github.com/edanko/dxf/math"
 )
 
 // Point represents POINT Entity.
@@ -47,4 +48,9 @@ func (p *Point) Format(f format.Formatter) {
 
 func (p *Point) BBox() ([]float64, []float64) {
 	return []float64{p.Coord[0], p.Coord[1], p.Coord[2]}, []float64{p.Coord[0], p.Coord[1], p.Coord[2]}
+}
+
+// SetCoord sets the point coordinates
+func (p *Point) SetCoord(coord dxfmath.Vec3) {
+	p.Coord = []float64{coord.X(), coord.Y(), coord.Z()}
 }

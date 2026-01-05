@@ -6,18 +6,10 @@ import (
 	"github.com/edanko/dxf/handle"
 )
 
-// Object is interface for OBJECT.
-type Object interface {
-	IsObject() bool
-	Format(f format.Formatter)
-
-	handle.Handler
-}
-
 // Objects represents OBJECTS section.
 type Objects []Object
 
-// New create a new Objects.
+// New creates a new Objects.
 func New() Objects {
 	o := make([]Object, 0)
 	return o

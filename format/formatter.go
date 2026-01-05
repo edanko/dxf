@@ -17,4 +17,6 @@ type Formatter interface {
 	WriteString(num int, val string)
 	WriteInt(num int, val int)
 	WriteFloat(num int, val float64)
+	WriteBool(num int, val bool)
+	Version() string
 }

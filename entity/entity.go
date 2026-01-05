@@ -5,6 +5,7 @@ import (
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
 	"github.com/edanko/dxf/table"
+	"github.com/edanko/dxf/xdata"
 )
 
 // Entity is interface for DXF Entities.
@@ -19,6 +20,11 @@ type Entity interface {
 	SetColor(color.ColorNumber)
 
 	handle.Handler
+
+	// Factory support
+	DXFType() string
+	GetAttributes() map[string]interface{}
+	LoadAttributes(attribs map[string]interface{}) error
 }
 
 // entity is common part of Entities.
@@ -31,6 +37,7 @@ type entity struct {
 	layer       *table.Layer      // 8
 	ltscale     float64           // 48
 	color       color.ColorNumber // 62
+	xdata       *xdata.XData      // XDATA (1000-1071)
 }
 
 // NewEntity creates a new entity.
@@ -108,4 +115,38 @@ func (e *entity) SetLtscale(v float64) {
 // SetEntityType sets entity type.
 func (e *entity) SetEntityType(t EntityType) {
 	e.Type = t
+}
+
+// DXFType returns the DXF type string for this entity
+func (e *entity) DXFType() string {
+	return EntityTypeString(e.Type)
+}
+
+// GetAttributes returns entity attributes as a map
+func (e *entity) GetAttributes() map[string]interface{} {
+	attributes := make(map[string]interface{})
+	if e.layer != nil {
+		attributes["layer"] = e.layer.Name()
+	}
+	attributes["color"] = int(e.color)
+	if e.ltscale != 1.0 {
+		attributes["ltscale"] = e.ltscale
+	}
+	return attributes
+}
+
+// LoadAttributes loads attributes from a map
+func (e *entity) LoadAttributes(attribs map[string]interface{}) error {
+	if layerName, ok := attribs["layer"].(string); ok {
+		// Note: This requires access to the document's layer table
+		// For now, just store the name
+		_ = layerName
+	}
+	if colorVal, ok := attribs["color"].(int); ok {
+		e.color = color.ColorNumber(colorVal)
+	}
+	if ltscaleVal, ok := attribs["ltscale"].(float64); ok {
+		e.ltscale = ltscaleVal
+	}
+	return nil
 }

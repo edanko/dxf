@@ -15,6 +15,7 @@ const (
 	White
 	Grey128
 	Grey192
+	ByLayer ColorNumber = 255
 )
 
 // color number: 250 - 255
