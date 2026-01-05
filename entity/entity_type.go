@@ -3,7 +3,6 @@ package entity
 // EntityType represents Entity names (code 2)
 type EntityType int
 
-// Entity name: code 2
 const (
 	LINE EntityType = iota
 	THREEDFACE
@@ -17,6 +16,89 @@ const (
 	SPLINE
 	MTEXT
 	SOLID
+	ELLIPSE
+	HATCH
+	DIMENSION
+	INSERT
+	ATTRIB
+	ATTDEF
+	LEADER
+	MLEADER
+	MESH
+	MPOLYGON_TYPE
+	RAY
+	XLINE
+	TOLERANCE
+	IMAGE
+	WIPEOUT
+	BODY
+	REGION
+	SURFACE
+	LOOP
+	COEDGE
+	ACADTABLE
+	SHAPE
+	UNDERLAY
+	UNDERLAY_DEFINITION
+	SOLID3D
+	APPDATA
+	HELIX
+	MLINE
+	DIMSTYLE
+	TRACE
+	LIGHT
+	SUN
+	VISUALSTYLE
+	UCS
+	VIEWPORT
+	VIEW
+	VPORT
+	MATERIAL
+	LINETYPE
+	TEXTSTYLE
+	LAYER
+	APPID
+	BLOCKRECORD
+	XRECORD
+	PLACEHOLDER
+	DICTIONARY
+	DICTIONARYVAR
+	DICTIONARYWITHDEFAULT
+	OLE2FRAME
+	IDBUFFER
+	SPATIALFILTER
+	GRADIENT
+	PATTERN
+	GEODATA
+	DIMSTYLEOVERRIDE
+	BLOCK
+	ENDBLK
+	SORTENTSTABLE
+	VBAPROJECT
+	ACADPROXYENTITY
+	ACADXRECROUNDRIP
+	TEMPORARYTRANSFORM
+	NETWORK
+	DXFGROUPS
+	OBJECTCOLLECTION
+	LINKEDENTITIES
+	FACEPROXY
+	POLYGON
+	ACIS
+	EXTRUDEDSURFACE
+	LOFTEDSURFACE
+	REVOLVEDSURFACE
+	SWEPTURFACE
+	MLINEVERTEX
+	MLINESTYLE
+	MLINESTYLECOLLECTION
+	MLEADERSTYLE
+	MLEADERSTYLECOLLECTION
+	MULTILEADER
+	ACADTABLEBLOCKCONTENT
+	POLYFACE
+	POLYMESH
+	MESHVERTEXCACHE
 )
 
 // EntityTypeString converts EntityType to string.
@@ -47,6 +129,172 @@ func EntityTypeString(t EntityType) string {
 		return "MTEXT"
 	case SOLID:
 		return "SOLID"
+	case ELLIPSE:
+		return "ELLIPSE"
+	case HATCH:
+		return "HATCH"
+	case DIMENSION:
+		return "DIMENSION"
+	case INSERT:
+		return "INSERT"
+	case ATTRIB:
+		return "ATTRIB"
+	case ATTDEF:
+		return "ATTDEF"
+	case LEADER:
+		return "LEADER"
+	case MLEADER:
+		return "MLEADER"
+	case MESH:
+		return "MESH"
+	case MPOLYGON_TYPE:
+		return "MPOLYGON"
+	case RAY:
+		return "RAY"
+	case XLINE:
+		return "XLINE"
+	case TOLERANCE:
+		return "TOLERANCE"
+	case IMAGE:
+		return "IMAGE"
+	case WIPEOUT:
+		return "WIPEOUT"
+	case BODY:
+		return "BODY"
+	case REGION:
+		return "REGION"
+	case SURFACE:
+		return "SURFACE"
+	case LOOP:
+		return "LOOP"
+	case COEDGE:
+		return "COEDGE"
+	case ACADTABLE:
+		return "ACADTABLE"
+	case SHAPE:
+		return "SHAPE"
+	case UNDERLAY:
+		return "UNDERLAY"
+	case UNDERLAY_DEFINITION:
+		return "UNDERLAY_DEFINITION"
+	case SOLID3D:
+		return "3DSOLID"
+	case APPDATA:
+		return "APPDATA"
+	case HELIX:
+		return "HELIX"
+	case MLINE:
+		return "MLINE"
+	case DIMSTYLE:
+		return "DIMSTYLE"
+	case TRACE:
+		return "TRACE"
+	case LIGHT:
+		return "LIGHT"
+	case SUN:
+		return "SUN"
+	case VISUALSTYLE:
+		return "VISUALSTYLE"
+	case UCS:
+		return "UCS"
+	case VIEWPORT:
+		return "VIEWPORT"
+	case VIEW:
+		return "VIEW"
+	case VPORT:
+		return "VPORT"
+	case MATERIAL:
+		return "MATERIAL"
+	case LINETYPE:
+		return "LINETYPE"
+	case TEXTSTYLE:
+		return "TEXTSTYLE"
+	case LAYER:
+		return "LAYER"
+	case APPID:
+		return "APPID"
+	case BLOCKRECORD:
+		return "BLOCK_RECORD"
+	case XRECORD:
+		return "XRECORD"
+	case PLACEHOLDER:
+		return "PLACEHOLDER"
+	case DICTIONARY:
+		return "DICTIONARY"
+	case DICTIONARYVAR:
+		return "DICTIONARY_VAR"
+	case DICTIONARYWITHDEFAULT:
+		return "DICTIONARY_WITH_DEFAULT"
+	case OLE2FRAME:
+		return "OLE2FRAME"
+	case IDBUFFER:
+		return "IDBUFFER"
+	case SPATIALFILTER:
+		return "SPATIAL_FILTER"
+	case GRADIENT:
+		return "GRADIENT"
+	case PATTERN:
+		return "PATTERN"
+	case GEODATA:
+		return "GEODATA"
+	case DIMSTYLEOVERRIDE:
+		return "DIMSTYLE_OVERRIDE"
+	case BLOCK:
+		return "BLOCK"
+	case ENDBLK:
+		return "ENDBLK"
+	case SORTENTSTABLE:
+		return "SORTENTS_TABLE"
+	case VBAPROJECT:
+		return "VBA_PROJECT"
+	case ACADPROXYENTITY:
+		return "ACAD_PROXY_ENTITY"
+	case ACADXRECROUNDRIP:
+		return "ACAD_XREC_ROUNDTRIP"
+	case TEMPORARYTRANSFORM:
+		return "TEMPORARY_TRANSFORM"
+	case NETWORK:
+		return "NETWORK"
+	case DXFGROUPS:
+		return "DXF_GROUPS"
+	case OBJECTCOLLECTION:
+		return "OBJECT_COLLECTION"
+	case LINKEDENTITIES:
+		return "LINKED_ENTITIES"
+	case FACEPROXY:
+		return "FACE_PROXY"
+	case POLYGON:
+		return "POLYGON"
+	case ACIS:
+		return "ACIS"
+	case EXTRUDEDSURFACE:
+		return "EXTRUDED_SURFACE"
+	case LOFTEDSURFACE:
+		return "LOFTED_SURFACE"
+	case REVOLVEDSURFACE:
+		return "REVOLVED_SURFACE"
+	case SWEPTURFACE:
+		return "SWEPT_SURFACE"
+	case MLINEVERTEX:
+		return "MLINE_VERTEX"
+	case MLINESTYLE:
+		return "MLINE_STYLE"
+	case MLINESTYLECOLLECTION:
+		return "MLINE_STYLE_COLLECTION"
+	case MLEADERSTYLE:
+		return "MLEADER_STYLE"
+	case MLEADERSTYLECOLLECTION:
+		return "MLEADER_STYLE_COLLECTION"
+	case MULTILEADER:
+		return "MULTI_LEADER"
+	case ACADTABLEBLOCKCONTENT:
+		return "ACAD_TABLE_BLOCK_CONTENT"
+	case POLYFACE:
+		return "POLYFACE"
+	case POLYMESH:
+		return "POLYMESH"
+	case MESHVERTEXCACHE:
+		return "MESH_VERTEX_CACHE"
 	default:
 		return ""
 	}

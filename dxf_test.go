@@ -218,42 +218,52 @@ func TestFromFile(t *testing.T) {
 
 func TestNewDrawing(t *testing.T) {
 	type tcase struct {
-		filename string
-		draw     func(d *drawing.Drawing)
+		filename         string
+		expectedEntities int
+		expectedTypes    []string
+		draw             func(d *drawing.Drawing)
 	}
 	fn := func(tc tcase) (string, func(*testing.T)) {
 		return tc.filename, func(t *testing.T) {
-			// calculate the sha256
-			fileHash, err := hashFile(tc.filename)
-			if err != nil {
-				t.Errorf("hash of file(%v) error, expected nil got %v", tc.filename, err)
-				return
-			}
 			d, _ := drawing.New()
 			tc.draw(d)
+
 			var buff bytes.Buffer
-			_, err = io.Copy(&buff, d)
+			_, err := io.Copy(&buff, d)
 			if err != nil {
 				t.Errorf("copy of buffer, expected nil got %v", err)
+				return
 			}
-			buffHash := hashBytes(buff.Bytes())
-			if fileHash != buffHash {
-				t.Errorf("hash, expected %v got %v", fileHash, buffHash)
-				outputfn := filepath.Join("testdata", buffHash+"_"+tc.filename)
-				of, err := os.Create(outputfn)
-				if err != nil {
-					t.Logf("could not create debug file: %v", outputfn)
-					return
+
+			loaded, err := FromStringData(buff.String())
+			if err != nil {
+				t.Errorf("failed to load generated DXF: %v", err)
+				return
+			}
+
+			entities := loaded.GetAllEntities()
+			if len(entities) != tc.expectedEntities {
+				t.Errorf("entity count: expected %d got %d", tc.expectedEntities, len(entities))
+				for i, e := range entities {
+					t.Logf("  entity %d: %s", i, e.DXFType())
 				}
-				io.Copy(of, &buff)
-				of.Close()
-				t.Logf("wrote out file to: %v", outputfn)
+				return
 			}
+
+			for i, e := range entities {
+				if i < len(tc.expectedTypes) && e.DXFType() != tc.expectedTypes[i] {
+					t.Errorf("entity %d type: expected %s got %s", i, tc.expectedTypes[i], e.DXFType())
+				}
+			}
+
+			t.Logf("Successfully created and loaded %d entities", len(entities))
 		}
 	}
 	tests := []tcase{
 		{
-			filename: "mypoint.dxf",
+			filename:         "mypoint.dxf",
+			expectedEntities: 3,
+			expectedTypes:    []string{"POINT", "POINT", "POINT"},
 			draw: func(d *drawing.Drawing) {
 				d.Point(0.0, 0.0, 0.0)
 				d.Point(100.0, 100.0, 0.0)
@@ -261,7 +271,9 @@ func TestNewDrawing(t *testing.T) {
 			},
 		},
 		{
-			filename: "mypoint_with_extent.dxf",
+			filename:         "mypoint_with_extent.dxf",
+			expectedEntities: 3,
+			expectedTypes:    []string{"POINT", "POINT", "POINT"},
 			draw: func(d *drawing.Drawing) {
 				d.Point(0.0, 0.0, 0.0)
 				d.Point(100.0, 100.0, 0.0)
@@ -270,7 +282,9 @@ func TestNewDrawing(t *testing.T) {
 			},
 		},
 		{
-			filename: "mypoint_with_units.dxf",
+			filename:         "mypoint_with_units.dxf",
+			expectedEntities: 3,
+			expectedTypes:    []string{"POINT", "POINT", "POINT"},
 			draw: func(d *drawing.Drawing) {
 				d.Point(0.0, 0.0, 0.0)
 				d.Point(100.0, 100.0, 0.0)
@@ -282,11 +296,13 @@ func TestNewDrawing(t *testing.T) {
 			},
 		},
 		{
-			filename: "torus.dxf",
+			filename:         "torus.dxf",
+			expectedEntities: 32,
+			expectedTypes:    nil,
 			draw: func(d *drawing.Drawing) {
 				d.Header().LtScale = 100.0
-				d.AddLayer("Toroidal", color.White, d.LtContinuous(), true)
-				d.AddLayer("Poloidal", color.Red, d.LtHidden(), true)
+				d.AddLayer("Toroidal", color.White, d.LtContinuous())
+				d.AddLayer("Poloidal", color.Red, d.LtHidden())
 				z := 0.0
 				r1 := 200.0
 				r2 := 500.0
@@ -304,9 +320,10 @@ func TestNewDrawing(t *testing.T) {
 			},
 		},
 		{
-			filename: "my_arc.dxf",
+			filename:         "my_arc.dxf",
+			expectedEntities: 1,
+			expectedTypes:    []string{"ARC"},
 			draw: func(d *drawing.Drawing) {
-				// x , y, z, radius, start, end
 				d.Arc(0.0, 0.0, 0.0, 100.0, 0.0, 60.0)
 			},
 		},

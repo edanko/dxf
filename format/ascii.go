@@ -6,6 +6,18 @@ import (
 	"io"
 )
 
+// DXF version constants
+const (
+	AC1009 = "AC1009"
+	AC1014 = "AC1014"
+	AC1015 = "AC1015"
+	AC1018 = "AC1018"
+	AC1021 = "AC1021" // R2004
+	AC1024 = "AC1024" // R2007
+	AC1027 = "AC1027" // R2010
+	AC1032 = "AC1032" // R2013
+)
+
 // ASCII is Formatter for ASCII format.
 type ASCII struct {
 	buffer bytes.Buffer
@@ -17,6 +29,14 @@ func NewASCII() *ASCII {
 	var b bytes.Buffer
 	return &ASCII{
 		buffer: b,
+		float:  "%.6f",
+	}
+}
+
+// NewASCIIWithVersion creates a new ASCII formatter with specified version.
+func NewASCIIWithVersion(version string) *ASCII {
+	return &ASCII{
+		buffer: bytes.Buffer{},
 		float:  "%.6f",
 	}
 }
@@ -71,4 +91,18 @@ func (f *ASCII) WriteInt(num int, val int) {
 // WriteFloat appends floating point data to the buffer.
 func (f *ASCII) WriteFloat(num int, val float64) {
 	f.buffer.WriteString(f.Float(num, val))
+}
+
+// WriteBool appends boolean data to the buffer.
+func (f *ASCII) WriteBool(num int, val bool) {
+	intVal := 0
+	if val {
+		intVal = 1
+	}
+	f.buffer.WriteString(f.Int(num, intVal))
+}
+
+// Version returns the DXF version
+func (f *ASCII) Version() string {
+	return AC1021 // Default to R2004 for MPOLYGON support
 }

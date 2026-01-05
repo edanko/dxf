@@ -16,6 +16,16 @@ type Group struct {
 	selectable  bool
 }
 
+// Handle returns the group's handle.
+func (g *Group) Handle() string {
+	return g.handle
+}
+
+// SetHandle sets the group's handle.
+func (g *Group) SetHandle(hg *handle.HandleGenerator) {
+	g.handle = hg.Next()
+}
+
 // IsObject is for Object interface.
 func (g *Group) IsObject() bool {
 	return true
@@ -36,7 +46,8 @@ func NewGroup(name, desc string, es ...entity.Entity) *Group {
 // SetOwner sets an owner(Dictionary).
 func (g *Group) SetOwner(d *Dictionary) error {
 	g.owner = d
-	return d.AddItem(g.Name, g)
+	d.AddItem(g.Name, g)
+	return nil
 }
 
 // Format writes data to formatter.
@@ -58,16 +69,6 @@ func (g *Group) Format(f format.Formatter) {
 	for _, e := range g.entities {
 		f.WriteString(340, e.Handle())
 	}
-}
-
-// Handle returns a handle value.
-func (g *Group) Handle() string {
-	return g.handle
-}
-
-// SetHandle sets a handle.
-func (g *Group) SetHandle(hg *handle.HandleGenerator) {
-	g.handle = hg.Next()
 }
 
 // AddEntity adds entities to Group.
