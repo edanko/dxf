@@ -69,6 +69,11 @@ openspec status --change "<name>" --json
 openspec instructions <artifact> --change "<name>" --json
 ```
 
+> Note: the global gitignore (`~/.gitignore`) ignores `openspec/`. The change
+> artifacts live on disk and are usable by OpenSpec, but are not tracked by git.
+> Force-add them (`git add -f openspec/changes/<name>`) only if the project
+> decides to version the proposals.
+
 ## Current architecture (Go)
 
 | Package | Role | Baseline assessment |
