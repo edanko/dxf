@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/edanko/dxf/block"
 	"github.com/edanko/dxf/class"
@@ -18,6 +19,7 @@ import (
 	"github.com/edanko/dxf/object"
 	"github.com/edanko/dxf/query"
 	"github.com/edanko/dxf/table"
+	"github.com/edanko/dxf/xref"
 )
 
 // Drawing contains DXF drawing data.
@@ -45,6 +47,8 @@ type Drawing struct {
 
 	handleGenarator *handle.HandleGenerator
 	entityDatabase  *EntityDatabase // Enhanced entity management
+	xrefManager     *xref.XRefManager
+	xrefLoader      *xref.Loader
 }
 
 // New creates a new Drawing.
@@ -91,6 +95,10 @@ func New() (*Drawing, error) {
 	d.dictionary.AddItem("ACAD_GROUP", d.groupdict)
 	d.PlotStyle = ph
 	d.Layers["0"].SetPlotStyle(d.PlotStyle)
+
+	d.xrefManager = xref.NewXRefManager("")
+	d.xrefLoader = xref.NewLoader("")
+
 	return d, nil
 }
 
@@ -1221,26 +1229,192 @@ type XRefInfo struct {
 
 // GetXRefs returns information about all external references
 func (d *Drawing) GetXRefs() []XRefInfo {
-	return []XRefInfo{}
+	xrefs := d.xrefManager.GetAll()
+	result := make([]XRefInfo, 0, len(xrefs))
+	for _, x := range xrefs {
+		info := XRefInfo{
+			FilePath:  x.FilePath(),
+			BlockName: x.BlockName(),
+			Loaded:    x.Loaded(),
+			Overlay:   x.IsOverlay(),
+		}
+		if x.PathType() == xref.PathTypeAbsolute {
+			info.PathType = "Absolute"
+		} else {
+			info.PathType = "Relative"
+		}
+		result = append(result, info)
+	}
+	return result
 }
 
 // AddXRef adds an external reference
 func (d *Drawing) AddXRef(filePath, blockName string, overlay bool) error {
-	// TODO: Implement XREF loading
-	return nil
+	xrefType := xref.XRefTypeOverlay
+	if !overlay {
+		xrefType = xref.XRefTypeAttachment
+	}
+	return d.xrefManager.AddXRef(filePath, blockName, xrefType)
 }
 
 // RemoveXRef removes an external reference
 func (d *Drawing) RemoveXRef(blockName string) error {
+	return d.xrefManager.Remove(blockName)
+}
+
+// LoadXRefs loads all external references
+func (d *Drawing) LoadXRefs() error {
+	basePath := filepath.Dir(d.fileName)
+	d.xrefLoader.SetBasePath(basePath)
+
+	xrefs := d.xrefManager.GetAll()
+	for _, x := range xrefs {
+		if !x.Loaded() {
+			err := d.xrefLoader.Load(x, func(path string) (interface{}, error) {
+				return LoadDXF(path)
+			})
+			if err != nil {
+				return fmt.Errorf("failed to load xref %s: %w", x.FilePath(), err)
+			}
+		}
+	}
+	return nil
+}
+
+// LoadXRefsRecursive loads all external references including nested xrefs
+func (d *Drawing) LoadXRefsRecursive() error {
+	basePath := filepath.Dir(d.fileName)
+	d.xrefLoader.SetBasePath(basePath)
+
+	return d.loadXRefsRecursive(0, 32)
+}
+
+func (d *Drawing) loadXRefsRecursive(depth, maxDepth int) error {
+	if depth > maxDepth {
+		return fmt.Errorf("xref nesting too deep (max: %d)", maxDepth)
+	}
+
+	xrefs := d.xrefManager.GetAll()
+	for _, x := range xrefs {
+		if !x.Loaded() {
+			err := d.xrefLoader.Load(x, func(path string) (interface{}, error) {
+				return LoadDXF(path)
+			})
+			if err != nil {
+				return fmt.Errorf("failed to load xref %s: %w", x.FilePath(), err)
+			}
+		}
+
+		if x.Loaded() {
+			if xdwg, ok := x.Drawing().(*Drawing); ok {
+				if err := xdwg.loadXRefsRecursive(depth+1, maxDepth); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }
 
 // ReloadXRef reloads an external reference
 func (d *Drawing) ReloadXRef(blockName string) error {
-	return nil
+	x, exists := d.xrefManager.Get(blockName)
+	if !exists {
+		return fmt.Errorf("xref %s not found", blockName)
+	}
+
+	x.SetLoaded(false)
+	x.SetDrawing(nil)
+
+	basePath := filepath.Dir(d.fileName)
+	d.xrefLoader.SetBasePath(basePath)
+
+	return d.xrefLoader.Load(x, func(path string) (interface{}, error) {
+		return LoadDXF(path)
+	})
 }
 
 // BindXRef converts an external reference to a regular block
 func (d *Drawing) BindXRef(blockName string, insert bool) error {
+	x, exists := d.xrefManager.Get(blockName)
+	if !exists {
+		return fmt.Errorf("xref %s not found", blockName)
+	}
+
+	if !x.Loaded() {
+		if err := d.ReloadXRef(blockName); err != nil {
+			return err
+		}
+	}
+
+	if x.Drawing() == nil {
+		return fmt.Errorf("xref %s not loaded", blockName)
+	}
+
+	xdwg, ok := x.Drawing().(*Drawing)
+	if !ok {
+		return fmt.Errorf("xref drawing has invalid type")
+	}
+
+	if insert {
+		blk, err := d.NewBlock(x.BlockName(), "")
+		if err != nil {
+			return err
+		}
+		blk.SetLayer(d.CurrentLayer)
+		for _, e := range xdwg.Entities() {
+			d.AddEntity(e)
+		}
+		_ = blk
+	}
+
+	d.xrefManager.Remove(blockName)
+
 	return nil
+}
+
+// GetXRefDrawing returns the loaded drawing for an xref
+func (d *Drawing) GetXRefDrawing(blockName string) (*Drawing, error) {
+	x, exists := d.xrefManager.Get(blockName)
+	if !exists {
+		return nil, fmt.Errorf("xref %s not found", blockName)
+	}
+
+	if !x.Loaded() {
+		return nil, fmt.Errorf("xref %s not loaded", blockName)
+	}
+
+	if x.Drawing() == nil {
+		return nil, fmt.Errorf("xref %s has no drawing", blockName)
+	}
+
+	xdwg, ok := x.Drawing().(*Drawing)
+	if !ok {
+		return nil, fmt.Errorf("xref drawing has invalid type")
+	}
+
+	return xdwg, nil
+}
+
+// SetFileName sets the drawing file name (used for resolving relative xref paths)
+func (d *Drawing) SetFileName(name string) {
+	d.fileName = name
+}
+
+// LoadDXF is a helper function to load a DXF file
+func LoadDXF(filePath string) (*Drawing, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return FromReader(f)
+}
+
+// FromReader parses DXF data from an io.Reader
+func FromReader(r io.Reader) (*Drawing, error) {
+	// This is a placeholder - the actual implementation should be in dxf_main.go
+	// For now, return an error
+	return nil, errors.New("FromReader not implemented in drawing package, use dxf.FromReader instead")
 }

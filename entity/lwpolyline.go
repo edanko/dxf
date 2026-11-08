@@ -74,3 +74,16 @@ func (l *LwPolyline) BBox() ([]float64, []float64) {
 	}
 	return mins, maxs
 }
+
+// Copy creates a deep copy of the LwPolyline entity
+func (l *LwPolyline) Copy() Entity {
+	lwpolyline := NewLwPolyline(l.Num)
+	lwpolyline.entity = l.entity
+	lwpolyline.Closed = l.Closed
+	lwpolyline.Bulges = make([]float64, len(l.Bulges))
+	copy(lwpolyline.Bulges, l.Bulges)
+	for i, v := range l.Vertices {
+		lwpolyline.Vertices[i] = []float64{v[0], v[1]}
+	}
+	return lwpolyline
+}

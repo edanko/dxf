@@ -117,3 +117,116 @@ func TestColorNumberToRGB(t *testing.T) {
 		}
 	}
 }
+
+func TestArrowTypeConstants(t *testing.T) {
+	if ArrowNone != 0 {
+		t.Errorf("ArrowNone should be 0, got %d", ArrowNone)
+	}
+	if ArrowClosedBlank != 1 {
+		t.Errorf("ArrowClosedBlank should be 1, got %d", ArrowClosedBlank)
+	}
+	if ArrowClosedFilled != 2 {
+		t.Errorf("ArrowClosedFilled should be 2, got %d", ArrowClosedFilled)
+	}
+	if ArrowOpen != 3 {
+		t.Errorf("ArrowOpen should be 3, got %d", ArrowOpen)
+	}
+}
+
+func TestNewArrow(t *testing.T) {
+	arrow := NewArrow(ArrowClosedFilled, 10.0, 45.0)
+
+	if arrow.ArrowType != ArrowClosedFilled {
+		t.Errorf("Expected ArrowType %d, got %d", ArrowClosedFilled, arrow.ArrowType)
+	}
+	if arrow.Size != 10.0 {
+		t.Errorf("Expected Size 10.0, got %f", arrow.Size)
+	}
+	if arrow.Angle != 45.0 {
+		t.Errorf("Expected Angle 45.0, got %f", arrow.Angle)
+	}
+	if arrow.Vertices == nil {
+		t.Error("Vertices should not be nil")
+	}
+}
+
+func TestNewArrowNone(t *testing.T) {
+	arrow := NewArrow(ArrowNone, 10.0, 0)
+
+	if arrow.Vertices != nil {
+		t.Error("ArrowNone should have nil vertices")
+	}
+}
+
+func TestArrowVec3Operations(t *testing.T) {
+	v1 := NewVec3(1, 2, 3)
+	v2 := NewVec3(4, 5, 6)
+
+	sum := v1.Add(v2)
+	if sum.X != 5 || sum.Y != 7 || sum.Z != 9 {
+		t.Errorf("Add failed: expected (5,7,9), got (%f,%f,%f)", sum.X, sum.Y, sum.Z)
+	}
+
+	scaled := v1.Mul(2)
+	if scaled.X != 2 || scaled.Y != 4 || scaled.Z != 6 {
+		t.Errorf("Mul failed: expected (2,4,6), got (%f,%f,%f)", scaled.X, scaled.Y, scaled.Z)
+	}
+}
+
+func TestArrowRotate(t *testing.T) {
+	arrow := NewArrow(ArrowClosedFilled, 1.0, 0)
+
+	// Rotate 180 degrees around origin
+	arrow.Rotate(math.Pi)
+
+	// After 180 degree rotation, point at (1,0) should be at (-1,0)
+	if len(arrow.Vertices) >= 2 {
+		// Vertices should have been transformed
+		if arrow.Vertices[0].X == 1 && arrow.Vertices[0].Y == 0 {
+			t.Error("Rotate should have transformed vertices")
+		}
+	}
+}
+
+func TestArrowTranslate(t *testing.T) {
+	arrow := NewArrow(ArrowClosedFilled, 1.0, 0)
+	originalX := arrow.Vertices[0].X
+
+	arrow.Translate(NewVec3(10, 20, 0))
+
+	if arrow.Vertices[0].X != originalX+10 {
+		t.Errorf("Translate X failed: expected %f, got %f", originalX+10, arrow.Vertices[0].X)
+	}
+	if arrow.Vertices[0].Y != 20 {
+		t.Errorf("Translate Y failed: expected 20, got %f", arrow.Vertices[0].Y)
+	}
+}
+
+func TestGetArrowTypeName(t *testing.T) {
+	tests := []struct {
+		arrowType ArrowType
+		expected  string
+	}{
+		{ArrowNone, "NONE"},
+		{ArrowClosedBlank, "CLOSED_BLANK"},
+		{ArrowClosedFilled, "CLOSED_FILLED"},
+		{ArrowOpen, "OPEN"},
+		{ArrowOpen30, "OPEN_30"},
+		{ArrowOpen90, "OPEN_90"},
+		{ArrowCircle, "CIRCLE"},
+		{ArrowDot, "DOT"},
+		{ArrowArchTick, "ARCH_TICK"},
+		{ArrowOblique, "OBLIQUE"},
+		{ArrowBox, "UNKNOWN"},
+		{ArrowBoxFilled, "UNKNOWN"},
+		{ArrowDiamond, "UNKNOWN"},
+		{ArrowDotSmall, "UNKNOWN"},
+	}
+
+	for _, test := range tests {
+		result := GetArrowTypeName(test.arrowType)
+		if result != test.expected {
+			t.Errorf("GetArrowTypeName(%d) = %s, expected %s", test.arrowType, result, test.expected)
+		}
+	}
+}

@@ -6,15 +6,17 @@ import (
 
 // SpatialIndex is a simple spatial index for fast entity queries
 type SpatialIndex struct {
-	entities []interface{}
-	bbox     *BoundingBox
+	entities  []interface{}
+	entityPos map[interface{}]Point2D
+	bbox      *BoundingBox
 }
 
 // NewSpatialIndex creates a new spatial index
 func NewSpatialIndex() *SpatialIndex {
 	return &SpatialIndex{
-		entities: make([]interface{}, 0),
-		bbox:     nil,
+		entities:  make([]interface{}, 0),
+		entityPos: make(map[interface{}]Point2D),
+		bbox:      nil,
 	}
 }
 
@@ -24,7 +26,12 @@ func (si *SpatialIndex) Insert(entity interface{}, x, y float64) {
 	entityBBox := NewBoundingBox(x-0.5, y-0.5, x+0.5, y+0.5)
 
 	si.entities = append(si.entities, entity)
-	si.bbox = si.bbox.Extend(entityBBox)
+	si.entityPos[entity] = Point2D{X: x, Y: y}
+	if si.bbox == nil {
+		si.bbox = entityBBox
+	} else {
+		si.bbox = si.bbox.Extend(entityBBox)
+	}
 }
 
 // Query finds entities within the given bounding box
@@ -60,7 +67,7 @@ func (si *SpatialIndex) QueryNearest(x, y float64) (interface{}, float64) {
 	minDist := math.Inf(1)
 
 	for _, entity := range si.entities {
-		entityCenter := getEntityCenter(entity)
+		entityCenter := si.getEntityPos(entity)
 		dist := math.Sqrt((x-entityCenter.X)*(x-entityCenter.X) + (y-entityCenter.Y)*(y-entityCenter.Y))
 
 		if dist < minDist {
@@ -78,7 +85,7 @@ func (si *SpatialIndex) QueryRange(minX, minY, maxX, maxY float64) []interface{}
 	queryBBox := NewBoundingBox(minX, minY, maxX, maxY)
 
 	for _, entity := range si.entities {
-		entityCenter := getEntityCenter(entity)
+		entityCenter := si.getEntityPos(entity)
 		if queryBBox.Contains(entityCenter.X, entityCenter.Y) {
 			results = append(results, entity)
 		}
@@ -99,7 +106,7 @@ func (si *SpatialIndex) UpdateBounds() {
 	}
 
 	// Initialize with first entity
-	firstCenter := getEntityCenter(si.entities[0])
+	firstCenter := si.getEntityPos(si.entities[0])
 	si.bbox = NewBoundingBox(
 		firstCenter.X-0.5, firstCenter.Y-0.5,
 		firstCenter.X+0.5, firstCenter.Y+0.5,
@@ -107,7 +114,7 @@ func (si *SpatialIndex) UpdateBounds() {
 
 	// Expand to include all entities
 	for _, entity := range si.entities[1:] {
-		entityCenter := getEntityCenter(entity)
+		entityCenter := si.getEntityPos(entity)
 		entityBBox := NewBoundingBox(
 			entityCenter.X-0.5, entityCenter.Y-0.5,
 			entityCenter.X+0.5, entityCenter.Y+0.5,
@@ -124,7 +131,13 @@ type Point2D struct {
 // getEntityCenter extracts a center point from an entity
 // This is a placeholder - in real implementation, entities would have BBox() methods
 func getEntityCenter(entity interface{}) Point2D {
-	// Default implementation - return origin
-	// Real implementation would call entity.BBox().Center()
+	return Point2D{X: 0.0, Y: 0.0}
+}
+
+// getEntityPos returns the stored position for an entity
+func (si *SpatialIndex) getEntityPos(entity interface{}) Point2D {
+	if pos, ok := si.entityPos[entity]; ok {
+		return pos
+	}
 	return Point2D{X: 0.0, Y: 0.0}
 }

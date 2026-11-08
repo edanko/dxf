@@ -3,6 +3,8 @@ package xref
 import (
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 )
 
 type XRefType int
@@ -25,6 +27,9 @@ type XRef struct {
 	xrefType  XRefType
 	pathType  PathType
 	loaded    bool
+	drawing   interface{}
+	timeStamp time.Time
+	fileSize  int64
 }
 
 func NewXRef(filePath string, blockName string, xrefType XRefType) *XRef {
@@ -80,6 +85,14 @@ func (x *XRef) ResolvePath(basePath string) string {
 	return x.filePath
 }
 
+func (x *XRef) Drawing() interface{} {
+	return x.drawing
+}
+
+func (x *XRef) SetDrawing(drawing interface{}) {
+	x.drawing = drawing
+}
+
 type XRefManager struct {
 	xrefs    map[string]*XRef
 	basePath string
@@ -132,7 +145,7 @@ func (m *XRefManager) Count() int {
 func (m *XRefManager) LoadedCount() int {
 	count := 0
 	for _, xref := range m.xrefs {
-		if xref.Loaded() {
+		if xref.loaded {
 			count++
 		}
 	}
@@ -189,4 +202,120 @@ func (m *XRefManager) ConvertToRelative(filePath string) string {
 func XRefExists(filePath string) bool {
 	_, err := os.Stat(filePath)
 	return err == nil
+}
+
+type Loader struct {
+	basePath     string
+	cache        map[string]interface{}
+	cacheMu      sync.RWMutex
+	maxCacheSize int
+}
+
+func NewLoader(basePath string) *Loader {
+	return &Loader{
+		basePath:     basePath,
+		cache:        make(map[string]interface{}),
+		maxCacheSize: 10,
+	}
+}
+
+func (l *Loader) SetBasePath(path string) {
+	l.basePath = path
+}
+
+func (l *Loader) GetBasePath() string {
+	return l.basePath
+}
+
+func (l *Loader) Load(xref *XRef, loadFunc func(string) (interface{}, error)) error {
+	if xref.loaded {
+		return nil
+	}
+
+	fullPath := xref.ResolvePath(l.basePath)
+
+	if cached, ok := l.getCached(fullPath); ok {
+		xref.drawing = cached
+		xref.loaded = true
+		return nil
+	}
+
+	drawing, err := loadFunc(fullPath)
+	if err != nil {
+		return err
+	}
+
+	l.cacheMu.Lock()
+	if len(l.cache) >= l.maxCacheSize {
+		l.evictOldest()
+	}
+	l.cache[fullPath] = drawing
+	l.cacheMu.Unlock()
+
+	xref.drawing = drawing
+	xref.loaded = true
+
+	if info, err := os.Stat(fullPath); err == nil {
+		xref.timeStamp = info.ModTime()
+		xref.fileSize = info.Size()
+	}
+
+	return nil
+}
+
+func (l *Loader) getCached(path string) (interface{}, bool) {
+	l.cacheMu.RLock()
+	defer l.cacheMu.RUnlock()
+	dwg, ok := l.cache[path]
+	return dwg, ok
+}
+
+func (l *Loader) evictOldest() {
+	if len(l.cache) == 0 {
+		return
+	}
+	var oldestPath string
+	var oldestTime time.Time
+	for path := range l.cache {
+		if oldestPath == "" {
+			oldestPath = path
+			if info, err := os.Stat(path); err == nil {
+				oldestTime = info.ModTime()
+			}
+		} else {
+			if info, err := os.Stat(path); err == nil {
+				if info.ModTime().Before(oldestTime) {
+					oldestPath = path
+					oldestTime = info.ModTime()
+				}
+			}
+		}
+	}
+	if oldestPath != "" {
+		delete(l.cache, oldestPath)
+	}
+}
+
+func (l *Loader) GetCachedDrawing(path string) (interface{}, bool) {
+	return l.getCached(path)
+}
+
+func (l *Loader) ClearCache() {
+	l.cacheMu.Lock()
+	defer l.cacheMu.Unlock()
+	l.cache = make(map[string]interface{})
+}
+
+func (l *Loader) CacheSize() int {
+	l.cacheMu.RLock()
+	defer l.cacheMu.RUnlock()
+	return len(l.cache)
+}
+
+func (l *Loader) SetMaxCacheSize(size int) {
+	l.maxCacheSize = size
+}
+
+func (l *Loader) GetMaxCacheSize() int {
+	return l.maxCacheSize
 }

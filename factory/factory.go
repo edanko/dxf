@@ -4,31 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/edanko/dxf/color"
-	"github.com/edanko/dxf/drawing"
-	"github.com/edanko/dxf/handle"
-	"github.com/edanko/dxf/table"
+	"github.com/edanko/dxf/entity"
 )
-
-// Entity interface for factory creation
-type Entity interface {
-	IsEntity() bool
-	Format(Formatter)
-	SetBlockRecord(handle.Handler)
-	Layer() *table.Layer
-	SetLayer(*table.Layer)
-	SetLtscale(float64)
-	BBox() ([]float64, []float64)
-	SetColor(color.ColorNumber)
-	handle.Handler
-
-	// Factory support
-	DXFType() string
-	SetDocument(*drawing.Drawing)
-	GetDocument() *drawing.Drawing
-	LoadAttributes(attribs map[string]interface{}) error
-	GetAttributes() map[string]interface{}
-}
 
 // Tag represents a DXF tag
 type Tag struct {
@@ -47,9 +24,9 @@ type Formatter interface {
 
 // EntityCreator interface for creating entities
 type EntityCreator interface {
-	New() Entity
-	NewWithAttribs(attribs map[string]interface{}) Entity
-	LoadFromTags(tags []Tag) (Entity, error)
+	New() entity.Entity
+	NewWithAttribs(attribs map[string]interface{}) entity.Entity
+	LoadFromTags(tags []Tag) (entity.Entity, error)
 	DXFType() string
 }
 
@@ -75,7 +52,7 @@ func (f *Factory) Register(dxfType string, creator EntityCreator) {
 }
 
 // Create creates a new entity of the specified type with attributes
-func (f *Factory) Create(dxfType string, attribs map[string]interface{}) (Entity, error) {
+func (f *Factory) Create(dxfType string, attribs map[string]interface{}) (entity.Entity, error) {
 	creator, exists := f.entityTypes[strings.ToUpper(dxfType)]
 	if !exists {
 		if f.defaultType != nil {
@@ -87,7 +64,7 @@ func (f *Factory) Create(dxfType string, attribs map[string]interface{}) (Entity
 }
 
 // CreateNew creates a new entity of the specified type without attributes
-func (f *Factory) CreateNew(dxfType string) (Entity, error) {
+func (f *Factory) CreateNew(dxfType string) (entity.Entity, error) {
 	creator, exists := f.entityTypes[strings.ToUpper(dxfType)]
 	if !exists {
 		if f.defaultType != nil {
@@ -99,7 +76,7 @@ func (f *Factory) CreateNew(dxfType string) (Entity, error) {
 }
 
 // LoadFromTags creates an entity from parsed DXF tags
-func (f *Factory) LoadFromTags(dxfType string, tags []Tag) (Entity, error) {
+func (f *Factory) LoadFromTags(dxfType string, tags []Tag) (entity.Entity, error) {
 	creator, exists := f.entityTypes[strings.ToUpper(dxfType)]
 	if !exists {
 		if f.defaultType != nil {
@@ -136,11 +113,11 @@ func RegisterGlobal(dxfType string, creator EntityCreator) {
 }
 
 // CreateGlobal creates an entity using the default factory
-func CreateGlobal(dxfType string, attribs map[string]interface{}) (Entity, error) {
+func CreateGlobal(dxfType string, attribs map[string]interface{}) (entity.Entity, error) {
 	return DefaultFactory.Create(dxfType, attribs)
 }
 
 // LoadFromTagsGlobal creates an entity from tags using the default factory
-func LoadFromTagsGlobal(dxfType string, tags []Tag) (Entity, error) {
+func LoadFromTagsGlobal(dxfType string, tags []Tag) (entity.Entity, error) {
 	return DefaultFactory.LoadFromTags(dxfType, tags)
 }

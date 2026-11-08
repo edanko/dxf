@@ -42,3 +42,11 @@ func (v *Vertex) BBox() ([]float64, []float64) {
 	maxs := []float64{v.Coord[0], v.Coord[1], v.Coord[2]}
 	return mins, maxs
 }
+
+// Copy creates a deep copy of the Vertex entity
+func (v *Vertex) Copy() Entity {
+	vertex := NewVertex(v.Coord[0], v.Coord[1], v.Coord[2])
+	vertex.entity = v.entity
+	vertex.Flag = v.Flag
+	return vertex
+}

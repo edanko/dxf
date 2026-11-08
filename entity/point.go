@@ -54,3 +54,10 @@ func (p *Point) BBox() ([]float64, []float64) {
 func (p *Point) SetCoord(coord dxfmath.Vec3) {
 	p.Coord = []float64{coord.X(), coord.Y(), coord.Z()}
 }
+
+// Copy creates a deep copy of the Point entity
+func (p *Point) Copy() Entity {
+	point := NewPoint(p.Coord[0], p.Coord[1], p.Coord[2])
+	point.entity = p.entity
+	return point
+}

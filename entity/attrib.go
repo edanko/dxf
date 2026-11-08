@@ -223,6 +223,28 @@ func (a *Attrib) String() string {
 		a.height)
 }
 
+// Copy creates a deep copy of the Attrib entity
+func (a *Attrib) Copy() Entity {
+	attrib := NewAttrib()
+	attrib.entity = a.entity
+	attrib.tag = a.tag
+	attrib.textValue = a.textValue
+	attrib.insertPoint = []float64{a.insertPoint[0], a.insertPoint[1], a.insertPoint[2]}
+	attrib.height = a.height
+	attrib.rotation = a.rotation
+	attrib.width = a.width
+	attrib.oblique = a.oblique
+	attrib.style = a.style
+	attrib.mirror = a.mirror
+	attrib.hAlign = a.hAlign
+	attrib.vAlign = a.vAlign
+	attrib.layer = a.layer
+	attrib.color = a.color
+	attrib.extrusion = []float64{a.extrusion[0], a.extrusion[1], a.extrusion[2]}
+	attrib.prompt = a.prompt
+	return attrib
+}
+
 // Helper function to copy slice
 func copy(dst, src []float64) {
 	if len(dst) >= len(src) {

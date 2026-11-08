@@ -1,5 +1,7 @@
 package entity
 
+import "github.com/edanko/dxf/format"
+
 type Solid struct {
 	*entity
 	FirstPoint          []float64 //10, 20, 30
@@ -18,14 +20,57 @@ func NewSolid() *Solid {
 		ThirdPoint:          []float64{0.0, 0.0, 0.0},
 		FourthPoint:         []float64{0.0, 0.0, 0.0},
 		Thickness:           0.0,
-		StretchingDirection: []float64{0.0, 0.0, 0.0},
+		StretchingDirection: []float64{0.0, 0.0, 1.0},
 	}
 }
 
-func (s Solid) IsEntity() bool {
+func (s *Solid) IsEntity() bool {
 	return true
 }
 
-func (s Solid) BBox() ([]float64, []float64) {
-	panic("implement me")
+func (s *Solid) Format(f format.Formatter) {
+	s.entity.Format(f)
+	f.WriteString(100, "AcDbTrace")
+	for i := 0; i < 3; i++ {
+		f.WriteFloat((i+1)*10, s.FirstPoint[i])
+	}
+	for i := 0; i < 3; i++ {
+		f.WriteFloat((i+1)*10+1, s.SecondPoint[i])
+	}
+	for i := 0; i < 3; i++ {
+		f.WriteFloat((i+1)*10+2, s.ThirdPoint[i])
+	}
+	for i := 0; i < 3; i++ {
+		f.WriteFloat((i+1)*10+3, s.FourthPoint[i])
+	}
+}
+
+func (s *Solid) BBox() ([]float64, []float64) {
+	mins := make([]float64, 3)
+	maxs := make([]float64, 3)
+	points := [][]float64{s.FirstPoint, s.SecondPoint, s.ThirdPoint, s.FourthPoint}
+	for _, p := range points {
+		for i := 0; i < 3; i++ {
+			if p[i] < mins[i] {
+				mins[i] = p[i]
+			}
+			if p[i] > maxs[i] {
+				maxs[i] = p[i]
+			}
+		}
+	}
+	return mins, maxs
+}
+
+// Copy creates a deep copy of the Solid entity
+func (s *Solid) Copy() Entity {
+	solid := NewSolid()
+	solid.entity = s.entity
+	solid.FirstPoint = []float64{s.FirstPoint[0], s.FirstPoint[1], s.FirstPoint[2]}
+	solid.SecondPoint = []float64{s.SecondPoint[0], s.SecondPoint[1], s.SecondPoint[2]}
+	solid.ThirdPoint = []float64{s.ThirdPoint[0], s.ThirdPoint[1], s.ThirdPoint[2]}
+	solid.FourthPoint = []float64{s.FourthPoint[0], s.FourthPoint[1], s.FourthPoint[2]}
+	solid.Thickness = s.Thickness
+	solid.StretchingDirection = []float64{s.StretchingDirection[0], s.StretchingDirection[1], s.StretchingDirection[2]}
+	return solid
 }

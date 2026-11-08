@@ -185,3 +185,10 @@ func (t *Trace) LoadAttributes(attrs map[string]interface{}) error {
 
 	return nil
 }
+
+// Copy creates a deep copy of the Trace entity
+func (t *Trace) Copy() Entity {
+	trace := NewTrace(t.Points, t.Plane, t.Thickness)
+	trace.entity = t.entity
+	return trace
+}

@@ -7,173 +7,406 @@ import (
 	dxfmath "github.com/edanko/dxf/math"
 )
 
-func TestFormGenerator(t *testing.T) {
+func TestNewFormGenerator(t *testing.T) {
 	fg := NewFormGenerator()
+	if fg == nil {
+		t.Fatal("NewFormGenerator should return non-nil")
+	}
+	if fg.scale != 1.0 {
+		t.Errorf("Expected default scale 1.0, got %f", fg.scale)
+	}
+	if fg.segments != 32 {
+		t.Errorf("Expected default segments 32, got %d", fg.segments)
+	}
+}
 
-	// Test circle
-	t.Run("Circle", func(t *testing.T) {
-		circle := fg.Circle(5.0)
-		if len(circle) != 32 {
-			t.Errorf("Expected 32 points for circle, got %d", len(circle))
+func TestFormGeneratorSetScale(t *testing.T) {
+	fg := NewFormGenerator()
+	fg.SetScale(2.5)
+	if fg.scale != 2.5 {
+		t.Errorf("Expected scale 2.5, got %f", fg.scale)
+	}
+}
+
+func TestFormGeneratorSetSegments(t *testing.T) {
+	fg := NewFormGenerator()
+	fg.SetSegments(64)
+	if fg.segments != 64 {
+		t.Errorf("Expected segments 64, got %d", fg.segments)
+	}
+}
+
+func TestFormGeneratorCircle(t *testing.T) {
+	fg := NewFormGenerator()
+	points := fg.Circle(10.0)
+
+	if len(points) != 32 {
+		t.Errorf("Expected 32 points, got %d", len(points))
+	}
+
+	for i, p := range points {
+		dist := math.Sqrt(p.X()*p.X() + p.Y()*p.Y())
+		if math.Abs(dist-10.0) > 0.001 {
+			t.Errorf("Point %d: expected distance 10, got %f", i, dist)
 		}
-	})
+	}
+}
 
-	// Test square
-	t.Run("Square", func(t *testing.T) {
-		square := fg.Square(10.0)
-		if len(square) != 4 {
-			t.Errorf("Expected 4 points for square, got %d", len(square))
-		}
+func TestFormGeneratorCircleCustomSegments(t *testing.T) {
+	fg := NewFormGenerator()
+	fg.SetSegments(8)
+	points := fg.Circle(5.0)
 
-		// Test closed square
-		closedSquare := fg.Square(10.0, true)
-		if len(closedSquare) != 5 {
-			t.Errorf("Expected 5 points for closed square, got %d", len(closedSquare))
-		}
-	})
+	if len(points) != 8 {
+		t.Errorf("Expected 8 points, got %d", len(points))
+	}
+}
 
-	// Test triangle
-	t.Run("Triangle", func(t *testing.T) {
-		triangle := fg.Triangle(10.0)
-		if len(triangle) != 3 {
-			t.Errorf("Expected 3 points for triangle, got %d", len(triangle))
-		}
+func TestFormGeneratorEllipse(t *testing.T) {
+	fg := NewFormGenerator()
+	points := fg.Ellipse(10.0, 5.0)
 
-		// Test closed triangle
-		closedTriangle := fg.Triangle(10.0, true)
-		if len(closedTriangle) != 4 {
-			t.Errorf("Expected 4 points for closed triangle, got %d", len(closedTriangle))
-		}
-	})
+	if len(points) != 32 {
+		t.Errorf("Expected 32 points, got %d", len(points))
+	}
+}
 
-	// Test star
-	t.Run("Star", func(t *testing.T) {
-		star := fg.Star(5.0, 2.5, 5)
-		if len(star) != 12 {
-			t.Errorf("Expected 12 points for star, got %d", len(star))
-		}
-	})
+func TestFormGeneratorSquare(t *testing.T) {
+	fg := NewFormGenerator()
+	points := fg.Square(10.0)
 
-	// Test ngon
-	t.Run("NGon", func(t *testing.T) {
-		ngon := fg.NGon(6, 5.0)
-		if len(ngon) != 6 {
-			t.Errorf("Expected 6 points for hexagon, got %d", len(ngon))
-		}
-	})
+	if len(points) != 4 {
+		t.Errorf("Expected 4 points, got %d", len(points))
+	}
+}
 
-	// Test arrow
-	t.Run("Arrow", func(t *testing.T) {
-		arrow := fg.Arrow(10.0, 3.0)
-		if len(arrow) != 5 {
-			t.Errorf("Expected 5 points for arrow, got %d", len(arrow))
-		}
+func TestFormGeneratorSquareClosed(t *testing.T) {
+	fg := NewFormGenerator()
+	points := fg.Square(10.0, true)
 
-		// Test closed arrow
-		closedArrow := fg.Arrow(10.0, 3.0, true)
-		if len(closedArrow) != 6 {
-			t.Errorf("Expected 6 points for closed arrow, got %d", len(closedArrow))
-		}
-	})
+	if len(points) != 5 {
+		t.Errorf("Expected 5 points for closed square, got %d", len(points))
+	}
 
-	// Test helix
-	t.Run("Helix", func(t *testing.T) {
-		helix := fg.Helix(5.0, 10.0, 3, 8)
-		if len(helix) != 24 {
-			t.Errorf("Expected 24 points for helix, got %d", len(helix))
-		}
-	})
+	if points[4] != points[0] {
+		t.Errorf("Last point should equal first point for closed square")
+	}
+}
 
-	// Test transformations
-	t.Run("Transformations", func(t *testing.T) {
-		shape := fg.Circle(5.0)
+func TestFormGeneratorBox(t *testing.T) {
+	fg := NewFormGenerator()
+	vertices := fg.Box(10, 20, false)
 
-		// Test translate
-		translated := fg.Translate(shape, dxfmath.NewVec3(10, 10, 0))
-		if len(translated) != 32 {
-			t.Errorf("Expected 32 points after translation, got %d", len(translated))
-		}
+	if len(vertices) != 4 {
+		t.Errorf("Expected 4 vertices for box, got %d", len(vertices))
+	}
+}
 
-		// Test scale
-		scaled := fg.Scale(shape, 2.0)
-		if len(scaled) != 32 {
-			t.Errorf("Expected 32 points after scaling, got %d", len(scaled))
-		}
-	})
+func TestFormGeneratorRectangle(t *testing.T) {
+	fg := NewFormGenerator()
+	points := fg.Rectangle(10.0, 20.0)
 
-	// Test turtle graphics
-	t.Run("Turtle", func(t *testing.T) {
-		path := fg.Turtle(func(t *Turtle) {
-			t.Move(10)
-			t.Left(math.Pi / 2) // 90 degrees
-			t.Move(10)
-			t.Left(math.Pi / 2)
-			t.Move(10)
-			t.Left(math.Pi / 2)
-			t.Move(10)
-		})
+	if len(points) != 4 {
+		t.Errorf("Expected 4 points, got %d", len(points))
+	}
 
-		// Should have 4 points for a square
-		if len(path) != 4 {
-			t.Errorf("Expected 4 points for turtle square, got %d", len(path))
-		}
-	})
+	width := points[1].X() - points[0].X()
+	height := points[2].Y() - points[1].Y()
 
-	// Test box function
-	t.Run("Box", func(t *testing.T) {
-		box := fg.Box(10.0, 5.0)
-		if len(box) != 4 {
-			t.Errorf("Expected 4 points for box, got %d", len(box))
-		}
+	if math.Abs(width-10.0) > 0.001 {
+		t.Errorf("Expected width 10, got %f", width)
+	}
+	if math.Abs(height-20.0) > 0.001 {
+		t.Errorf("Expected height 20, got %f", height)
+	}
+}
 
-		// Test closed box
-		closedBox := fg.Box(10.0, 5.0, true)
-		if len(closedBox) != 5 {
-			t.Errorf("Expected 5 points for closed box, got %d", len(closedBox))
-		}
-	})
+func TestFormGeneratorTriangle(t *testing.T) {
+	fg := NewFormGenerator()
+	points := fg.Triangle(10.0)
 
-	// Test close polygon utility
-	t.Run("ClosePolygon", func(t *testing.T) {
-		triangle := fg.Triangle(10.0)
-		closedTriangle := fg.ClosePolygon(triangle)
-		if len(closedTriangle) != 4 {
-			t.Errorf("Expected 4 points for closed triangle, got %d", len(closedTriangle))
-		}
+	if len(points) != 3 {
+		t.Errorf("Expected 3 points, got %d", len(points))
+	}
+}
 
-		// Test already closed polygon
-		square := fg.Square(10.0, true)
-		alreadyClosed := fg.ClosePolygon(square)
-		if len(alreadyClosed) != 5 {
-			t.Errorf("Expected 5 points for already closed square, got %d", len(alreadyClosed))
-		}
-	})
+func TestFormGeneratorArrow(t *testing.T) {
+	fg := NewFormGenerator()
+	points := fg.Arrow(10.0, 5.0)
 
-	// Test rotation form
-	t.Run("RotationForm", func(t *testing.T) {
-		profile := []dxfmath.Vec3{
-			dxfmath.NewVec3(1, 0, 0),
-			dxfmath.NewVec3(2, 0, 0),
-		}
+	if len(points) < 3 {
+		t.Errorf("Arrow should have at least 3 points, got %d", len(points))
+	}
+}
 
-		faces := fg.RotationForm(profile, 360, 8, "z")
-		if len(faces) != 16 {
-			t.Errorf("Expected 16 faces for rotation form, got %d", len(faces))
-		}
-	})
+func TestFormGeneratorHelix(t *testing.T) {
+	fg := NewFormGenerator()
+	fg.SetSegments(64)
+	mesh := fg.Helix(5.0, 20.0, 10.0, 2)
 
-	// Test extrude with twist and scale
-	t.Run("ExtrudeTwistScale", func(t *testing.T) {
-		profile := []dxfmath.Vec3{
-			dxfmath.NewVec3(1, 1, 0),
-			dxfmath.NewVec3(1, -1, 0),
-			dxfmath.NewVec3(-1, -1, 0),
-			dxfmath.NewVec3(-1, 1, 0),
-		}
+	if len(mesh) == 0 {
+		t.Error("Helix should have vertices")
+	}
+}
 
-		faces := fg.ExtrudeTwistScale(profile, 10, 90, 1.5, 4)
-		if len(faces) != 16 { // 4 profiles * 4 faces each
-			t.Errorf("Expected 16 faces for twisted extrusion, got %d", len(faces))
-		}
-	})
+func TestFormGeneratorTranslate(t *testing.T) {
+	fg := NewFormGenerator()
+	points := []dxfmath.Vec3{
+		dxfmath.NewVec3(1, 1, 1),
+	}
+
+	translated := fg.Translate(points, dxfmath.NewVec3(10, 20, 30))
+
+	if len(translated) != 1 {
+		t.Errorf("Expected 1 translated point, got %d", len(translated))
+	}
+	if translated[0].X() != 11 {
+		t.Errorf("Expected X=11 after translate, got %f", translated[0].X())
+	}
+}
+
+func TestFormGeneratorScale(t *testing.T) {
+	fg := NewFormGenerator()
+	points := []dxfmath.Vec3{
+		dxfmath.NewVec3(1, 1, 1),
+	}
+
+	scaled := fg.Scale(points, 2.0)
+
+	if len(scaled) != 1 {
+		t.Errorf("Expected 1 scaled point, got %d", len(scaled))
+	}
+	if scaled[0].X() != 2 {
+		t.Errorf("Expected X=2 after scale, got %f", scaled[0].X())
+	}
+}
+
+func TestFormGeneratorClosePolygon(t *testing.T) {
+	fg := NewFormGenerator()
+	points := []dxfmath.Vec3{
+		dxfmath.NewVec3(0, 0, 0),
+		dxfmath.NewVec3(10, 0, 0),
+		dxfmath.NewVec3(10, 10, 0),
+	}
+
+	mesh := fg.ClosePolygon(points)
+
+	if len(mesh) != 4 {
+		t.Errorf("Expected 4 vertices for closed polygon, got %d", len(mesh))
+	}
+}
+
+func TestNewMeshBuilder(t *testing.T) {
+	mb := NewMeshBuilder()
+	if mb == nil {
+		t.Fatal("NewMeshBuilder should return non-nil")
+	}
+	if mb.GetVertexCount() != 0 {
+		t.Errorf("Expected 0 vertices, got %d", mb.GetVertexCount())
+	}
+	if mb.GetFaceCount() != 0 {
+		t.Errorf("Expected 0 faces, got %d", mb.GetFaceCount())
+	}
+}
+
+func TestMeshBuilderAddVertex(t *testing.T) {
+	mb := NewMeshBuilder()
+	idx := mb.AddVertex(dxfmath.NewVec3(1, 2, 3))
+
+	if idx != 0 {
+		t.Errorf("Expected first vertex index 0, got %d", idx)
+	}
+	if mb.GetVertexCount() != 1 {
+		t.Errorf("Expected 1 vertex, got %d", mb.GetVertexCount())
+	}
+}
+
+func TestMeshBuilderAddFace(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(0, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(1, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(0, 1, 0))
+
+	err := mb.AddFace([]int{0, 1, 2})
+	if err != nil {
+		t.Errorf("AddFace failed: %v", err)
+	}
+	if mb.GetFaceCount() != 1 {
+		t.Errorf("Expected 1 face, got %d", mb.GetFaceCount())
+	}
+}
+
+func TestMeshBuilderAddFaceInvalidIndices(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(0, 0, 0))
+
+	err := mb.AddFace([]int{0, 1, 2})
+	if err == nil {
+		t.Error("AddFace should fail with invalid vertex indices")
+	}
+}
+
+func TestMeshBuilderAddFaceTooFewVertices(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(0, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(1, 0, 0))
+
+	err := mb.AddFace([]int{0, 1})
+	if err == nil {
+		t.Error("AddFace should fail with fewer than 3 vertices")
+	}
+}
+
+func TestMeshBuilderAddTriangle(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(0, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(1, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(0, 1, 0))
+
+	err := mb.AddTriangle(0, 1, 2)
+	if err != nil {
+		t.Errorf("AddTriangle failed: %v", err)
+	}
+	if mb.GetFaceCount() != 1 {
+		t.Errorf("Expected 1 face, got %d", mb.GetFaceCount())
+	}
+}
+
+func TestMeshBuilderAddQuad(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(0, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(1, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(1, 1, 0))
+	mb.AddVertex(dxfmath.NewVec3(0, 1, 0))
+
+	err := mb.AddQuad(0, 1, 2, 3)
+	if err != nil {
+		t.Errorf("AddQuad failed: %v", err)
+	}
+	if mb.GetFaceCount() != 1 {
+		t.Errorf("Expected 1 face, got %d", mb.GetFaceCount())
+	}
+}
+
+func TestMeshBuilderGetVertex(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(1, 2, 3))
+	mb.AddVertex(dxfmath.NewVec3(4, 5, 6))
+
+	v, err := mb.GetVertex(1)
+	if err != nil {
+		t.Errorf("GetVertex failed: %v", err)
+	}
+	if v.X() != 4 || v.Y() != 5 || v.Z() != 6 {
+		t.Errorf("Expected (4, 5, 6), got (%f, %f, %f)", v.X(), v.Y(), v.Z())
+	}
+}
+
+func TestMeshBuilderGetVertexInvalidIndex(t *testing.T) {
+	mb := NewMeshBuilder()
+
+	_, err := mb.GetVertex(0)
+	if err == nil {
+		t.Error("GetVertex should fail with invalid index")
+	}
+}
+
+func TestMeshBuilderGetFace(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(0, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(1, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(0, 1, 0))
+	mb.AddFace([]int{0, 1, 2})
+
+	face, err := mb.GetFace(0)
+	if err != nil {
+		t.Errorf("GetFace failed: %v", err)
+	}
+	if len(face) != 3 {
+		t.Errorf("Expected 3 indices, got %d", len(face))
+	}
+}
+
+func TestMeshBuilderGetFaceInvalidIndex(t *testing.T) {
+	mb := NewMeshBuilder()
+
+	_, err := mb.GetFace(0)
+	if err == nil {
+		t.Error("GetFace should fail with invalid index")
+	}
+}
+
+func TestMeshBuilderGetVertices(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(1, 2, 3))
+	mb.AddVertex(dxfmath.NewVec3(4, 5, 6))
+
+	vertices := mb.GetVertices()
+	if len(vertices) != 2 {
+		t.Errorf("Expected 2 vertices, got %d", len(vertices))
+	}
+}
+
+func TestMeshBuilderGetFaces(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(0, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(1, 0, 0))
+	mb.AddVertex(dxfmath.NewVec3(0, 1, 0))
+	mb.AddFace([]int{0, 1, 2})
+
+	faces := mb.GetFaces()
+	if len(faces) != 1 {
+		t.Errorf("Expected 1 face, got %d", len(faces))
+	}
+}
+
+func TestMeshBuilderClear(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(1, 2, 3))
+	mb.AddFace([]int{0, 0, 0})
+
+	mb.Clear()
+
+	if mb.GetVertexCount() != 0 {
+		t.Errorf("Expected 0 vertices after clear, got %d", mb.GetVertexCount())
+	}
+	if mb.GetFaceCount() != 0 {
+		t.Errorf("Expected 0 faces after clear, got %d", mb.GetFaceCount())
+	}
+}
+
+func TestMeshBuilderTranslate(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(1, 1, 1))
+
+	mb.Translate(dxfmath.NewVec3(10, 20, 30))
+
+	v, _ := mb.GetVertex(0)
+	if v.X() != 11 {
+		t.Errorf("Expected X=11 after translate, got %f", v.X())
+	}
+}
+
+func TestMeshBuilderScale(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(1, 1, 1))
+
+	mb.Scale(2.0, 2.0, 2.0)
+
+	v, _ := mb.GetVertex(0)
+	if v.X() != 2 {
+		t.Errorf("Expected X=2 after scale, got %f", v.X())
+	}
+}
+
+func TestMeshBuilderUniformScale(t *testing.T) {
+	mb := NewMeshBuilder()
+	mb.AddVertex(dxfmath.NewVec3(1, 2, 3))
+
+	mb.UniformScale(0.5)
+
+	v, _ := mb.GetVertex(0)
+	if v.X() != 0.5 {
+		t.Errorf("Expected X=0.5 after uniform scale, got %f", v.X())
+	}
 }

@@ -55,18 +55,23 @@ func (e *Ellipse) ToBezier() *dxfmath.Bezier {
 		// For a full ellipse, use 4 cubic Bézier segments
 		// For simplicity, we'll create one segment for now
 		controlPoints := []dxfmath.Vec3{
-			center.Add(dxfmath.NewVec3(e.Major, 0, 0)),                 // Start point
-			center.Add(dxfmath.NewVec3(e.Major, k*e.Major*e.Ratio, 0)), // Control point 1
-			center.Add(dxfmath.NewVec3(k*e.Major, e.Major*e.Ratio, 0)), // Control point 2
-			center.Add(dxfmath.NewVec3(0, e.Major*e.Ratio, 0)),         // End point
+			center.Add(dxfmath.NewVec3(e.Major, 0, 0)),
+			center.Add(dxfmath.NewVec3(e.Major, k*e.Major*e.Ratio, 0)),
+			center.Add(dxfmath.NewVec3(k*e.Major, e.Major*e.Ratio, 0)),
+			center.Add(dxfmath.NewVec3(0, e.Major*e.Ratio, 0)),
 		}
 
-		e.bezierCurve = dxfmath.NewBezier4P(
+		bezier, err := dxfmath.NewBezier4P(
 			controlPoints[0],
 			controlPoints[1],
 			controlPoints[2],
 			controlPoints[3],
 		)
+		if err != nil {
+			// This should not happen with valid control points
+			return nil
+		}
+		e.bezierCurve = bezier
 	}
 	return e.bezierCurve
 }
@@ -195,4 +200,18 @@ func (e *Ellipse) BBox() ([]float64, []float64) {
 	}
 
 	return mins, maxs
+}
+
+// Copy creates a deep copy of the Ellipse entity
+func (e *Ellipse) Copy() Entity {
+	ellipse := NewEllipse()
+	ellipse.entity = e.entity
+	ellipse.Center = []float64{e.Center[0], e.Center[1], e.Center[2]}
+	ellipse.Major = e.Major
+	ellipse.Minor = e.Minor
+	ellipse.Ratio = e.Ratio
+	ellipse.Start = e.Start
+	ellipse.End = e.End
+	ellipse.bezierCurve = nil
+	return ellipse
 }

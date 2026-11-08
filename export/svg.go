@@ -28,6 +28,10 @@ func (e *SVGExporter) SetPrecision(precision int) {
 }
 
 func (e *SVGExporter) Export() string {
+	if e.drawing == nil {
+		return ""
+	}
+
 	var sb strings.Builder
 
 	entities := e.drawing.Entities()

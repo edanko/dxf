@@ -185,7 +185,7 @@ func (bs *BSpline) basisFunctions(span int, u float64) []float64 {
 		basis[j] = saved
 	}
 
-	return basis[1:]
+	return basis[:bs.order]
 }
 
 // SamplePoints samples B-spline at specified number of points

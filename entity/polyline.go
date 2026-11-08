@@ -88,3 +88,17 @@ func (p *Polyline) BBox() ([]float64, []float64) {
 	}
 	return mins, maxs
 }
+
+// Copy creates a deep copy of the Polyline entity
+func (p *Polyline) Copy() Entity {
+	polyline := NewPolyline()
+	polyline.entity = p.entity
+	polyline.Flag = p.Flag
+	polyline.size = p.size
+	polyline.endhandle = p.endhandle
+	polyline.Vertices = make([]*Vertex, len(p.Vertices))
+	for i, v := range p.Vertices {
+		polyline.Vertices[i] = v.Copy().(*Vertex)
+	}
+	return polyline
+}

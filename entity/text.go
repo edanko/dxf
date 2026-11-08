@@ -1,6 +1,8 @@
 package entity
 
 import (
+	"math"
+
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/table"
 )
@@ -49,6 +51,9 @@ func NewText() *Text {
 		Coord1:         []float64{0.0, 0.0, 0.0},
 		Coord2:         []float64{0.0, 0.0, 0.0},
 		Height:         1.0,
+		WidthFactor:    1.0,
+		Rotation:       0.0,
+		ObliqueAngle:   0.0,
 		Value:          "",
 		GenFlag:        0,
 		HorizontalFlag: 0,
@@ -69,7 +74,9 @@ func (t *Text) Format(f format.Formatter) {
 	f.WriteFloat(41, t.WidthFactor)
 	f.WriteFloat(51, t.ObliqueAngle)
 	f.WriteString(1, t.Value)
-	f.WriteString(7, t.Style.Name())
+	if t.Style != nil {
+		f.WriteString(7, t.Style.Name())
+	}
 	if t.GenFlag != 0 {
 		f.WriteInt(71, t.GenFlag)
 	}
@@ -77,7 +84,7 @@ func (t *Text) Format(f format.Formatter) {
 		f.WriteInt(72, t.HorizontalFlag)
 		if t.VerticalFlag != 0 {
 			for i := 0; i < 3; i++ {
-				f.WriteFloat((i+1)*10+1, t.Coord1[i])
+				f.WriteFloat((i+1)*10+1, t.Coord2[i])
 			}
 		}
 	}
@@ -105,56 +112,150 @@ func (t *Text) FlipVertical() {
 	t.togglegenflag(4)
 }
 
-// Anchor sets anchor point flags.
-func (t *Text) Anchor(pos int) {
-	switch pos {
-	case LEFT_BASE:
-		t.HorizontalFlag = 0
-		t.VerticalFlag = 0
-	case CENTER_BASE:
-		t.HorizontalFlag = 1
-		t.VerticalFlag = 0
-	case RIGHT_BASE:
-		t.HorizontalFlag = 2
-		t.VerticalFlag = 0
-	case LEFT_BOTTOM:
-		t.HorizontalFlag = 0
-		t.VerticalFlag = 1
-	case CENTER_BOTTOM:
-		t.HorizontalFlag = 1
-		t.VerticalFlag = 1
-	case RIGHT_BOTTOM:
-		t.HorizontalFlag = 2
-		t.VerticalFlag = 1
-	case LEFT_CENTER:
-		t.HorizontalFlag = 0
-		t.VerticalFlag = 2
-	case CENTER_CENTER:
-		t.HorizontalFlag = 1
-		t.VerticalFlag = 2
-	case RIGHT_CENTER:
-		t.HorizontalFlag = 2
-		t.VerticalFlag = 2
-	case LEFT_TOP:
-		t.HorizontalFlag = 0
-		t.VerticalFlag = 3
-	case CENTER_TOP:
-		t.HorizontalFlag = 1
-		t.VerticalFlag = 3
-	case RIGHT_TOP:
-		t.HorizontalFlag = 2
-		t.VerticalFlag = 3
+// Anchor sets anchor point flags and returns the new anchor.
+// Valid anchor values are LEFT_BASE (0) through RIGHT_TOP (11).
+func (t *Text) Anchor(pos int) int {
+	if pos < LEFT_BASE || pos > RIGHT_TOP {
+		return t.GetAnchor()
 	}
+	t.HorizontalFlag = pos % 3
+	t.VerticalFlag = pos / 3
+	return pos
 }
 
+// GetAnchor returns the current anchor point
+func (t *Text) GetAnchor() int {
+	return t.HorizontalFlag + t.VerticalFlag*3
+}
+
+// TextLength calculates the approximate length of the text.
+// This is an approximation based on character count, height, and width factor.
+// For accurate measurements, a font renderer would be needed.
+func (t *Text) TextLength() float64 {
+	if t.Value == "" {
+		return 0
+	}
+	// Approximate: average character width is about 0.6 * height
+	// Then apply the width factor
+	approxCharWidth := t.Height * 0.6 * t.WidthFactor
+	return float64(len(t.Value)) * approxCharWidth
+}
+
+// BBox returns the bounding box of the text entity.
+// The bounding box considers the text length, height, and anchor point.
 func (t *Text) BBox() ([]float64, []float64) {
-	// TODO: text length, anchor point
-	mins := []float64{t.Coord1[0], t.Coord1[1], t.Coord1[2]}
-	maxs := []float64{t.Coord1[0], t.Coord1[1] + t.Height, t.Coord1[2]}
+	if len(t.Coord1) < 3 {
+		return []float64{0, 0, 0}, []float64{0, 0, 0}
+	}
+
+	textLen := t.TextLength()
+	anchor := t.GetAnchor()
+
+	mins := make([]float64, 3)
+	maxs := make([]float64, 3)
+
+	// Calculate bounds based on anchor point
+	// Horizontal anchor: 0=left, 1=center, 2=right
+	// Vertical anchor: 0=base, 1=bottom, 2=center, 3=top
+	horizontalAnchor := anchor % 3
+	verticalAnchor := anchor / 3
+
+	// X bounds based on horizontal anchor
+	switch horizontalAnchor {
+	case 0: // Left aligned
+		mins[0] = t.Coord1[0]
+		maxs[0] = t.Coord1[0] + textLen
+	case 1: // Center aligned
+		mins[0] = t.Coord1[0] - textLen/2
+		maxs[0] = t.Coord1[0] + textLen/2
+	case 2: // Right aligned
+		mins[0] = t.Coord1[0] - textLen
+		maxs[0] = t.Coord1[0]
+	}
+
+	// Y bounds based on vertical anchor
+	switch verticalAnchor {
+	case 0: // Base
+		mins[1] = t.Coord1[1]
+		maxs[1] = t.Coord1[1] + t.Height
+	case 1: // Bottom
+		mins[1] = t.Coord1[1]
+		maxs[1] = t.Coord1[1] + t.Height
+	case 2: // Center
+		mins[1] = t.Coord1[1] - t.Height/2
+		maxs[1] = t.Coord1[1] + t.Height/2
+	case 3: // Top
+		mins[1] = t.Coord1[1] - t.Height
+		maxs[1] = t.Coord1[1]
+	}
+
+	mins[2] = t.Coord1[2]
+	maxs[2] = t.Coord1[2]
+
+	// Apply rotation if needed
+	if t.Rotation != 0 {
+		// For rotated text, expand the bounding box to be safe
+		rad := t.Rotation * math.Pi / 180
+		cosR := math.Cos(rad)
+		sinR := math.Sin(rad)
+
+		// Calculate the rotated corners
+		width := maxs[0] - mins[0]
+		height := maxs[1] - mins[1]
+		centerX := (mins[0] + maxs[0]) / 2
+		centerY := (mins[1] + maxs[1]) / 2
+
+		// Rotated half-diagonal
+		halfDiagX := width/2*math.Abs(cosR) + height/2*math.Abs(sinR)
+		halfDiagY := width/2*math.Abs(sinR) + height/2*math.Abs(cosR)
+
+		mins[0] = centerX - halfDiagX
+		maxs[0] = centerX + halfDiagX
+		mins[1] = centerY - halfDiagY
+		maxs[1] = centerY + halfDiagY
+	}
+
 	return mins, maxs
 }
 
 // SetStyle sets text entity style.
 func (t *Text) SetStyle(style *table.Style) {
 	t.Style = style
+}
+
+// SetCoord sets the insertion point (first alignment point)
+func (t *Text) SetCoord(coord []float64) {
+	if len(coord) >= 3 {
+		t.Coord1 = []float64{coord[0], coord[1], coord[2]}
+	}
+}
+
+// SetSecondCoord sets the second alignment point (for fitted text)
+func (t *Text) SetSecondCoord(coord []float64) {
+	if len(coord) >= 3 {
+		t.Coord2 = []float64{coord[0], coord[1], coord[2]}
+	}
+}
+
+// SecondCoord returns the second alignment point
+func (t *Text) SecondCoord() []float64 {
+	return t.Coord2
+}
+
+// Copy creates a deep copy of the Text entity
+func (t *Text) Copy() Entity {
+	text := NewText()
+	text.entity = t.entity
+	text.Coord1 = []float64{t.Coord1[0], t.Coord1[1], t.Coord1[2]}
+	text.Coord2 = []float64{t.Coord2[0], t.Coord2[1], t.Coord2[2]}
+	text.Height = t.Height
+	text.Rotation = t.Rotation
+	text.WidthFactor = t.WidthFactor
+	text.ObliqueAngle = t.ObliqueAngle
+	text.Value = t.Value
+	text.Style = t.Style
+	text.GenFlag = t.GenFlag
+	text.HorizontalFlag = t.HorizontalFlag
+	text.VerticalFlag = t.VerticalFlag
+	return text
 }

@@ -68,10 +68,13 @@ func (db *ProfessionalEntityDB) removeFromIndexes(handle string, entry *EntityEn
 		}
 	}
 
-	// Remove from spatial index (note: RTree doesn't have Remove method yet)
-	// For now, we'll rebuild the spatial index when needed
+	// Remove from spatial index
 	if db.enableSpatialIndex {
-		// TODO: Implement Remove in RTree or rebuild index
+		minBbox, maxBbox := entity.BBox()
+		if len(minBbox) >= 2 && len(maxBbox) >= 2 {
+			bounds := spatial.NewBoundingBox(minBbox[0], minBbox[1], maxBbox[0], maxBbox[1])
+			db.spatialIndex.Remove(bounds, handle)
+		}
 	}
 }
 

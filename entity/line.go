@@ -89,3 +89,20 @@ func (l *Line) Move(x, y, z float64) {
 		l.End[i] += val
 	}
 }
+
+// Copy creates a deep copy of the Line entity
+func (l *Line) Copy() Entity {
+	line := NewLine()
+	line.entity = l.entity
+	if len(l.Start) >= 3 {
+		line.Start = []float64{l.Start[0], l.Start[1], l.Start[2]}
+	}
+	if len(l.End) >= 3 {
+		line.End = []float64{l.End[0], l.End[1], l.End[2]}
+	}
+	line.Thickness = l.Thickness
+	if len(l.StretchingDirection) >= 3 {
+		line.StretchingDirection = []float64{l.StretchingDirection[0], l.StretchingDirection[1], l.StretchingDirection[2]}
+	}
+	return line
+}

@@ -298,3 +298,26 @@ func (s *Spline) BBox() ([]float64, []float64) {
 
 	return mins, maxs
 }
+
+// Copy creates a deep copy of the Spline entity
+func (s *Spline) Copy() Entity {
+	spline := NewSpline(s.Degree)
+	spline.entity = s.entity
+	spline.Normal = []float64{s.Normal[0], s.Normal[1], s.Normal[2]}
+	spline.Flag = s.Flag
+	spline.Knots = make([]float64, len(s.Knots))
+	copy(spline.Knots, s.Knots)
+	spline.Weights = make([]float64, len(s.Weights))
+	copy(spline.Weights, s.Weights)
+	spline.Controls = make([][]float64, len(s.Controls))
+	for i, c := range s.Controls {
+		spline.Controls[i] = []float64{c[0], c[1], c[2]}
+	}
+	spline.Fits = make([][]float64, len(s.Fits))
+	for i, f := range s.Fits {
+		spline.Fits[i] = []float64{f[0], f[1], f[2]}
+	}
+	spline.Tolerance = []float64{s.Tolerance[0], s.Tolerance[1], s.Tolerance[2]}
+	spline.enhancedBSpline = nil
+	return spline
+}

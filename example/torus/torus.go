@@ -11,8 +11,8 @@ import (
 func main() {
 	d, _ := dxf.NewDrawing()
 	d.Header().LtScale = 100.0
-	d.AddLayer("Toroidal", color.White, d.LtContinuous(), true)
-	d.AddLayer("Poloidal", color.Red, d.LtHidden(), true)
+	d.AddLayer("Toroidal", color.White, d.LtContinuous())
+	d.AddLayer("Poloidal", color.Red, d.LtHidden())
 	z := 0.0
 	r1 := 200.0
 	r2 := 500.0

@@ -14,6 +14,7 @@ type TreeNode struct {
 	Parent   *TreeNode
 	Leaf     bool
 	Data     interface{} // For leaf nodes (could be entity reference)
+	Removed  bool        // Flag for lazy removal
 }
 
 // NewTreeNode creates a new tree node
@@ -24,6 +25,7 @@ func NewTreeNode(box *BoundingBox, leaf bool, data interface{}) *TreeNode {
 		Parent:   nil,
 		Leaf:     leaf,
 		Data:     data,
+		Removed:  false,
 	}
 }
 
@@ -48,11 +50,24 @@ func (n *TreeNode) ReplaceChild(oldChild, newChild *TreeNode) bool {
 	return false
 }
 
+// RemoveChild removes a child node
+func (n *TreeNode) RemoveChild(child *TreeNode) bool {
+	for i, c := range n.Children {
+		if c == child {
+			n.Children = append(n.Children[:i], n.Children[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 // RTree represents an R-tree for spatial indexing
 type RTree struct {
-	Root     *TreeNode
-	MaxItems int
-	Depth    int
+	Root      *TreeNode
+	MaxItems  int
+	Depth     int
+	itemCount int // Track number of items
+	removed   int // Track number of removed items for lazy cleanup
 }
 
 // RTreeOptions contains configuration options for R-tree
@@ -88,10 +103,12 @@ func NewRTree(options *RTreeOptions) *RTree {
 func (rt *RTree) Insert(box *BoundingBox, data interface{}) {
 	if rt.Root == nil {
 		rt.Root = NewTreeNode(box, true, data)
+		rt.itemCount++
 		return
 	}
 
 	rt.insertRecursive(rt.Root, box, data)
+	rt.itemCount++
 }
 
 func (rt *RTree) insertRecursive(node *TreeNode, box *BoundingBox, data interface{}) {
@@ -114,6 +131,185 @@ func (rt *RTree) insertRecursive(node *TreeNode, box *BoundingBox, data interfac
 	}
 }
 
+// Remove removes an item from the R-tree by data and box
+// Returns true if the item was found and removed
+func (rt *RTree) Remove(box *BoundingBox, data interface{}) bool {
+	if rt.Root == nil {
+		return false
+	}
+
+	if rt.removeRecursive(rt.Root, box, data) {
+		rt.itemCount--
+		rt.removed++
+
+		// Lazy cleanup if too many removed items
+		if rt.removed > rt.itemCount/2 && rt.itemCount > 10 {
+			rt.cleanup()
+		}
+		return true
+	}
+	return false
+}
+
+func (rt *RTree) removeRecursive(node *TreeNode, box *BoundingBox, data interface{}) bool {
+	if node == nil {
+		return false
+	}
+
+	if node.IsLeaf() {
+		// Search through children for matching item
+		for i, child := range node.Children {
+			if !child.Removed && child.Data == data && child.Box.ContainsBox(box) {
+				child.Removed = true
+				node.Children = append(node.Children[:i], node.Children[i+1:]...)
+
+				// Update parent's bounding box
+				rt.updateBoundingBoxes(node)
+
+				return true
+			}
+		}
+	} else {
+		// Search in children
+		for _, child := range node.Children {
+			if child.Box.Intersects(box) {
+				if rt.removeRecursive(child, box, data) {
+					// Update bounding boxes after removal
+					rt.updateBoundingBoxes(node)
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// updateBoundingBoxes recalculates bounding boxes from children
+func (rt *RTree) updateBoundingBoxes(node *TreeNode) {
+	if node == nil || len(node.Children) == 0 {
+		return
+	}
+
+	// Recalculate bounding box from children
+	newBox := node.Children[0].Box
+	for _, child := range node.Children[1:] {
+		newBox = newBox.Extend(child.Box)
+	}
+	node.Box = newBox
+
+	// Propagate up if needed
+	if node.Parent != nil {
+		rt.updateBoundingBoxes(node.Parent)
+	}
+}
+
+// cleanup removes marked items and rebuilds the tree if needed
+func (rt *RTree) cleanup() {
+	if rt.Root == nil {
+		return
+	}
+
+	// Collect all non-removed items
+	var items []struct {
+		box  *BoundingBox
+		data interface{}
+	}
+
+	rt.collectItems(rt.Root, &items)
+
+	// Clear the tree
+	rt.Root = nil
+	rt.removed = 0
+
+	// Rebuild with remaining items
+	for _, item := range items {
+		rt.Insert(item.box, item.data)
+	}
+}
+
+// collectItems gathers all non-removed items from the tree
+func (rt *RTree) collectItems(node *TreeNode, items *[]struct {
+	box  *BoundingBox
+	data interface{}
+}) {
+	if node == nil {
+		return
+	}
+
+	if node.IsLeaf() {
+		for _, child := range node.Children {
+			if !child.Removed {
+				*items = append(*items, struct {
+					box  *BoundingBox
+					data interface{}
+				}{child.Box, child.Data})
+			}
+		}
+	} else {
+		for _, child := range node.Children {
+			rt.collectItems(child, items)
+		}
+	}
+}
+
+// RemoveByData removes an item from the R-tree by data only (slower, searches all nodes)
+func (rt *RTree) RemoveByData(data interface{}) bool {
+	if rt.Root == nil {
+		return false
+	}
+
+	if rt.removeByDataRecursive(rt.Root, data) {
+		rt.itemCount--
+		rt.removed++
+
+		if rt.removed > rt.itemCount/2 && rt.itemCount > 10 {
+			rt.cleanup()
+		}
+		return true
+	}
+	return false
+}
+
+func (rt *RTree) removeByDataRecursive(node *TreeNode, data interface{}) bool {
+	if node == nil {
+		return false
+	}
+
+	if node.IsLeaf() {
+		for i, child := range node.Children {
+			if !child.Removed && child.Data == data {
+				child.Removed = true
+				node.Children = append(node.Children[:i], node.Children[i+1:]...)
+				rt.updateBoundingBoxes(node)
+				return true
+			}
+		}
+	} else {
+		for _, child := range node.Children {
+			if rt.removeByDataRecursive(child, data) {
+				rt.updateBoundingBoxes(node)
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Compact removes all marked items and rebuilds the tree
+func (rt *RTree) Compact() {
+	rt.cleanup()
+}
+
+// ItemCount returns the number of items in the tree (excluding removed)
+func (rt *RTree) ItemCount() int {
+	return rt.itemCount
+}
+
+// TotalCount returns the total number of items including removed
+func (rt *RTree) TotalCount() int {
+	return rt.itemCount + rt.removed
+}
+
 // Query finds all items that intersect with the given box
 func (rt *RTree) Query(box *BoundingBox) []interface{} {
 	var results []interface{}
@@ -129,7 +325,11 @@ func (rt *RTree) queryRecursive(node *TreeNode, box *BoundingBox, results *[]int
 
 	if node.Box.Intersects(box) {
 		if node.IsLeaf() {
-			*results = append(*results, node.Data)
+			for _, child := range node.Children {
+				if !child.Removed {
+					*results = append(*results, child.Data)
+				}
+			}
 		} else {
 			for _, child := range node.Children {
 				rt.queryRecursive(child, box, results)
@@ -162,17 +362,20 @@ func (rt *RTree) queryNearestRecursive(node *TreeNode, x, y float64, nearest *in
 	}
 
 	if node.IsLeaf() {
-		// Check if this leaf has a nearer item
-		if node.Box != nil {
-			centerX, centerY := node.Box.Center()
-			dist := math.Sqrt((x-centerX)*(x-centerX) + (y-centerY)*(y-centerY))
-			if dist < *minDist {
-				*nearest = node.Data
-				*minDist = dist
+		for _, child := range node.Children {
+			if child.Removed {
+				continue
+			}
+			if child.Box != nil {
+				centerX, centerY := child.Box.Center()
+				dist := math.Sqrt((x-centerX)*(x-centerX) + (y-centerY)*(y-centerY))
+				if dist < *minDist {
+					*nearest = child.Data
+					*minDist = dist
+				}
 			}
 		}
 	} else {
-		// Check children
 		for _, child := range node.Children {
 			rt.queryNearestRecursive(child, x, y, nearest, minDist)
 		}
@@ -255,22 +458,7 @@ func (rt *RTree) findBestSplit(boxes []*BoundingBox) (int, float64) {
 
 // Count returns the number of items in the R-tree
 func (rt *RTree) Count() int {
-	return rt.countNodes(rt.Root)
-}
-
-// countNodes recursively counts nodes in the tree
-func (rt *RTree) countNodes(node *TreeNode) int {
-	if node == nil {
-		return 0
-	}
-
-	count := 1 // Count this node
-
-	for _, child := range node.Children {
-		count += rt.countNodes(child)
-	}
-
-	return count
+	return rt.itemCount
 }
 
 // GetStats returns R-tree statistics
@@ -311,6 +499,7 @@ func (rt *RTree) calculateDepth(node *TreeNode) int {
 // Clear removes all items from the R-tree
 func (rt *RTree) Clear() {
 	rt.Root = nil
+	rt.itemCount = 0
 }
 
 // BulkInsert adds multiple items to the R-tree

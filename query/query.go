@@ -2,7 +2,6 @@ package query
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -374,57 +373,19 @@ func parseQueryString(queryStr string) (entityNames []string, attrConditions str
 
 // parseAttributeQuery parses an attribute query string into a predicate function
 func parseAttributeQuery(queryStr string) (func(entity.Entity) bool, error) {
-	// Simple implementation for common cases
-	// TODO: Implement full query parser with support for complex expressions
-
-	// Handle common patterns like 'layer=="construction"'
-	if matched, _ := regexp.MatchString(`^\w+=="[^"]*"$`, queryStr); matched {
-		parts := strings.SplitN(queryStr, "==", 2)
-		attrName := strings.TrimSpace(parts[0])
-		value := strings.Trim(parts[1], `"`)
-
-		return func(ent entity.Entity) bool {
-			return getEntityAttribute(ent, attrName) == value
-		}, nil
+	parser, err := NewParser(queryStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid query syntax: %w", err)
 	}
 
-	// Handle layer comparison without quotes (common case)
-	if matched, _ := regexp.MatchString(`^layer==\w+$`, queryStr); matched {
-		parts := strings.SplitN(queryStr, "==", 2)
-		value := strings.TrimSpace(parts[1])
-
-		return func(ent entity.Entity) bool {
-			return getEntityAttribute(ent, "layer") == value
-		}, nil
+	expr, err := parser.Parse()
+	if err != nil {
+		return nil, err
 	}
 
-	// Handle numeric comparisons
-	if matched, _ := regexp.MatchString(`^\w+(<=|>=|<|>)\d+$`, queryStr); matched {
-		re := regexp.MustCompile(`^(\w+)(<=|>=|<|>)(\d+)$`)
-		matches := re.FindStringSubmatch(queryStr)
-		if len(matches) == 4 {
-			attrName := matches[1]
-			op := matches[2]
-			value, _ := strconv.ParseFloat(matches[3], 64)
-
-			return func(ent entity.Entity) bool {
-				attrValue := getEntityAttributeAsFloat(ent, attrName)
-				switch op {
-				case "<=":
-					return attrValue <= value
-				case ">=":
-					return attrValue >= value
-				case "<":
-					return attrValue < value
-				case ">":
-					return attrValue > value
-				}
-				return false
-			}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("unsupported attribute query format: %s", queryStr)
+	return func(ent entity.Entity) bool {
+		return expr.Match(ent)
+	}, nil
 }
 
 // getEntityAttribute returns an entity attribute value as string

@@ -35,3 +35,13 @@ func (a *Arc) Format(f format.Formatter) {
 		f.WriteFloat(50+i, a.Angle[i])
 	}
 }
+
+// Copy creates a deep copy of the Arc entity
+func (a *Arc) Copy() Entity {
+	arc := NewArc(a.Circle.Copy().(*Circle))
+	arc.entity = a.entity
+	if len(a.Angle) >= 2 {
+		arc.Angle = []float64{a.Angle[0], a.Angle[1]}
+	}
+	return arc
+}

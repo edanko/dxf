@@ -377,3 +377,39 @@ func (i *Insert) BBox() ([]float64, []float64) {
 
 	return mins, maxs
 }
+
+// Copy creates a deep copy of the Insert entity
+func (i *Insert) Copy() Entity {
+	insert := NewInsert()
+	insert.entity = i.entity
+	insert.blockName = i.blockName
+	insert.insertPoint = i.insertPoint
+	insert.layerOverride = i.layerOverride
+	insert.xScale = i.xScale
+	insert.yScale = i.yScale
+	insert.zScale = i.zScale
+	insert.rotation = i.rotation
+	insert.extrusion = i.extrusion
+	insert.columnCount = i.columnCount
+	insert.rowCount = i.rowCount
+	insert.columnSpacing = i.columnSpacing
+	insert.rowSpacing = i.rowSpacing
+	insert.block = i.block
+	insert.flags = i.flags
+	insert.hasAttribs = i.hasAttribs
+	insert.isMultiple = i.isMultiple
+	insert.isResolved = i.isResolved
+	insert.isExternal = i.isExternal
+
+	// Deep copy attributes
+	if len(i.attributes) > 0 {
+		insert.attributes = make([]*Attrib, len(i.attributes))
+		for idx, attr := range i.attributes {
+			if attr != nil {
+				insert.attributes[idx] = attr.Copy().(*Attrib)
+			}
+		}
+	}
+
+	return insert
+}

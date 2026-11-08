@@ -48,7 +48,7 @@ func (f *ThreeDFace) BBox() ([]float64, []float64) {
 	mins := make([]float64, 3)
 	maxs := make([]float64, 3)
 	for _, p := range f.Points {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			if p[i] < mins[i] {
 				mins[i] = p[i]
 			}
@@ -58,4 +58,16 @@ func (f *ThreeDFace) BBox() ([]float64, []float64) {
 		}
 	}
 	return mins, maxs
+}
+
+// Copy creates a deep copy of the ThreeDFace entity
+func (f *ThreeDFace) Copy() Entity {
+	face := New3DFace()
+	face.entity = f.entity
+	face.Flag = f.Flag
+	face.Points = make([][]float64, len(f.Points))
+	for i, p := range f.Points {
+		face.Points[i] = []float64{p[0], p[1], p[2]}
+	}
+	return face
 }
