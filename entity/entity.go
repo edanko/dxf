@@ -35,9 +35,11 @@ type entity struct {
 	blockRecord handle.Handler    // 102 330
 	owner       handle.Handler    // 330
 	layer       *table.Layer      // 8
+	layerName   string            // 8 fallback when no layer pointer is resolved
 	ltscale     float64           // 48
 	color       color.ColorNumber // 62
 	xdata       *xdata.XData      // XDATA (1000-1071)
+	rawTags     []TagPair         // unhandled tags retained for round trips
 }
 
 // NewEntity creates a new entity.
@@ -60,7 +62,9 @@ func (e *entity) SetColor(cl color.ColorNumber) {
 // Format writes data to formatter.
 func (e *entity) Format(f format.Formatter) {
 	f.WriteString(0, EntityTypeString(e.Type))
-	f.WriteString(5, e.handle)
+	if e.handle != "" {
+		f.WriteString(5, e.handle)
+	}
 	if e.blockRecord != nil {
 		f.WriteString(102, "{ACAD_REACTORS")
 		f.WriteString(330, e.blockRecord.Handle())
@@ -70,11 +74,20 @@ func (e *entity) Format(f format.Formatter) {
 		f.WriteString(330, e.owner.Handle())
 	}
 	f.WriteString(100, "AcDbEntity")
-	f.WriteString(8, e.layer.Name())
+	layerName := e.layerName
+	if e.layer != nil {
+		layerName = e.layer.Name()
+	}
+	if layerName != "" {
+		f.WriteString(8, layerName)
+	}
 	if e.ltscale != 1.0 {
 		f.WriteFloat(48, e.ltscale)
 	}
 	f.WriteInt(62, int(e.color))
+	for _, tag := range e.rawTags {
+		f.WriteString(tag.Code, tag.Value)
+	}
 }
 
 // Handle returns a handle value of TABLE.
@@ -84,7 +97,38 @@ func (e *entity) Handle() string {
 
 // SetHandle sets handles to TABLE itself and each SymbolTable.
 func (e *entity) SetHandle(hg *handle.HandleGenerator) {
-	e.handle = hg.Next()
+	if e.handle == "" {
+		e.handle = hg.Next()
+	}
+}
+
+// SetHandleString sets an explicit handle, preserving handles loaded from a file.
+func (e *entity) SetHandleString(h string) {
+	e.handle = h
+}
+
+// SetLayerName records the layer name for cases where the layer table has not
+// been resolved yet (for example while loading a document).
+func (e *entity) SetLayerName(name string) {
+	e.layerName = name
+}
+
+// LayerName returns the resolved or recorded layer name.
+func (e *entity) LayerName() string {
+	if e.layer != nil {
+		return e.layer.Name()
+	}
+	return e.layerName
+}
+
+// SetRawTags stores unhandled group codes so they survive a load/save round trip.
+func (e *entity) SetRawTags(tags []TagPair) {
+	e.rawTags = tags
+}
+
+// RawTags returns the unhandled group codes retained on this entity.
+func (e *entity) RawTags() []TagPair {
+	return e.rawTags
 }
 
 // SetBlockRecord sets BLOCK_RECORD to entity (code 330).

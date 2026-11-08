@@ -62,7 +62,9 @@ func (st *Style) Handle() string {
 
 // SetHandle sets a handle.
 func (st *Style) SetHandle(hg *handle.HandleGenerator) {
-	st.handle = hg.Next()
+	if st.handle == "" {
+		st.handle = hg.Next()
+	}
 }
 
 // SetOwner sets an owner.

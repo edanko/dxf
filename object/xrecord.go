@@ -2,6 +2,7 @@ package object
 
 import (
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 )
 
 // XRecord represents an XRECORD object for storing application-specific data
@@ -52,8 +53,15 @@ func (x *XRecord) Handle() string {
 	return x.handle
 }
 
-// SetHandle sets the object handle
-func (x *XRecord) SetHandle(h string) {
+// SetHandle sets the object handle.
+func (x *XRecord) SetHandle(hg *handle.HandleGenerator) {
+	if x.handle == "" {
+		x.handle = hg.Next()
+	}
+}
+
+// SetHandleString sets an explicit handle loaded from a file.
+func (x *XRecord) SetHandleString(h string) {
 	x.handle = h
 }
 

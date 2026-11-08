@@ -44,7 +44,9 @@ func (d *DimStyle) Handle() string {
 
 // SetHandle sets a handle.
 func (d *DimStyle) SetHandle(hg *handle.HandleGenerator) {
-	d.handle = hg.Next()
+	if d.handle == "" {
+		d.handle = hg.Next()
+	}
 }
 
 // SetOwner sets an owner.

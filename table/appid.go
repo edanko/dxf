@@ -44,7 +44,9 @@ func (a *AppID) Handle() string {
 
 // SetHandle sets a handle.
 func (a *AppID) SetHandle(hg *handle.HandleGenerator) {
-	a.handle = hg.Next()
+	if a.handle == "" {
+		a.handle = hg.Next()
+	}
 }
 
 // SetOwner sets an owner.

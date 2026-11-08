@@ -44,9 +44,15 @@ func (p *Polyline) Format(f format.Formatter) {
 		v.Format(f)
 	}
 	f.WriteString(0, "SEQEND")
-	f.WriteString(5, p.endhandle)
+	if p.endhandle != "" {
+		f.WriteString(5, p.endhandle)
+	}
 	f.WriteString(100, "AcDbEntity")
-	f.WriteString(8, p.Layer().Name())
+	if layer := p.Layer(); layer != nil {
+		f.WriteString(8, layer.Name())
+	} else if name := p.LayerName(); name != "" {
+		f.WriteString(8, name)
+	}
 }
 
 // Close closes Polyline.
@@ -70,8 +76,16 @@ func (p *Polyline) SetHandle(hg *handle.HandleGenerator) {
 	for _, v := range p.Vertices {
 		v.SetHandle(hg)
 	}
-	p.endhandle = hg.Next()
+	if p.endhandle == "" {
+		p.endhandle = hg.Next()
+	}
 }
+
+// SetEndHandleString sets the SEQEND handle loaded from a file.
+func (p *Polyline) SetEndHandleString(h string) { p.endhandle = h }
+
+// EndHandle returns the SEQEND handle.
+func (p *Polyline) EndHandle() string { return p.endhandle }
 
 func (p *Polyline) BBox() ([]float64, []float64) {
 	mins := make([]float64, 3)

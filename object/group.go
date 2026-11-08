@@ -8,13 +8,23 @@ import (
 
 // Group represents GROUP Object.
 type Group struct {
-	Name        string
-	Description string
-	handle      string
-	owner       handle.Handler
-	entities    []entity.Entity
-	selectable  bool
+	Name          string
+	Description   string
+	handle        string
+	owner         handle.Handler
+	entities      []entity.Entity
+	entityHandles []string
+	selectable    bool
 }
+
+// SetHandleString sets an explicit handle loaded from a file.
+func (g *Group) SetHandleString(h string) { g.handle = h }
+
+// SetEntityHandles records entity handles until the entity database is bound.
+func (g *Group) SetEntityHandles(hs []string) { g.entityHandles = hs }
+
+// EntityHandles returns the entity handles recorded for the group.
+func (g *Group) EntityHandles() []string { return g.entityHandles }
 
 // Handle returns the group's handle.
 func (g *Group) Handle() string {
@@ -23,7 +33,9 @@ func (g *Group) Handle() string {
 
 // SetHandle sets the group's handle.
 func (g *Group) SetHandle(hg *handle.HandleGenerator) {
-	g.handle = hg.Next()
+	if g.handle == "" {
+		g.handle = hg.Next()
+	}
 }
 
 // IsObject is for Object interface.
@@ -54,10 +66,12 @@ func (g *Group) SetOwner(d *Dictionary) error {
 func (g *Group) Format(f format.Formatter) {
 	f.WriteString(0, "GROUP")
 	f.WriteString(5, g.handle)
-	f.WriteString(102, "{ACAD_REACTORS")
-	f.WriteString(330, g.owner.Handle())
-	f.WriteString(102, "}")
-	f.WriteString(330, g.owner.Handle())
+	if g.owner != nil {
+		f.WriteString(102, "{ACAD_REACTORS")
+		f.WriteString(330, g.owner.Handle())
+		f.WriteString(102, "}")
+		f.WriteString(330, g.owner.Handle())
+	}
 	f.WriteString(100, "AcDbGroup")
 	f.WriteString(300, g.Description)
 	f.WriteInt(70, 0)
@@ -68,6 +82,9 @@ func (g *Group) Format(f format.Formatter) {
 	}
 	for _, e := range g.entities {
 		f.WriteString(340, e.Handle())
+	}
+	for _, h := range g.entityHandles {
+		f.WriteString(340, h)
 	}
 }
 

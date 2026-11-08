@@ -46,6 +46,18 @@ func (hg *HandleGenerator) Next() string {
 	return fmt.Sprintf("%X", nextHandle)
 }
 
+// Observe advances the generator past an existing handle so new handles cannot
+// collide with handles loaded from a file.
+func (hg *HandleGenerator) Observe(h string) {
+	var value int
+	if _, err := fmt.Sscanf(h, "%X", &value); err != nil {
+		return
+	}
+	if value >= hg.handle {
+		hg.handle = value + 1
+	}
+}
+
 // HandleManager provides centralized handle management for a DXF document.
 // It tracks all allocated handles, provides lookup by handle, and manages
 // handle persistence across save/load operations.

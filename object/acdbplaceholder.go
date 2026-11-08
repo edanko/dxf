@@ -43,5 +43,13 @@ func (p *AcDbPlaceHolder) Handle() string {
 
 // SetHandle sets a handle.
 func (p *AcDbPlaceHolder) SetHandle(hg *handle.HandleGenerator) {
-	p.handle = hg.Next()
+	if p.handle == "" {
+		p.handle = hg.Next()
+	}
 }
+
+// SetHandleString sets an explicit handle loaded from a file.
+func (p *AcDbPlaceHolder) SetHandleString(h string) { p.handle = h }
+
+// SetOwnerHandle sets an explicit owner handle loaded from a file.
+func (p *AcDbPlaceHolder) SetOwnerHandle(h handle.Handler) { p.owner = h }

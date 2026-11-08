@@ -61,7 +61,9 @@ func (d *AcDbDictionaryWDFLT) Handle() string {
 
 // SetHandle sets a handle.
 func (d *AcDbDictionaryWDFLT) SetHandle(hg *handle.HandleGenerator) {
-	d.handle = hg.Next()
+	if d.handle == "" {
+		d.handle = hg.Next()
+	}
 }
 
 // AddItem adds new a new item to AcDbDictionaryWDFLT.

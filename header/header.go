@@ -5,7 +5,14 @@ import (
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
 	"github.com/edanko/dxf/insunit"
+	"github.com/edanko/dxf/lldxf"
 )
+
+// Variable is a header variable retained without a typed model.
+type Variable struct {
+	Name string
+	Tags lldxf.Tags
+}
 
 // Header contains information written in HEADER section.
 type Header struct {
@@ -17,6 +24,7 @@ type Header struct {
 	ExtMax   []float64
 	LtScale  float64
 	handseed string
+	Extra    []Variable
 }
 
 // New creates a new Header.
@@ -56,7 +64,15 @@ func (h *Header) Format(f format.Formatter) {
 	f.WriteString(9, "$LTSCALE")
 	f.WriteFloat(40, h.LtScale)
 	f.WriteString(9, "$HANDSEED")
-	f.WriteString(5, h.handseed)
+	if h.handseed != "" {
+		f.WriteString(5, h.handseed)
+	}
+	for _, v := range h.Extra {
+		f.WriteString(9, v.Name)
+		for _, tag := range v.Tags {
+			f.WriteString(int(tag.Code()), tagString(tag))
+		}
+	}
 	f.WriteString(0, "ENDSEC")
 }
 

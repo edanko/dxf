@@ -15,7 +15,9 @@ func (b *BaseObject) Handle() string {
 }
 
 func (b *BaseObject) SetHandle(hg *handle.HandleGenerator) {
-	b.handle = hg.Next()
+	if b.handle == "" {
+		b.handle = hg.Next()
+	}
 }
 
 // Object is the base interface for DXF objects

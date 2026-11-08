@@ -62,7 +62,9 @@ func (lt *LineType) Handle() string {
 
 // SetHandle sets a handle.
 func (lt *LineType) SetHandle(hg *handle.HandleGenerator) {
-	lt.handle = hg.Next()
+	if lt.handle == "" {
+		lt.handle = hg.Next()
+	}
 }
 
 // SetOwner sets an owner.

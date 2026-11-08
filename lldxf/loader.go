@@ -7,13 +7,16 @@ import (
 
 // Loader provides high-level DXF structure loading and entity binding
 type Loader struct {
-	tags     Tags
-	sections map[string]Tags
-	entities map[string]Tags
-	tables   map[string]map[string]Tags
-	blocks   map[string]Tags
-	objects  map[string]Tags
-	options  *LoaderOptions
+	tags         Tags
+	sections     map[string]Tags
+	entities     map[string]Tags
+	tables       map[string]map[string]Tags
+	blocks       map[string]Tags
+	objects      map[string]Tags
+	options      *LoaderOptions
+	comments     map[string][]string
+	sectionOrder []string
+	issues       []string
 }
 
 // LoaderOptions configures loader behavior
@@ -27,6 +30,7 @@ type LoaderOptions struct {
 	PreserveUnknown bool
 	BindEntities    bool
 	StrictMode      bool
+	Recover         bool
 }
 
 // NewLoader creates a new DXF loader
@@ -42,6 +46,7 @@ func NewLoader(options *LoaderOptions) *Loader {
 		blocks:   make(map[string]Tags),
 		objects:  make(map[string]Tags),
 		options:  options,
+		comments: make(map[string][]string),
 	}
 }
 
@@ -53,7 +58,7 @@ func DefaultLoaderOptions() *LoaderOptions {
 		LoadTables:      true,
 		LoadBlocks:      true,
 		LoadObjects:     true,
-		SkipComments:    true,
+		SkipComments:    false,
 		PreserveUnknown: true,
 		BindEntities:    true,
 		StrictMode:      false,
@@ -84,35 +89,63 @@ func (l *Loader) groupSections() error {
 	var currentSection string
 	var inSection bool
 	var sectionTags Tags
+	var pendingComments []string
+
+	closeSection := func() {
+		if currentSection != "" {
+			l.sections[currentSection] = sectionTags
+			l.sectionOrder = append(l.sectionOrder, currentSection)
+		}
+		inSection = false
+		currentSection = ""
+		sectionTags = nil
+	}
 
 	for _, tag := range l.tags {
 		code := int(tag.Code())
 		value := fmt.Sprintf("%v", tag.Value())
 
-		// Skip comments if requested
-		if l.options.SkipComments && code == 999 {
+		// Comments belong to the section that contains them, not to an entity.
+		if code == 999 {
+			if !l.options.SkipComments {
+				if inSection {
+					l.comments[currentSection] = append(l.comments[currentSection], value)
+				} else {
+					pendingComments = append(pendingComments, value)
+				}
+			}
 			continue
 		}
 
 		switch {
 		case code == 0 && value == "SECTION":
+			if inSection {
+				l.issues = append(l.issues, "SECTION without matching ENDSEC")
+				if l.options.Recover {
+					closeSection()
+				} else {
+					return fmt.Errorf("SECTION without matching ENDSEC")
+				}
+			}
 			inSection = true
 			sectionTags = NewTags()
 
 		case code == 0 && value == "ENDSEC":
 			if !inSection {
+				if l.options.Recover {
+					l.issues = append(l.issues, "ENDSEC without matching SECTION")
+					continue
+				}
 				return fmt.Errorf("ENDSEC without matching SECTION")
 			}
+			closeSection()
 
-			if currentSection != "" {
-				l.sections[currentSection] = sectionTags
-			}
-
-			inSection = false
-			currentSection = ""
-
-		case code == 2 && inSection:
+		case code == 2 && inSection && currentSection == "":
 			currentSection = value
+			if len(pendingComments) > 0 {
+				l.comments[currentSection] = append(l.comments[currentSection], pendingComments...)
+				pendingComments = nil
+			}
 
 		case inSection:
 			sectionTags = append(sectionTags, tag)
@@ -120,7 +153,12 @@ func (l *Loader) groupSections() error {
 	}
 
 	if inSection {
-		return fmt.Errorf("unclosed SECTION at end of file")
+		if l.options.Recover {
+			l.issues = append(l.issues, fmt.Sprintf("unclosed SECTION %q at end of file", currentSection))
+			closeSection()
+		} else {
+			return fmt.Errorf("unclosed SECTION at end of file")
+		}
 	}
 
 	return nil
@@ -303,6 +341,21 @@ func (l *Loader) GetSections() map[string]Tags {
 // GetSection returns a specific section
 func (l *Loader) GetSection(name string) Tags {
 	return l.sections[name]
+}
+
+// GetComments returns code 999 comments grouped by section name.
+func (l *Loader) GetComments() map[string][]string {
+	return l.comments
+}
+
+// GetSectionOrder returns the section names in file order.
+func (l *Loader) GetSectionOrder() []string {
+	return l.sectionOrder
+}
+
+// GetIssues returns recovery issues collected while loading.
+func (l *Loader) GetIssues() []string {
+	return l.issues
 }
 
 // GetEntities returns all entities
@@ -514,6 +567,9 @@ func (l *Loader) Reload(options *LoaderOptions) error {
 	l.tables = make(map[string]map[string]Tags)
 	l.blocks = make(map[string]Tags)
 	l.objects = make(map[string]Tags)
+	l.comments = make(map[string][]string)
+	l.sectionOrder = nil
+	l.issues = nil
 
 	return l.Load(l.tags)
 }

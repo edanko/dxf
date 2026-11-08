@@ -96,7 +96,7 @@ func TestXRecordHandle(t *testing.T) {
 
 func TestXRecordSetHandle(t *testing.T) {
 	xrec := NewXRecord()
-	xrec.SetHandle("ABC")
+	xrec.SetHandleString("ABC")
 	if xrec.Handle() != "ABC" {
 		t.Errorf("Expected handle 'ABC', got %s", xrec.Handle())
 	}
@@ -234,7 +234,7 @@ func TestXRecordCloning(t *testing.T) {
 
 func TestXRecordFormat(t *testing.T) {
 	xrec := NewXRecord()
-	xrec.SetHandle("ABC")
+	xrec.SetHandleString("ABC")
 	xrec.AddTag(1, "test")
 
 	f := format.NewASCII()
@@ -251,7 +251,7 @@ func TestXRecordFormat(t *testing.T) {
 
 func TestXRecordFormatWithOwner(t *testing.T) {
 	xrec := NewXRecordWithOwner("OWNER123")
-	xrec.SetHandle("HANDLE")
+	xrec.SetHandleString("HANDLE")
 	xrec.AddTag(1, "data")
 
 	f := format.NewASCII()

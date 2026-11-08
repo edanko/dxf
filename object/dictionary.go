@@ -80,6 +80,20 @@ func (d *Dictionary) AddEntry(key string, value string) {
 	d.entries[key] = entry
 }
 
+// SetHandleString sets an explicit handle loaded from a file.
+func (d *Dictionary) SetHandleString(h string) { d.SetHandleValue(h) }
+
+// SetHandleValue sets the underlying handle string.
+func (d *Dictionary) SetHandleValue(h string) {
+	if d.BaseObject == nil {
+		d.BaseObject = &BaseObject{}
+	}
+	d.BaseObject.handle = h
+}
+
+// SetOwnerString sets the owner handle loaded from a file.
+func (d *Dictionary) SetOwnerString(h string) { d.Owner = h }
+
 // AddItem adds an object to the dictionary (compatibility method)
 func (d *Dictionary) AddItem(key string, obj Object) {
 	// Add object using its handle as value

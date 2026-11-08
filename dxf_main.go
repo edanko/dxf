@@ -47,33 +47,7 @@ func FromStringData(d string) (*drawing.Drawing, error) {
 // This is the core parsing function used by FromFile and FromStringData.
 // Supports ASCII DXF format with automatic group code type detection.
 func FromReader(r io.Reader) (*drawing.Drawing, error) {
-	d, err := NewDrawing()
-	if err != nil {
-		return nil, err
-	}
-
-	tagger := lldxf.NewASCIITagger(r)
-	var allTags lldxf.Tags
-	for tagger.Next() {
-		tag := tagger.Tag()
-		if tag != nil {
-			allTags = append(allTags, tag)
-		}
-	}
-	if err := tagger.Err(); err != nil {
-		return nil, err
-	}
-
-	loader := lldxf.NewLoader(nil)
-	if err := loader.Load(allTags); err != nil {
-		return nil, fmt.Errorf("failed to load DXF: %w", err)
-	}
-
-	if err := buildEntitiesFromLoader(d, loader); err != nil {
-		return nil, fmt.Errorf("failed to build drawing: %w", err)
-	}
-
-	return d, nil
+	return FromReaderWithOptions(r, nil)
 }
 
 // FromBinaryFile reads a binary DXF file and returns a Drawing.
@@ -91,34 +65,7 @@ func FromBinaryFile(fn string) (*drawing.Drawing, error) {
 // FromBinaryReader parses binary DXF data from an io.Reader.
 // This handles the special binary encoding used in DXB/binary DXF files.
 func FromBinaryReader(r io.Reader) (*drawing.Drawing, error) {
-	tagger := lldxf.NewBinaryTagger(r)
-
-	d, err := NewDrawing()
-	if err != nil {
-		return nil, err
-	}
-
-	var allTags lldxf.Tags
-	for tagger.Next() {
-		tag := tagger.Tag()
-		if tag != nil {
-			allTags = append(allTags, tag)
-		}
-	}
-	if err := tagger.Err(); err != nil {
-		return nil, err
-	}
-
-	loader := lldxf.NewLoader(nil)
-	if err := loader.Load(allTags); err != nil {
-		return nil, fmt.Errorf("failed to load DXF: %w", err)
-	}
-
-	if err := buildEntitiesFromLoader(d, loader); err != nil {
-		return nil, fmt.Errorf("failed to build drawing: %w", err)
-	}
-
-	return d, nil
+	return FromBinaryReaderWithOptions(r, nil)
 }
 
 // DetectFormat examines DXF data and returns the format type.
@@ -1417,7 +1364,7 @@ func loadGeneric(tags lldxf.Tags) entity.Entity {
 	}
 	for _, tag := range tags {
 		code := tag.Code()
-		value := fmt.Sprintf("%v", tag.Value())
+		value := tagStringValue(tag)
 		if code != 0 {
 			g.tags = append(g.tags, TagPair{Code: int(code), Value: value})
 		}

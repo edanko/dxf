@@ -39,6 +39,11 @@ type Drawing struct {
 	entitiesSection entity.Entities
 	objectsSection  object.Objects
 
+	opaqueSections map[string][]RawTag
+	sectionOrder   []string
+	comments       map[string][]string
+	recoveryReport *RecoveryReport
+
 	dictionary *object.Dictionary
 	groupdict  *object.Dictionary
 	PlotStyle  handle.Handler
@@ -83,6 +88,8 @@ func New() (*Drawing, error) {
 	d.blocksSection = block.New(d.Layers["0"])
 	d.entitiesSection = entity.New()
 	d.objectsSection = object.New()
+	d.opaqueSections = make(map[string][]RawTag)
+	d.comments = make(map[string][]string)
 
 	d.dictionary = object.NewDictionary()
 	d.addObject(d.dictionary)
@@ -699,6 +706,7 @@ func (d *Drawing) PurgeUnusedBlocks() int {
 
 // setHandle sets all the handles contained in Drawing.
 func (d *Drawing) setHandle() {
+	d.observeHandles()
 	d.classesSection.SetHandle(d.handleGenarator)
 	d.tablesSection.SetHandle(d.handleGenarator)
 	d.blocksSection.SetHandle(d.handleGenarator)
@@ -928,6 +936,11 @@ func (d *Drawing) addObject(o object.Object) {
 	d.objectsSection = d.objectsSection.Add(o)
 }
 
+// AddObject adds an object to the drawing's OBJECTS section.
+func (d *Drawing) AddObject(o object.Object) {
+	d.addObject(o)
+}
+
 // Group adds given entities to the named group.
 // If the named group doesn't exist, create it.
 func (d *Drawing) Group(name, desc string, es ...entity.Entity) (*object.Group, error) {
@@ -964,12 +977,19 @@ func (d *Drawing) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	d.setHandle()
 	d.formatter.Reset()
+	d.writeComments("HEADER")
 	d.headerSection.Format(d.formatter)
+	d.writeComments("CLASSES")
 	d.classesSection.Format(d.formatter)
+	d.writeComments("TABLES")
 	d.tablesSection.Format(d.formatter)
+	d.writeComments("BLOCKS")
 	d.blocksSection.Format(d.formatter)
+	d.writeComments("ENTITIES")
 	d.entitiesSection.Format(d.formatter)
+	d.writeComments("OBJECTS")
 	d.objectsSection.Format(d.formatter)
+	d.writeOpaqueSections()
 
 	d.formatter.WriteString(0, "EOF")
 	return d.formatter.WriteTo(w)

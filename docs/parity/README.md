@@ -74,16 +74,16 @@ openspec instructions <artifact> --change "<name>" --json
 
 | Package | Role | Baseline assessment |
 |---|---|---|
-| root (`dxf_main.go`, `parser.go`) | public entry points, ASCII/binary load, entity dispatch | load path only binds ENTITIES; HEADER/TABLES/BLOCKS/OBJECTS are parsed into `lldxf.Loader` but not applied to `drawing.Drawing`; many `Parse*` helpers are unused placeholders |
-| `lldxf` | tagger, tags, encoding, loader, validator, binary tagger | useful low-level foundation; section grouping exists; no full document binder |
+| root (`dxf_main.go`, `binder.go`) | public entry points, ASCII/binary load, document binding, entity dispatch | `FromReader`/`FromBinaryReader` bind all six core sections through `documentBinder`; `parser.go` legacy helpers remain unused |
+| `lldxf` | tagger, tags, encoding, loader, validator, binary tagger | section grouping, comments per section, section order, recovery issues |
 | `format` | ASCII and binary formatter | ASCII works; binary write exists but coverage is partial |
-| `drawing` | document, sections, entity database, serialization | can create/save ASCII; load does not reconstruct tables/blocks/objects/header |
-| `header` | header variables | small subset of variables |
-| `table` | APPID, BLOCK_RECORD, DIMSTYLE, LAYER, LTYPE, STYLE, UCS, VIEW, VIEWPORT | partial entries; not all attributes |
-| `block` | block definitions | basic |
-| `entity` | entity structs and `Format` methods | broad type inventory, uneven attribute coverage, no per-entity `Load` |
-| `object` | OBJECTS section | dictionary, group, xrecord, placeholder only |
-| `class` | CLASSES section | basic |
+| `drawing` | document, sections, entity database, serialization | binds and re-emits header/classes/tables/blocks/entities/objects plus opaque sections; comments and section order retained |
+| `header` | header variables | typed core variables plus `Extra` retention for every other `$...` |
+| `table` | APPID, BLOCK_RECORD, DIMSTYLE, LAYER, LTYPE, STYLE, UCS, VIEW, VIEWPORT | all entries parsed; unknown entry types retained as `RawSymbolTable` |
+| `block` | block definitions | names, handles, layer names, contained entities |
+| `entity` | entity structs and `Format` methods | broad type inventory; raw-tag retention on known types; `GenericEntity` fallback |
+| `object` | OBJECTS section | dictionary, group, xrecord, placeholder parsed; everything else retained as `RawObject` |
+| `class` | CLASSES section | full class record fields |
 | `math` | vectors, matrices, bbox, Bezier, BSpline/NURBS, bulge, OCS/UCS, offset, earcut, delaunay, construct | substantial but not full ezdxf math surface |
 | `path` | path commands, converter, tools | line/arc/circle/ellipse/lwpolyline/polyline only; no spline/hatch/mtext conversion |
 | `render` | simple renderer, SVG/PDF backends, forms, arrows | only line/circle/arc/lwpolyline rendered; no fill/hatch/dimension/mtext/mesh |
@@ -117,18 +117,18 @@ must be verified before implementation starts.
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
 | New document, version selection | `document.py`, `sections/header.py` | `PARTIAL` — fixed AC1015 default, `header.Version` settable |
-| HEADER variables (all `$...`) | `lldxf/hdrvars.py`, `sections/headervars.py` | `PARTIAL` — small subset |
-| CLASSES section | `sections/classes.py` | `PARTIAL` |
-| TABLES section + all entries | `sections/tables.py`, `tables/*` | `PARTIAL` |
-| BLOCKS section + block records | `sections/blocks.py`, `entities/block.py` | `PARTIAL` |
+| HEADER variables (all `$...`) | `lldxf/hdrvars.py`, `sections/headervars.py` | `PARTIAL` — typed core set; other variables retained in `Header.Extra` and re-emitted (`dxf_io_core_test.go`) |
+| CLASSES section | `sections/classes.py` | `DONE` — parsed and re-emitted (`TestClassesRoundTrip`) |
+| TABLES section + all entries | `sections/tables.py`, `tables/*` | `PARTIAL` — all entry types parsed; unknown entries retained raw |
+| BLOCKS section + block records | `sections/blocks.py`, `entities/block.py` | `DONE` — names, handles, layer names, contained entities (`TestLoadBindsAllDocumentSections`, `TestCorpusRoundTrip`) |
 | ENTITIES section | `sections/entities.py` | `PARTIAL` — many types via `GenericEntity` fallback |
-| OBJECTS section | `sections/objects.py`, `dxfobjects/*` | `STUB` — `ParseObjects` is a no-op |
-| THUMBNAILIMAGE section | `document.py` | `ABSENT` |
-| ACDSDATA section | `sections/acdsdata.py` | `ABSENT` |
-| Unknown tag retention | `entities/dxfentity.py` | `ABSENT` — generic entities lose tags |
-| Load/save round trip | `document.py` | `PARTIAL` — entities only |
-| Recover mode | `recover.py` | `ABSENT` |
-| Comments (`999`) | `comments.py` | `PARTIAL` — skipped, not preserved |
+| OBJECTS section | `sections/objects.py`, `dxfobjects/*` | `PARTIAL` — core types typed, unknown retained raw, retrieval by handle (`TestObjectsRetrievableByHandle`) |
+| THUMBNAILIMAGE section | `document.py` | `DONE` — retained opaque and re-emitted (`TestOpaqueSectionsAreRetained`) |
+| ACDSDATA section | `sections/acdsdata.py` | `DONE` — retained opaque and re-emitted |
+| Unknown tag retention | `entities/dxfentity.py` | `PARTIAL` — known entities keep unhandled codes; unknown table entries/blocks/typed objects still drop some tags |
+| Load/save round trip | `document.py` | `DONE` — all 51 `testdata/*.dxf` round-trip with matching inventories (`TestCorpusRoundTrip`) |
+| Recover mode | `recover.py` | `PARTIAL` — missing ENDSEC/EOF and tagger errors recovered with a report (`TestRecoveryLoadsTruncatedDocument`) |
+| Comments (`999`) | `comments.py` | `PARTIAL` — preserved per section and re-emitted at section start; original position is not retained (`TestCommentsArePreservedUnlessStripped`) |
 | R12 strict mode | `r12strict.py` | `ABSENT` |
 | Binary DXF read/write | `lldxf/tagger.py`, `tagwriter.py` | `PARTIAL` |
 | Encoding/codepage handling | `lldxf/encoding.py`, `tools/codepage.py` | `PARTIAL` |
@@ -379,5 +379,6 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-08 | research baseline | done | This document; staged test/CSG work committed as `test: add comprehensive test coverage and CSG module` |
 | 2026-11-08 | proposals 1–13 | created | All 13 changes scaffolded with proposal, delta spec, design, and tasks; `openspec validate --changes --strict` passes (13/13) |
 | 2026-11-08 | implementation | not started | Begin with change 1 (`dxf-io-core-parity`) via `/opsx-apply`; do not build on the WIP `parser.go` helpers |
+| 2026-11-08 | change 1 `dxf-io-core-parity` | done | Two-phase load/bind: `documentBinder` binds HEADER/CLASSES/TABLES/BLOCKS/ENTITIES/OBJECTS; raw-tag retention; opaque sections; comments; recovery; writer section order and unique handles. All 51 fixtures round-trip. Remaining differences: unknown tags on known table entries/blocks/typed objects are partially dropped, comments emit at section start, binary writer unchanged until change 2. Tests: `dxf_io_core_test.go`, `corpus_roundtrip_test.go`, `fuzz_core_test.go`. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

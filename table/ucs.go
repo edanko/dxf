@@ -43,7 +43,9 @@ func (u *Ucs) Handle() string {
 
 // SetHandle sets a handle.
 func (u *Ucs) SetHandle(hg *handle.HandleGenerator) {
-	u.handle = hg.Next()
+	if u.handle == "" {
+		u.handle = hg.Next()
+	}
 }
 
 // SetOwner sets an owner.

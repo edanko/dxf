@@ -45,9 +45,13 @@ func (l *Layer) Format(f format.Formatter) {
 	f.WriteString(2, l.name)
 	f.WriteInt(70, l.flag)
 	f.WriteInt(62, int(l.Color))
-	f.WriteString(6, l.LineType.Name())
+	if l.LineType != nil {
+		f.WriteString(6, l.LineType.Name())
+	}
 	f.WriteInt(370, l.lineWidth)
-	f.WriteString(390, l.PlotStyle.Handle())
+	if l.PlotStyle != nil {
+		f.WriteString(390, l.PlotStyle.Handle())
+	}
 }
 
 // Handle returns a handle value.
@@ -57,7 +61,9 @@ func (l *Layer) Handle() string {
 
 // SetHandle sets a handle.
 func (l *Layer) SetHandle(hg *handle.HandleGenerator) {
-	l.handle = hg.Next()
+	if l.handle == "" {
+		l.handle = hg.Next()
+	}
 }
 
 // SetOwner sets an owner.
@@ -102,6 +108,11 @@ func (l *Layer) SetLineWidth(w int) int {
 // SetPlotStyle sets plot style by a handle.
 func (l *Layer) SetPlotStyle(ps handle.Handler) {
 	l.PlotStyle = ps
+}
+
+// SetLineType sets the layer line type.
+func (l *Layer) SetLineType(lt *LineType) {
+	l.LineType = lt
 }
 
 // SetFlag sets standard flags.

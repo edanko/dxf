@@ -106,7 +106,9 @@ func (v *Viewport) Handle() string {
 
 // SetHandle sets a handle.
 func (v *Viewport) SetHandle(hg *handle.HandleGenerator) {
-	v.handle = hg.Next()
+	if v.handle == "" {
+		v.handle = hg.Next()
+	}
 }
 
 // SetOwner sets an owner.

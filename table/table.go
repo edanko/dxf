@@ -50,7 +50,9 @@ func (t *Table) Handle() string {
 
 // SetHandle sets handles to TABLE itself and each SymbolTable.
 func (t *Table) SetHandle(hg *handle.HandleGenerator) {
-	t.handle = hg.Next()
+	if t.handle == "" {
+		t.handle = hg.Next()
+	}
 	for i := 0; i < t.size; i++ {
 		t.tables[i].SetHandle(hg)
 	}

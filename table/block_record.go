@@ -46,7 +46,9 @@ func (b *BlockRecord) Handle() string {
 
 // SetHandle sets a handle.
 func (b *BlockRecord) SetHandle(hg *handle.HandleGenerator) {
-	b.handle = hg.Next()
+	if b.handle == "" {
+		b.handle = hg.Next()
+	}
 }
 
 // SetOwner sets an owner.

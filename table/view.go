@@ -43,7 +43,9 @@ func (v *View) Handle() string {
 
 // SetHandle sets a handle.
 func (v *View) SetHandle(hg *handle.HandleGenerator) {
-	v.handle = hg.Next()
+	if v.handle == "" {
+		v.handle = hg.Next()
+	}
 }
 
 // SetOwner sets an owner.
