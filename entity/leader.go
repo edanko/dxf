@@ -118,6 +118,37 @@ func (l *Leader) IsEntity() bool {
 	return true
 }
 
+// Transform applies an affine matrix to every leader path point.
+func (l *Leader) Transform(mtx math.Matrix44) error {
+	for i := range l.points {
+		p := &l.points[i]
+		if len(*p) >= 3 {
+			np := TransformPoint(mtx, []float64{(*p)[0], (*p)[1], (*p)[2]})
+			*p = []float64{np[0], np[1], np[2]}
+		} else if len(*p) >= 2 {
+			np := TransformPoint(mtx, []float64{(*p)[0], (*p)[1], 0})
+			*p = []float64{np[0], np[1]}
+		}
+	}
+	return nil
+}
+
+// Explode decomposes the leader path into LINE segments.
+func (l *Leader) Explode() ([]Entity, error) {
+	pts := l.GetPoints()
+	if len(pts) < 2 {
+		return nil, fmt.Errorf("leader: fewer than two path points")
+	}
+	var out []Entity
+	for i := 0; i+1 < len(pts); i++ {
+		la := NewLine()
+		la.Start = append([]float64(nil), pts[i]...)
+		la.End = append([]float64(nil), pts[i+1]...)
+		out = append(out, la)
+	}
+	return out, nil
+}
+
 // Format writes data to formatter.
 func (l *Leader) Format(f format.Formatter) {
 	l.entity.Format(f)

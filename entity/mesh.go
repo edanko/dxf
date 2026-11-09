@@ -99,32 +99,25 @@ func (m *Mesh) Format(f format.Formatter) {
 		}
 	}
 
-	// Write face data
+	// Write face data: the DXF layout is a flat list of groups, each led by
+	// its vertex count (code 90), following the group count (code 93).
 	if len(m.faces) > 0 {
 		f.WriteInt(93, len(m.faces))
-
-		// Write face vertex indices (90)
 		for _, face := range m.faces {
-			if len(face) >= 3 && len(face) <= 4 {
-				// Write face with group code 90
-				for _, vertexIndex := range face {
-					f.WriteInt(90, vertexIndex)
-				}
+			f.WriteInt(90, len(face))
+			for _, vertexIndex := range face {
+				f.WriteInt(90, vertexIndex)
 			}
 		}
 	}
 
-	// Write edge data (wireframe)
+	// Write edge data (wireframe): same flat layout, group count code 94.
 	if len(m.edges) > 0 {
 		f.WriteInt(94, len(m.edges))
-
-		// Write edge vertex indices (90)
 		for _, edge := range m.edges {
-			if len(edge) >= 2 {
-				// Write edge with group code 90
-				for _, vertexIndex := range edge {
-					f.WriteInt(90, vertexIndex)
-				}
+			f.WriteInt(90, len(edge))
+			for _, vertexIndex := range edge {
+				f.WriteInt(90, vertexIndex)
 			}
 		}
 	}
@@ -163,6 +156,33 @@ func (m *Mesh) Format(f format.Formatter) {
 		f.WriteInt(62, m.color)
 	}
 }
+
+// Version returns the mesh version (code 71).
+func (m *Mesh) Version() int { return m.version }
+
+// BlendCrease returns the smoothing type (code 72).
+func (m *Mesh) BlendCrease() int { return m.blendCrease }
+
+// SubdivisionLevels returns the subdivision levels (code 91).
+func (m *Mesh) SubdivisionLevels() int { return m.subdivisionLevels }
+
+// Vertices returns the mesh vertex positions.
+func (m *Mesh) Vertices() []dxfmath.Vec3 { return m.vertices }
+
+// Faces returns the mesh face index groups.
+func (m *Mesh) Faces() [][]int { return m.faces }
+
+// Edges returns the mesh edge index groups.
+func (m *Mesh) Edges() [][]int { return m.edges }
+
+// SetVersion sets the mesh version (code 71).
+func (m *Mesh) SetVersion(v int) { m.version = v }
+
+// SetBlendCrease sets the smoothing type (code 72).
+func (m *Mesh) SetBlendCrease(v int) { m.blendCrease = v }
+
+// SetSubdivisionLevels sets the subdivision levels (code 91).
+func (m *Mesh) SetSubdivisionLevels(v int) { m.subdivisionLevels = v }
 
 // SetVertices sets the mesh vertices
 func (m *Mesh) SetVertices(vertices []dxfmath.Vec3) {

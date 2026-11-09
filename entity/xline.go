@@ -64,7 +64,12 @@ func (x *XLine) IsEntity() bool {
 // Format writes XLINE entity data to DXF format
 func (x *XLine) Format(f format.Formatter) {
 	x.entity.Format(f)
-	f.WriteString(100, "AcDbXline")
+	// RAY records embed the same geometry with the AcDbRay subclass marker.
+	if x.DXFType() == "RAY" {
+		f.WriteString(100, "AcDbRay")
+	} else {
+		f.WriteString(100, "AcDbXline")
+	}
 
 	// Write start point (10,20,30)
 	f.WriteFloat(10, x.start.X())
@@ -127,7 +132,7 @@ func (x *XLine) BBox() ([]float64, []float64) {
 }
 
 // Transform applies a transformation matrix to the XLINE
-func (x *XLine) Transform(matrix dxfmath.Matrix44) {
+func (x *XLine) Transform(matrix dxfmath.Matrix44) error {
 	// Transform start point
 	x.start = matrix.TransformVector(x.start)
 
@@ -137,6 +142,14 @@ func (x *XLine) Transform(matrix dxfmath.Matrix44) {
 	if !normalized.IsEqual(dxfmath.NewVec3(0, 0, 0), 1e-9) {
 		x.unitVector = normalized
 	}
+	return nil
+}
+
+// Copy produces a deep copy (Copy interface).
+func (x *XLine) Copy() Entity {
+	clone := NewXLineFromPointDirection(x.start, x.unitVector)
+	clone.entity = x.entity
+	return clone
 }
 
 // Translate moves the XLINE by the specified offset
@@ -312,16 +325,20 @@ type Ray struct {
 
 // NewRay creates a new RAY entity
 func NewRay() *Ray {
-	return &Ray{
+	r := &Ray{
 		XLine: NewXLine(), // Start with default XLine
 	}
+	r.SetRecordTypeName("RAY")
+	return r
 }
 
 // NewRayFromPointDirection creates a RAY from a point and direction vector
 func NewRayFromPointDirection(start, direction dxfmath.Vec3) *Ray {
-	return &Ray{
+	r := &Ray{
 		XLine: NewXLineFromPointDirection(start, direction),
 	}
+	r.SetRecordTypeName("RAY")
+	return r
 }
 
 // IsEntity returns true for RAY entities

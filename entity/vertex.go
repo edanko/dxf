@@ -4,11 +4,17 @@ import (
 	"github.com/edanko/dxf/format"
 )
 
-// Vertex represents VERTEX Entity.
+// Vertex represents VERTEX Entity. A vertex belongs to a POLYLINE owner;
+// code 330 (owner) is carried on the shared base.
 type Vertex struct {
 	*entity
-	Flag  int
-	Coord []float64
+	Flag       int       // 70
+	Coord      []float64 // 10, 20, 30
+	Bulge      float64   // 42
+	StartWidth float64   // 40
+	EndWidth   float64   // 41
+	Extra      int       // 71 (mesh vertex cache)
+	EdgeFlags  int       // 72 (mesh vertex edge flags)
 }
 
 // IsEntity is for Entity interface.
@@ -35,6 +41,21 @@ func (v *Vertex) Format(f format.Formatter) {
 		f.WriteFloat((i+1)*10, v.Coord[i])
 	}
 	f.WriteInt(70, v.Flag)
+	if v.Bulge != 0 {
+		f.WriteFloat(42, v.Bulge)
+	}
+	if v.StartWidth != 0 {
+		f.WriteFloat(40, v.StartWidth)
+	}
+	if v.EndWidth != 0 {
+		f.WriteFloat(41, v.EndWidth)
+	}
+	if v.Extra != 0 {
+		f.WriteInt(71, v.Extra)
+	}
+	if v.EdgeFlags != 0 {
+		f.WriteInt(72, v.EdgeFlags)
+	}
 }
 
 func (v *Vertex) BBox() ([]float64, []float64) {
@@ -48,5 +69,10 @@ func (v *Vertex) Copy() Entity {
 	vertex := NewVertex(v.Coord[0], v.Coord[1], v.Coord[2])
 	vertex.entity = v.entity
 	vertex.Flag = v.Flag
+	vertex.Bulge = v.Bulge
+	vertex.StartWidth = v.StartWidth
+	vertex.EndWidth = v.EndWidth
+	vertex.Extra = v.Extra
+	vertex.EdgeFlags = v.EdgeFlags
 	return vertex
 }

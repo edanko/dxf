@@ -197,6 +197,16 @@ func (t Tags) String() string {
 
 // castTagValue converts tag values to appropriate types based on group code
 func castTagValue(code GroupCode, value interface{}) interface{} {
+	// Point codes carry floats, but ACIS payloads (3DSOLID/REGION/BODY) reuse
+	// them for text lines. Preserve strings that do not parse as numbers so
+	// the payload survives round trips; numeric parsing stays unchanged.
+	if isPointCode(code) || (code >= 10 && code <= 17) {
+		if str, ok := value.(string); ok && str != "" {
+			if _, err := strconv.ParseFloat(str, 64); err != nil {
+				return str
+			}
+		}
+	}
 	switch {
 	case isFloatCode(code):
 		return castToFloat(value)

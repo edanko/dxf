@@ -1,6 +1,8 @@
 package entity
 
 import (
+	"fmt"
+
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
@@ -40,11 +42,44 @@ type entity struct {
 	color       color.ColorNumber // 62
 	xdata       *xdata.XData      // XDATA (1000-1071)
 	rawTags     []TagPair         // unhandled tags retained for round trips
+
+	// Common DXF attributes carried by the shared base (EntityBase).
+	linetype     string    // 6
+	trueColor    int       // 420 RGB true color, 0 = not set
+	lineweight   int       // 370; -3 = unset (ByLayer), emitted only when set
+	invisible    bool      // 60
+	transparency float64   // 440 transparency 0..1, 0 = none
+	extrusion    []float64 // 210, 220, 230 extrusion direction
+	thickness    float64   // 39 thickness (LINE, CIRCLE, ARC, LWPOLYLINE, ...)
+
+	rawWholeRecord   bool   // rawTags carry every retained code of the record
+	typeNameOverride string // explicit code 0 name for retained records
 }
+
+// SetRawWholeRecord marks the raw tags as the complete DXF record
+// (whole-record retention). The record's type name and handle are emitted from
+// the base fields, and every other retained tag is written verbatim.
+func (e *entity) SetRawWholeRecord(v bool) { e.rawWholeRecord = v }
+
+// RawWholeRecord reports whether whole-record retention is active.
+func (e *entity) RawWholeRecord() bool { return e.rawWholeRecord }
+
+// recordTypeName returns the DXF type name for code 0, preferring an explicit
+// override set by retained records with non-standard names.
+func (e *entity) recordTypeName() string {
+	if e.typeNameOverride != "" {
+		return e.typeNameOverride
+	}
+	return EntityTypeString(e.Type)
+}
+
+// SetRecordTypeName overrides the code 0 name emitted for this record.
+func (e *entity) SetRecordTypeName(name string) { e.typeNameOverride = name }
 
 // NewEntity creates a new entity.
 func NewEntity(t EntityType) *entity {
 	e := &entity{
+		lineweight:  -3,
 		Type:        t,
 		blockRecord: nil,
 		owner:       nil,
@@ -54,14 +89,20 @@ func NewEntity(t EntityType) *entity {
 	return e
 }
 
+// IsEntity implements Entity for every type embedding the base.
+func (e *entity) IsEntity() bool { return true }
+
 // SetColor sets a color to an entity.
 func (e *entity) SetColor(cl color.ColorNumber) {
 	e.color = cl
 }
 
-// Format writes data to formatter.
+// Format writes data to formatter. When the owning entity registered raw tags
+// for the whole record (fully unhandled records), the base emits the complete
+// raw stream verbatim; otherwise rawTags carry only codes this type does not
+// model and are appended after the typed fields.
 func (e *entity) Format(f format.Formatter) {
-	f.WriteString(0, EntityTypeString(e.Type))
+	f.WriteString(0, e.recordTypeName())
 	if e.handle != "" {
 		f.WriteString(5, e.handle)
 	}
@@ -81,12 +122,48 @@ func (e *entity) Format(f format.Formatter) {
 	if layerName != "" {
 		f.WriteString(8, layerName)
 	}
+	if e.linetype != "" {
+		f.WriteString(6, e.linetype)
+	}
 	if e.ltscale != 1.0 {
 		f.WriteFloat(48, e.ltscale)
 	}
 	f.WriteInt(62, int(e.color))
+	if e.trueColor != 0 {
+		f.WriteInt(420, e.trueColor)
+	}
+	if e.transparency != 0 {
+		f.WriteInt(440, int(e.transparency*100+0.5))
+	}
+	if e.invisible {
+		f.WriteInt(60, 1)
+	}
+	if e.lineweight > -3 {
+		f.WriteInt(370, e.lineweight)
+	}
+	if e.owner != nil {
+		f.WriteString(330, e.owner.Handle())
+	}
+	e.formatXData(f)
 	for _, tag := range e.rawTags {
 		f.WriteString(tag.Code, tag.Value)
+	}
+}
+
+// formatXData writes retained extended data (1001 app IDs and their tags).
+func (e *entity) formatXData(f format.Formatter) {
+	if e.xdata == nil {
+		return
+	}
+	for _, appID := range e.xdata.AppIDs() {
+		data, ok := e.xdata.GetAppData(appID)
+		if !ok || len(data.Tags) == 0 {
+			continue
+		}
+		f.WriteString(1001, data.AppID)
+		for _, tag := range data.Tags {
+			f.WriteString(tag.Code, fmt.Sprintf("%v", tag.Value))
+		}
 	}
 }
 
@@ -141,6 +218,70 @@ func (e *entity) SetOwner(h handle.Handler) {
 	e.owner = h
 }
 
+// Owner returns the entity's owner handler (code 330).
+func (e *entity) Owner() handle.Handler { return e.owner }
+
+// Linetype returns the entity linetype name (code 6).
+func (e *entity) Linetype() string { return e.linetype }
+
+// SetLinetype sets the entity linetype name (code 6).
+func (e *entity) SetLinetype(name string) { e.linetype = name }
+
+// ColorRGB returns the true color RGB value (code 420), 0 when unset.
+func (e *entity) ColorRGB() int { return e.trueColor }
+
+// SetColorRGB sets the true color RGB value (code 420).
+func (e *entity) SetColorRGB(rgb int) { e.trueColor = rgb }
+
+// LineWeight returns the entity lineweight (code 370); -3 means unset.
+func (e *entity) LineWeight() int { return e.lineweight }
+
+// SetLineWeight sets the entity lineweight (code 370).
+func (e *entity) SetLineWeight(w int) { e.lineweight = w }
+
+// Invisible reports whether the entity is marked invisible (code 60).
+func (e *entity) Invisible() bool { return e.invisible }
+
+// SetInvisible sets the visibility flag (code 60).
+func (e *entity) SetInvisible(v bool) { e.invisible = v }
+
+// Transparency returns the entity transparency 0..1 (code 440).
+func (e *entity) Transparency() float64 { return e.transparency }
+
+// SetTransparency sets the entity transparency 0..1 (code 440).
+func (e *entity) SetTransparency(t float64) { e.transparency = t }
+
+// Extrusion returns the extrusion direction (codes 210, 220, 230), nil when unset.
+func (e *entity) Extrusion() []float64 { return e.extrusion }
+
+// SetExtrusion sets the extrusion direction (codes 210, 220, 230).
+func (e *entity) SetExtrusion(v []float64) { e.extrusion = v }
+
+// Thickness returns the entity thickness (code 39). Types that model
+// thickness per-record (CIRCLE, ARC, TRACE, SHAPE, ...) emit it in their own
+// Format; types without a dedicated field rely on this base value.
+func (e *entity) Thickness() float64 { return e.thickness }
+
+// SetThickness sets the entity thickness (code 39).
+func (e *entity) SetThickness(v float64) { e.thickness = v }
+
+// BaseExtrusion returns the extrusion direction stored on the shared base,
+// nil when unset. Types that model 210/220/230 as their own field (CIRCLE,
+// INSERT, SPLINE, ...) emit theirs; types without one rely on this value via
+// FormatBaseExtrusion.
+func (e *entity) BaseExtrusion() []float64 { return e.extrusion }
+
+// FormatBaseExtrusion writes the base extrusion direction when set. Callers
+// that do not model 210/220/230 themselves invoke it after their subclass
+// marker so DXF ordering (common, subclass, geometry, extrusion) is kept.
+func (e *entity) FormatBaseExtrusion(f format.Formatter) {
+	if len(e.extrusion) == 3 {
+		f.WriteFloat(210, e.extrusion[0])
+		f.WriteFloat(220, e.extrusion[1])
+		f.WriteFloat(230, e.extrusion[2])
+	}
+}
+
 // Layer returns entity's Layer.
 func (e *entity) Layer() *table.Layer {
 	return e.layer
@@ -161,9 +302,18 @@ func (e *entity) SetEntityType(t EntityType) {
 	e.Type = t
 }
 
-// DXFType returns the DXF type string for this entity
+// DXFType returns the DXF type string for this entity. Retained records with
+// non-standard names override it via typeNameOverride.
 func (e *entity) DXFType() string {
-	return EntityTypeString(e.Type)
+	if e.typeNameOverride != "" {
+		return e.typeNameOverride
+	}
+	name := EntityTypeString(e.Type)
+	// MULTILEADER is the standard DXF spelling; MLEADER is an alias.
+	if name == "MULTI_LEADER" {
+		return "MULTILEADER"
+	}
+	return name
 }
 
 // GetAttributes returns entity attributes as a map

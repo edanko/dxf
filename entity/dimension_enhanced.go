@@ -1,9 +1,11 @@
 package entity
 
 import (
+	"fmt"
+
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
-	"github.com/edanko/dxf/math"
+	math "github.com/edanko/dxf/math"
 )
 
 // Dimension style reference
@@ -84,7 +86,8 @@ type Dimension struct {
 	arrowBlockHandle2 string          // Arrow block handle 2
 
 	// Extended geometry
-	extensionPoint  math.Vec3 // Extension point
+	extensionPoint1 math.Vec3 // First extension line point (13,23,33)
+	extensionPoint2 math.Vec3 // Second extension line point (14,24,34)
 	extensionLength float64   // Extension length
 	jogPoint        math.Vec3 // Jog point (for special dimensions)
 	leaderPoint     math.Vec3 // Leader point (outside dimension)
@@ -159,7 +162,8 @@ func NewDimension() *Dimension {
 		arrowBlockHandle2: "",
 
 		// Extended geometry
-		extensionPoint:  math.NewVec3(0, 0, 0),
+		extensionPoint1: math.NewVec3(0, 0, 0),
+		extensionPoint2: math.NewVec3(0, 0, 0),
 		extensionLength: 0.0,
 		jogPoint:        math.NewVec3(0, 0, 0),
 		leaderPoint:     math.NewVec3(0, 0, 0),
@@ -218,6 +222,41 @@ func (d *Dimension) SetDefinitionPoint(point []float64) {
 		d.definitionPoint = math.NewVec3(point[0], point[1], point[2])
 	} else if len(point) >= 2 {
 		d.definitionPoint = math.NewVec3(point[0], point[1], 0)
+	}
+}
+
+// Extrusion returns the extrusion direction vector.
+func (d *Dimension) Extrusion() math.Vec3 { return d.extrusion }
+
+// TextMidpoint returns the text midpoint point (11,21,31).
+func (d *Dimension) TextMidpoint() math.Vec3 { return d.textMidpoint }
+
+// SetTextMidpoint sets the text midpoint point (11,21,31).
+func (d *Dimension) SetTextMidpoint(point []float64) {
+	if len(point) >= 3 {
+		d.textMidpoint = math.NewVec3(point[0], point[1], point[2])
+	} else if len(point) >= 2 {
+		d.textMidpoint = math.NewVec3(point[0], point[1], 0)
+	}
+}
+
+// SetActualMeasurement sets the measured value (code 42).
+func (d *Dimension) SetActualMeasurement(v float64) { d.actualMeasurement = v }
+
+// ActualMeasurement returns the measured value (code 42).
+func (d *Dimension) ActualMeasurement() float64 { return d.actualMeasurement }
+
+// SetExtensionPoints sets both extension line definition points.
+func (d *Dimension) SetExtensionPoints(p1, p2 []float64) {
+	if len(p1) >= 3 {
+		d.extensionPoint1 = math.NewVec3(p1[0], p1[1], p1[2])
+	} else if len(p1) >= 2 {
+		d.extensionPoint1 = math.NewVec3(p1[0], p1[1], 0)
+	}
+	if len(p2) >= 3 {
+		d.extensionPoint2 = math.NewVec3(p2[0], p2[1], p2[2])
+	} else if len(p2) >= 2 {
+		d.extensionPoint2 = math.NewVec3(p2[0], p2[1], 0)
 	}
 }
 
@@ -286,9 +325,11 @@ func (d *Dimension) SetFeaturePoint(point []float64) {
 // SetExtensionPoint sets the extension point for linear dimensions
 func (d *Dimension) SetExtensionPoint(point []float64) {
 	if len(point) >= 3 {
-		d.extensionPoint = math.NewVec3(point[0], point[1], point[2])
+		d.extensionPoint1 = math.NewVec3(point[0], point[1], point[2])
+		d.extensionPoint2 = d.extensionPoint1
 	} else if len(point) >= 2 {
-		d.extensionPoint = math.NewVec3(point[0], point[1], 0)
+		d.extensionPoint1 = math.NewVec3(point[0], point[1], 0)
+		d.extensionPoint2 = d.extensionPoint1
 	}
 }
 
@@ -341,6 +382,67 @@ func (d *Dimension) SetLimitsLower(lower float64) {
 	d.limitsLower = lower
 }
 
+// Transform applies an affine matrix to every definition, extension, text,
+// construction, jog, leader, base and feature point. Angles rotate by the
+// matrix Z-rotation component; arc radii scale by the average XY scale.
+func (d *Dimension) Transform(m math.Matrix44) error {
+	tp := func(v math.Vec3) math.Vec3 {
+		p := TransformPoint(m, []float64{v.X(), v.Y(), v.Z()})
+		return math.NewVec3(p[0], p[1], p[2])
+	}
+	d.definitionPoint = tp(d.definitionPoint)
+	d.textMidpoint = tp(d.textMidpoint)
+	d.extensionPoint1 = tp(d.extensionPoint1)
+	d.extensionPoint2 = tp(d.extensionPoint2)
+	d.constructionPoint1 = tp(d.constructionPoint1)
+	d.constructionPoint2 = tp(d.constructionPoint2)
+	d.jogPoint = tp(d.jogPoint)
+	d.leaderPoint = tp(d.leaderPoint)
+	d.basePoint = tp(d.basePoint)
+	d.featurePoint = tp(d.featurePoint)
+
+	sx, sy, sz := ScaleFactors(m)
+	avg := (abs64(sx) + abs64(sy)) / 2
+	d.angle += TransformRotationDeg(m)
+	d.obliqueAngle += TransformRotationDeg(m)
+	if d.arcData != nil {
+		d.arcData.StartAngle += TransformRotationDeg(m)
+		d.arcData.EndAngle += TransformRotationDeg(m)
+		d.arcData.Radius *= avg
+		d.arcData.ArcCenter = tp(d.arcData.ArcCenter)
+	}
+	_ = sz
+	return nil
+}
+
+// Explode decomposes the dimension into LINE segments along its definition
+// geometry: extension lines from the extension points to the definition point
+// and the dimension line between the extension-point projections. Text is not
+// exploded.
+func (d *Dimension) Explode() ([]Entity, error) {
+	var out []Entity
+	addLine := func(a, b math.Vec3) {
+		la := NewLine()
+		la.Start = []float64{a.X(), a.Y(), a.Z()}
+		la.End = []float64{b.X(), b.Y(), b.Z()}
+		out = append(out, la)
+	}
+	dimPoint := d.definitionPoint
+	if !d.extensionPoint1.IsEqual(dimPoint, 1e-9) {
+		addLine(d.extensionPoint1, dimPoint)
+	}
+	if !d.extensionPoint2.IsEqual(dimPoint, 1e-9) {
+		addLine(d.extensionPoint2, dimPoint)
+	}
+	if !d.extensionPoint1.IsEqual(d.extensionPoint2, 1e-9) {
+		addLine(d.extensionPoint1, d.extensionPoint2)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("dimension: no definition geometry to explode")
+	}
+	return out, nil
+}
+
 // Format writes data to formatter.
 func (d *Dimension) Format(f format.Formatter) {
 	d.entity.Format(f)
@@ -368,29 +470,49 @@ func (d *Dimension) Format(f format.Formatter) {
 	f.WriteInt(72, d.lineSpacingStyle)
 	f.WriteFloat(41, d.lineSpacingFactor)
 	f.WriteFloat(42, d.actualMeasurement)
-	f.WriteFloat(52, d.obliqueAngle)
-	f.WriteFloat(53, d.obliqueRotation)
-	f.WriteFloat(51, d.horizontalDirection)
+	if d.obliqueAngle != 0 {
+		f.WriteFloat(50, d.obliqueAngle)
+	}
+	if d.obliqueRotation != 0 {
+		f.WriteFloat(51, d.obliqueRotation)
+	}
 
 	// Write extrusion direction (210,220,230)
 	f.WriteFloat(210, d.extrusion.X())
 	f.WriteFloat(220, d.extrusion.Y())
 	f.WriteFloat(230, d.extrusion.Z())
 
-	// Write extension points for linear dimensions
+	// Linear and aligned dimensions (AcDbRotatedDimension): rotation angle.
+	if d.dimensionType == DimensionTypeRotated || d.dimensionType == DimensionTypeAligned {
+		f.WriteFloat(50, d.angle)
+	}
+
+	// Extension points for linear dimensions
 	if d.IsLinear() {
 		// First extension line point (13,23,33)
 		if !d.suppressExtension {
-			f.WriteFloat(13, d.extensionPoint.X())
-			f.WriteFloat(23, d.extensionPoint.Y())
-			f.WriteFloat(33, d.extensionPoint.Z())
+			f.WriteFloat(13, d.extensionPoint1.X())
+			f.WriteFloat(23, d.extensionPoint1.Y())
+			f.WriteFloat(33, d.extensionPoint1.Z())
 		}
 
-		// Second extension line point (14,24,34) - using same point for simplicity
+		// Second extension line point (14,24,34)
 		if !d.suppressExtension {
-			f.WriteFloat(14, d.extensionPoint.X())
-			f.WriteFloat(24, d.extensionPoint.Y())
-			f.WriteFloat(34, d.extensionPoint.Z())
+			f.WriteFloat(14, d.extensionPoint2.X())
+			f.WriteFloat(24, d.extensionPoint2.Y())
+			f.WriteFloat(34, d.extensionPoint2.Z())
+		}
+
+		// Third and fourth definition points (15,25,35 / 16,26,36)
+		if !d.constructionPoint1.IsEqual(math.NewVec3(0, 0, 0), 1e-9) {
+			f.WriteFloat(15, d.constructionPoint1.X())
+			f.WriteFloat(25, d.constructionPoint1.Y())
+			f.WriteFloat(35, d.constructionPoint1.Z())
+		}
+		if !d.constructionPoint2.IsEqual(math.NewVec3(0, 0, 0), 1e-9) {
+			f.WriteFloat(16, d.constructionPoint2.X())
+			f.WriteFloat(26, d.constructionPoint2.Y())
+			f.WriteFloat(36, d.constructionPoint2.Z())
 		}
 	}
 
@@ -568,6 +690,38 @@ func (d *Dimension) IsOrdinate() bool {
 	return d.dimensionType == DimensionTypeOrdinate
 }
 
+// SetArcStartAngle sets the arc start angle (code 50 in AcDbArcDimension).
+func (d *Dimension) SetArcStartAngle(v float64) {
+	if d.arcData == nil {
+		d.arcData = &DimensionArc{}
+	}
+	d.arcData.StartAngle = v
+}
+
+// SetArcEndAngle sets the arc end angle (code 51 in AcDbArcDimension).
+func (d *Dimension) SetArcEndAngle(v float64) {
+	if d.arcData == nil {
+		d.arcData = &DimensionArc{}
+	}
+	d.arcData.EndAngle = v
+}
+
+// SetArcRadius sets the arc radius (code 40 in AcDbArcDimension).
+func (d *Dimension) SetArcRadius(v float64) {
+	if d.arcData == nil {
+		d.arcData = &DimensionArc{}
+	}
+	d.arcData.Radius = v
+}
+
+// SetArcCCW sets the counter-clockwise flag (code 70 bit in AcDbArcDimension).
+func (d *Dimension) SetArcCCW(ccw bool) {
+	if d.arcData == nil {
+		d.arcData = &DimensionArc{}
+	}
+	d.arcData.IsCCW = ccw
+}
+
 // SetArcData sets arc dimension properties
 func (d *Dimension) SetArcData(startAngle, endAngle, radius float64, isCCW bool) {
 	d.arcData = &DimensionArc{
@@ -645,7 +799,8 @@ func (d *Dimension) SetStyleFromStruct(style *DimensionStyle) {
 // SetExtensionGeometry sets extension line properties
 func (d *Dimension) SetExtensionGeometry(extensionLength float64, extensionPoint math.Vec3) {
 	d.extensionLength = extensionLength
-	d.extensionPoint = extensionPoint
+	d.extensionPoint1 = extensionPoint
+	d.extensionPoint2 = extensionPoint
 }
 
 // SetUserText sets custom text values

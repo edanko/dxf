@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/edanko/dxf/format"
+	dxfmath "github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/table"
 )
 
@@ -240,6 +241,22 @@ func (t *Text) SetSecondCoord(coord []float64) {
 // SecondCoord returns the second alignment point
 func (t *Text) SecondCoord() []float64 {
 	return t.Coord2
+}
+
+// Transform applies an affine matrix to the text insertion point and rotates
+// its angle by the XY-plane rotation component.
+func (t *Text) Transform(m dxfmath.Matrix44) error {
+	t.Coord1 = TransformPoint(m, t.Coord1)
+	if len(t.Coord2) >= 2 {
+		t.Coord2 = TransformPoint(m, t.Coord2)
+	}
+	sx, sy, _ := ScaleFactors(m)
+	scale := (sx + sy) / 2
+	t.Height *= scale
+	if rot := math.Atan2(m.Get(1, 0), m.Get(0, 0)); rot != 0 {
+		t.Rotation += rot * 180 / math.Pi
+	}
+	return nil
 }
 
 // Copy creates a deep copy of the Text entity

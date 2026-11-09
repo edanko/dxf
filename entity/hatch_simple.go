@@ -2,10 +2,14 @@ package entity
 
 import (
 	"fmt"
+
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/lldxf"
+	stdmath "math"
+
 	"github.com/edanko/dxf/math"
+	dxfmath "github.com/edanko/dxf/math"
 )
 
 // Hatch pattern types
@@ -98,14 +102,88 @@ type BoundaryPath interface {
 type PolylinePath struct {
 	pathTypeFlags int
 	isClosed      bool
+	hasBulge      bool
+	dashLen       float64
+	plotFlags     int
 	vertices      []Vertex3D // 2D vertices with optional bulge
 	sourceHandles []string
 }
+
+// NewPolylinePath creates a polyline boundary path. flags carries the DXF 93
+// flags; closed and hasBulge map to codes 73 and 72.
+func NewPolylinePath(flags int, closed, hasBulge bool) *PolylinePath {
+	return &PolylinePath{
+		pathTypeFlags: flags,
+		isClosed:      closed,
+		hasBulge:      hasBulge,
+		plotFlags:     0,
+		vertices:      make([]Vertex3D, 0),
+	}
+}
+
+// AddVertex appends a boundary vertex.
+func (p *PolylinePath) AddVertex(v Vertex3D) {
+	p.vertices = append(p.vertices, v)
+	if v.Bulge != 0 {
+		p.hasBulge = true
+	}
+}
+
+// SetDashLength sets the constant dash length (code 44).
+func (p *PolylinePath) SetDashLength(v float64) { p.dashLen = v }
+
+// AddSourceHandle records a source boundary object handle (code 330).
+func (p *PolylinePath) AddSourceHandle(h string) { p.sourceHandles = append(p.sourceHandles, h) }
+
+// CompleteVertexY sets the Y of the last appended vertex.
+func (p *PolylinePath) CompleteVertexY(y float64) {
+	if n := len(p.vertices); n > 0 {
+		vt := p.vertices[n-1]
+		p.vertices[n-1] = Vertex3D{Point: dxfmath.NewVec3(vt.Point.X(), y, vt.Point.Z()), Bulge: vt.Bulge}
+	}
+}
+
+// CompleteVertexZ sets the Z of the last appended vertex.
+func (p *PolylinePath) CompleteVertexZ(z float64) {
+	if n := len(p.vertices); n > 0 {
+		vt := p.vertices[n-1]
+		p.vertices[n-1] = Vertex3D{Point: dxfmath.NewVec3(vt.Point.X(), vt.Point.Y(), z), Bulge: vt.Bulge}
+	}
+}
+
+// CompleteVertexBulge sets the bulge of the last appended vertex.
+func (p *PolylinePath) CompleteVertexBulge(b float64) {
+	if n := len(p.vertices); n > 0 {
+		vt := p.vertices[n-1]
+		p.vertices[n-1] = Vertex3D{Point: vt.Point, Bulge: b}
+		if b != 0 {
+			p.hasBulge = true
+		}
+	}
+}
+
+// Vertices returns the boundary vertices.
+func (p *PolylinePath) Vertices() []Vertex3D { return p.vertices }
+
+// IsClosed reports whether the path is closed (code 73).
+func (p *PolylinePath) IsClosed() bool { return p.isClosed }
+
+// HasBulge reports whether vertices carry bulges (code 72).
+func (p *PolylinePath) HasBulge() bool { return p.hasBulge }
+
+// SetClosed sets the closed flag (code 73).
+func (p *PolylinePath) SetClosed(c bool) { p.isClosed = c }
+
+// SetHasBulge sets the has-bulge flag (code 72).
+func (p *PolylinePath) SetHasBulge(b bool) { p.hasBulge = b }
 
 // Type returns the boundary path type
 func (p *PolylinePath) Type() int {
 	return BoundaryPathTypePolyline
 }
+
+// PathFlags returns the MPOLYGON path-type flags stored at creation.
+func (pp *PolylinePath) PathFlags() int { return pp.pathTypeFlags }
 
 // PathTypeFlags returns the boundary path flags
 func (p *PolylinePath) PathTypeFlags() int {
@@ -229,22 +307,51 @@ func (h *Hatch) IsEntity() bool {
 }
 
 // Format writes data to formatter.
+// SetRecordTypeName overrides the code 0 record name (MPOLYGON loader reuses
+// this entity type and must preserve the source record spelling).
+func (h *Hatch) SetRecordTypeName(name string) { h.entity.SetRecordTypeName(name) }
+
+// RawWholeRecord reports whole-record retention: a HATCH whose boundary paths
+// include edge (non-polyline) geometry cannot be re-emitted from the typed
+// model, so its retained record is written verbatim.
+func (h *Hatch) RawWholeRecord() bool {
+	for _, bp := range h.boundaryPaths {
+		if _, ok := bp.(*PolylinePath); !ok {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *Hatch) Format(f format.Formatter) {
 	h.entity.Format(f)
 	f.WriteString(100, "AcDbHatch")
-	f.WriteInt(70, h.style)
-	f.WriteString(2, h.patternName)
+	// MPOLYGON records emit the path-type flags per boundary path under code
+	// 70; the hatch style (codes 70/75) belongs to HATCH records only.
+	isMPolygon := h.recordTypeName() == "MPOLYGON"
+	if !isMPolygon {
+		f.WriteInt(70, h.style)
+	}
+	if h.solidFill {
+		f.WriteInt(71, 1)
+	} else {
+		f.WriteInt(71, 0)
+	}
+	if !isMPolygon {
+		f.WriteInt(75, h.style)
+	}
 	f.WriteInt(76, h.patternType)
-
-	// Pattern lines
+	f.WriteString(2, h.patternName)
+	f.WriteInt(78, len(h.patternLines))
 	for _, patternLine := range h.patternLines {
 		f.WriteFloat(53, patternLine.Angle)
 		f.WriteFloat(43, patternLine.BasePoint.X())
 		f.WriteFloat(44, patternLine.BasePoint.Y())
 		f.WriteFloat(45, patternLine.Offset.X())
 		f.WriteFloat(46, patternLine.Offset.Y())
-		for j, dash := range patternLine.DashLengthItems {
-			f.WriteFloat(49+j, dash)
+		f.WriteInt(79, len(patternLine.DashLengthItems))
+		for _, dash := range patternLine.DashLengthItems {
+			f.WriteFloat(49, dash)
 		}
 	}
 
@@ -263,14 +370,43 @@ func (h *Hatch) Format(f format.Formatter) {
 	// Boundary paths
 	f.WriteInt(91, len(h.boundaryPaths))
 	for _, boundaryPath := range h.boundaryPaths {
-		f.WriteInt(92, boundaryPath.Type())
-		f.WriteInt(93, boundaryPath.PathTypeFlags())
+		if isMPolygon {
+			// MPOLYGON path header: 70 flags, then 93 vertex count.
+			flags := 0
+			if pp, ok := boundaryPath.(*PolylinePath); ok {
+				flags = pp.PathFlags()
+			}
+			f.WriteInt(70, flags)
+			if pp, ok := boundaryPath.(*PolylinePath); ok {
+				f.WriteInt(93, len(pp.vertices))
+				f.WriteInt(72, boolInt(pp.hasBulge))
+				f.WriteInt(73, boolInt(pp.isClosed))
+			}
+		} else {
+			f.WriteInt(92, boundaryPath.Type())
+		}
 
-		// For now, simplified boundary path export - full implementation would be more complex
+		// Polyline paths emit 73 (closed), 72 (bulge), 44 (dash length), the
+		// source-object count with handles, then the vertex count. Edge paths
+		// are retained verbatim through rawTags.
 		if polylinePath, ok := boundaryPath.(*PolylinePath); ok {
-			f.WriteInt(72, 0) // No bulge
-			f.WriteInt(73, 0) // Default closed flag
-			f.WriteInt(97, 0) // No source objects
+			bulgeFlag := 0
+			if polylinePath.hasBulge {
+				bulgeFlag = 1
+			}
+			closedFlag := 0
+			if polylinePath.isClosed {
+				closedFlag = 1
+			}
+			if !isMPolygon {
+				f.WriteInt(73, closedFlag)
+				f.WriteInt(72, bulgeFlag)
+			}
+			f.WriteFloat(44, polylinePath.dashLen)
+			f.WriteInt(97, len(polylinePath.sourceHandles)) // source objects
+			for _, handle := range polylinePath.sourceHandles {
+				f.WriteString(330, handle)
+			}
 			f.WriteInt(93, len(polylinePath.vertices))
 
 			for _, vertex := range polylinePath.vertices {
@@ -279,7 +415,7 @@ func (h *Hatch) Format(f format.Formatter) {
 				if vertex.Point.Z() != 0 {
 					f.WriteFloat(30, vertex.Point.Z())
 				}
-				if vertex.Bulge != 0 {
+				if bulgeFlag != 0 {
 					f.WriteFloat(42, vertex.Bulge)
 				}
 			}
@@ -287,12 +423,147 @@ func (h *Hatch) Format(f format.Formatter) {
 	}
 }
 
-// BBox returns bounding box
-func (h *Hatch) BBox() ([]float64, []float64) {
-	mins := make([]float64, 3)
-	maxs := make([]float64, 3)
-	// Simplified bbox - could be improved by calculating actual bounds from boundary paths
+// Explode returns the boundary paths as LWPOLYLINE entities (closed flags and
+// bulges preserved for polyline paths). Edge paths are not representable and
+// are skipped.
+func (h *Hatch) Explode() ([]Entity, error) {
+	var out []Entity
+	for _, bp := range h.boundaryPaths {
+		pp, ok := bp.(*PolylinePath)
+		if !ok {
+			continue
+		}
+		lw := NewLwPolyline(0)
+		for _, v := range pp.vertices {
+			lw.Num++
+			lw.Vertices = append(lw.Vertices, []float64{v.Point.X(), v.Point.Y()})
+			lw.Bulges = append(lw.Bulges, v.Bulge)
+		}
+		if pp.isClosed {
+			lw.Closed = true
+		}
+		out = append(out, lw)
+	}
+	return out, nil
+}
+
+// Transform applies an affine matrix to every vertex of every polyline
+// boundary path. Edge (non-polyline) paths are not modified; they are
+// retained verbatim through raw tags.
+func (h *Hatch) Transform(m dxfmath.Matrix44) error {
+	for _, bp := range h.boundaryPaths {
+		pp, ok := bp.(*PolylinePath)
+		if !ok {
+			continue
+		}
+		for idx := range pp.vertices {
+			v := &pp.vertices[idx]
+			p := TransformPoint(m, []float64{v.Point.X(), v.Point.Y(), v.Point.Z()})
+			v.Point = dxfmath.NewVec3(p[0], p[1], p[2])
+		}
+	}
+	return nil
+}
+
+// BBox returns the axis-aligned bounding box of all polyline boundary paths.
+func (h *Hatch) bboxPaths() ([]float64, []float64) {
+	mins := []float64{stdmath.Inf(1), stdmath.Inf(1), stdmath.Inf(1)}
+	maxs := []float64{stdmath.Inf(-1), stdmath.Inf(-1), stdmath.Inf(-1)}
+	found := false
+	for _, bp := range h.boundaryPaths {
+		pp, ok := bp.(*PolylinePath)
+		if !ok {
+			continue
+		}
+		for _, v := range pp.vertices {
+			for k, val := range []float64{v.Point.X(), v.Point.Y(), v.Point.Z()} {
+				if val < mins[k] {
+					mins[k] = val
+				}
+				if val > maxs[k] {
+					maxs[k] = val
+				}
+			}
+			found = true
+		}
+	}
+	if !found {
+		return []float64{0, 0, 0}, []float64{0, 0, 0}
+	}
 	return mins, maxs
+}
+
+// BBox returns the bounding box of the hatch boundary paths.
+func (h *Hatch) BBox() ([]float64, []float64) {
+	return h.bboxPaths()
+}
+
+// DefaultPatternLines returns the default ANSI31 pattern definition used for
+// non-solid hatches without an explicit pattern section.
+func DefaultPatternLines() []HatchPatternLine {
+	return NewHatch().patternLines
+}
+
+// boolInt maps a bool to the DXF 0/1 integer.
+func boolInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
+}
+
+// Style returns the hatch style (code 70).
+func (h *Hatch) Style() int { return h.style }
+
+// BoundaryPaths returns the hatch boundary paths.
+func (h *Hatch) BoundaryPaths() []BoundaryPath { return h.boundaryPaths }
+
+// SolidFill reports whether the hatch is solid filled (code 70 bit semantics).
+func (h *Hatch) SolidFill() bool { return h.solidFill }
+
+// PatternName returns the pattern name (code 2).
+func (h *Hatch) PatternName() string { return h.patternName }
+
+// PatternType returns the pattern type (code 76).
+func (h *Hatch) PatternType() int { return h.patternType }
+
+// Copy creates a deep copy of the Hatch entity.
+func (h *Hatch) Copy() Entity {
+	hatch := NewHatch()
+	hatch.entity = h.entity
+	hatch.patternType = h.patternType
+	hatch.patternName = h.patternName
+	hatch.patternLines = make([]HatchPatternLine, len(h.patternLines))
+	for i, pl := range h.patternLines {
+		dashes := append([]float64(nil), pl.DashLengthItems...)
+		pl.DashLengthItems = dashes
+		hatch.patternLines[i] = pl
+	}
+	hatch.solidFill = h.solidFill
+	hatch.style = h.style
+	hatch.color = h.color
+	hatch.entityColor = h.entityColor
+	hatch.transparency = h.transparency
+	hatch.gradient = h.gradient
+	hatch.boundaryPaths = make([]BoundaryPath, 0, len(h.boundaryPaths))
+	for _, bp := range h.boundaryPaths {
+		if pp, ok := bp.(*PolylinePath); ok {
+			vs := append([]Vertex3D(nil), pp.vertices...)
+			sh := append([]string(nil), pp.sourceHandles...)
+			hatch.boundaryPaths = append(hatch.boundaryPaths, &PolylinePath{
+				pathTypeFlags: pp.pathTypeFlags,
+				isClosed:      pp.isClosed,
+				hasBulge:      pp.hasBulge,
+				dashLen:       pp.dashLen,
+				plotFlags:     pp.plotFlags,
+				vertices:      vs,
+				sourceHandles: sh,
+			})
+		} else {
+			hatch.boundaryPaths = append(hatch.boundaryPaths, bp)
+		}
+	}
+	return hatch
 }
 
 // SetPattern sets the hatch pattern

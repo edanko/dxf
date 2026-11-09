@@ -403,6 +403,52 @@ func (ls *LoftedSurface) FormatString(f format.Formatter) string {
 	return f.Output()
 }
 
+// PlaneSurface represents a PLANESURFACE entity (ACIS planar face wrapper).
+type PlaneSurface struct {
+	*entity
+
+	// Basic properties
+	Version       int            // ACIS version
+	Flags         int            // Surface flags
+	UID           string         // Unique identifier
+	HistoryHandle handle.Handler // History record handle
+}
+
+// NewPlaneSurface creates a new plane surface.
+func NewPlaneSurface() *PlaneSurface {
+	return &PlaneSurface{
+		entity:  NewEntity(PLANSURFACE),
+		Version: ACISVersion22300,
+	}
+}
+
+// IsEntity returns true for PLANESURFACE entities.
+func (ps *PlaneSurface) IsEntity() bool { return true }
+
+// Format writes the plane surface record.
+func (ps *PlaneSurface) Format(f format.Formatter) {
+	ps.entity.Format(f)
+	f.WriteString(100, "AcDbPlaneSurface")
+	if ps.Version != 0 {
+		f.WriteInt(70, ps.Version)
+	}
+	if ps.UID != "" {
+		f.WriteString(1, ps.UID)
+	}
+	if ps.HistoryHandle != nil && ps.HistoryHandle.Handle() != "0" {
+		f.WriteString(350, ps.HistoryHandle.Handle())
+	}
+	if ps.Flags != 0 {
+		f.WriteInt(71, ps.Flags)
+	}
+}
+
+// BBox returns a degenerate box at the origin: planar faces derive their
+// extent from boundary curves that are not modelled on this record.
+func (ps *PlaneSurface) BBox() ([]float64, []float64) {
+	return []float64{0, 0, 0}, []float64{0, 0, 0}
+}
+
 // RevolvedSurface represents a revolved surface entity
 type RevolvedSurface struct {
 	*entity

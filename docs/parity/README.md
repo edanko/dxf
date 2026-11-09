@@ -136,32 +136,56 @@ must be verified before implementation starts.
 
 ### 2. Entities
 
-ezdxf registers 99 `DXFTYPE` values in `src/ezdxf/entities/`. Go has structs or
-constants for many but not all, and the load path only constructs 29 types
-explicitly; everything else becomes `GenericEntity` and loses attributes.
+ezdxf registers 99 `DXFTYPE` values in `src/ezdxf/entities/`. The Go loader
+registry (root `loadEntity`, registered via `entity.SetDefaultLoader` +
+`registerEntityLoaders`) now constructs typed entities for every standard
+drawing entity and retains every other record verbatim.
 
-Confirmed load dispatch (root `loadEntity`): POINT, LINE, CIRCLE, ARC, TEXT,
-MTEXT, SOLID, TRACE, 3DFACE, LWPOLYLINE, POLYLINE, VERTEX, INSERT, ELLIPSE,
-SPLINE, LEADER, HATCH, IMAGE, MLEADER, DIMENSION, SHAPE, XLINE, RAY, WIPEOUT,
-MLINE, ATTDEF, ATTRIB, TOLERANCE.
+Typed load dispatch (root loaders, verified by `TestRegistryCompleteness`):
+POINT, LINE, CIRCLE, ARC, TEXT, MTEXT, SOLID, TRACE, 3DFACE, LWPOLYLINE,
+POLYLINE, VERTEX, SEQEND, INSERT, ATTRIB, ATTDEF, ELLIPSE, SPLINE, LEADER,
+MLeader/MULTILEADER (alias), HATCH, MPOLYGON (typed hatch with record-name
+override), IMAGE, DIMENSION (+ ARC_DIMENSION, LARGE_RADIAL_DIMENSION aliases),
+SHAPE, XLINE, RAY, WIPEOUT, MLINE, TOLERANCE, 3DSOLID, REGION, BODY, MESH,
+HELIX, EXTRUDED_SURFACE, LOFTED_SURFACE, REVOLVED_SURFACE, SWEPT_SURFACE,
+PLANESURFACE.
+
+Whole-record retention (`entity.RetainedRecordType`, default loader; verified
+by `TestRetainedRecordSurvival`, `TestLightSunRetainedRoundTrip`,
+`TestFieldRetainedRoundTrip`, `TestAcadTableRetainedRoundTrip`): ACAD_TABLE,
+ACAD_PROXY_ENTITY, OLE2FRAME, LIGHT, SUN, FIELD, LAYOUT-as-entity records,
+third-party/app-defined types, and any unregistered standard type. Retained
+records re-emit every tag verbatim (code 0/handle from the base), so
+unknown/third-party entities survive load/save unchanged.
+
+Entity operations (`entity` package): `Transform` for every geometry category
+(line/curve/text/polyline/insert/hatch/dimension/mleader/leader/solid3d) with
+matrix-composition tests; `BBox` including INSERT block content
+(`TestInsertBBoxContent`); `Explode` for INSERT, POLYLINE, HATCH (boundary
+polylines), DIMENSION, LEADER, MLEADER (`explode_roundtrip_test.go`).
+
+ACIS payload limitations: text SAT payloads (code 90 count + code 10 lines) on
+3DSOLID/REGION/BODY are retained whole-record and round-trip verbatim
+(`acis_roundtrip_test.go`); binary SAB payloads (codes 90/310) survive through
+the same whole-record retention. Go does not parse ACIS bodies, history trees,
+or SAT version semantics; typed accessors (volume/area/center) are only
+available on payload-free records. HATCH edge-path boundaries and ELLIPSE
+records with embedded splines fall back to whole-record retention.
 
 Missing or only partially modelled (non-exhaustive):
 
-- Dimensions: `ARC_DIMENSION`, `LARGE_RADIAL_DIMENSION`, full `DIMENSION`
-  subclasses and `DimStyleOverride`.
-- ACIS: `BODY`, `3DSOLID`, `REGION`, `SURFACE`, `PLANESURFACE`,
-  `EXTRUDEDSURFACE`, `LOFTEDSURFACE`, `REVOLVEDSURFACE`, `SWEPTSURFACE`.
-- Tables: `ACAD_TABLE`, `TABLE` content rows/columns, `TABLESTYLE`.
-- Multileaders: `MULTILEADER`, `MLEADERSTYLE`, `MLEADERSTYLECOLLECTION`.
+- Tables: `ACAD_TABLE` typed content rows/columns, `TABLESTYLE`.
+- Multileaders: `MLEADERSTYLE`, `MLEADERSTYLECOLLECTION`.
 - MLine: `MLINESTYLE`, `MLINESTYLECOLLECTION`.
 - Images/underlays: `IMAGEDEF`, `IMAGEDEF_REACTOR`, `PDFDEFINITION`,
   `PDFREFERENCE`, `PDFUNDERLAY`, `DGNUNDERLAY`, `DWFUNDERLAY`,
   `UNDERLAYDEFINITION`.
 - Objects-as-entities: `LAYOUT`, `PLOTSETTINGS`, `RASTERVARIABLES`,
-  `WIPEOUTVARIABLES`, `IDBUFFER`, `FIELDLIST`, `SPATIAL_FILTER`,
-  `ACAD_PROXY_ENTITY`, `OLE2FRAME`, `LIGHT`, `SUN`, `GEODATA`.
-- Sub-entities: `SEQEND`, `VERTEX` variants (`POLYFACE`, `POLYMESH`),
-  `MESHVERTEXCACHE`, `ATTRIB`/`ATTDEF` linking.
+  `WIPEOUTVARIABLES`, `IDBUFFER`, `FIELDLIST`, `SPATIAL_FILTER`, `GEODATA`
+  (retained, not typed).
+- Sub-entities: `VERTEX` variants (`POLYFACE`, `POLYMESH`),
+  `MESHVERTEXCACHE`.
+- ACIS: body history parsing, SAT/SAB binary decoding.
 
 Per-entity requirements to verify for every type: all documented group codes,
 defaults, version gating, OCS/extrusion handling, subclass markers, XDATA/APPID,
@@ -380,6 +404,7 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-08 | proposals 1–13 | created | All 13 changes scaffolded with proposal, delta spec, design, and tasks; `openspec validate --changes --strict` passes (13/13) |
 | 2026-11-08 | implementation | not started | Begin with change 1 (`dxf-io-core-parity`) via `/opsx-apply`; do not build on the WIP `parser.go` helpers |
 | 2026-11-08 | change 1 `dxf-io-core-parity` | done | Two-phase load/bind: `documentBinder` binds HEADER/CLASSES/TABLES/BLOCKS/ENTITIES/OBJECTS; raw-tag retention; opaque sections; comments; recovery; writer section order and unique handles. All 51 fixtures round-trip. Remaining differences: unknown tags on known table entries/blocks/typed objects are partially dropped, comments emit at section start, binary writer unchanged until change 2. Tests: `dxf_io_core_test.go`, `corpus_roundtrip_test.go`, `fuzz_core_test.go`. |
+| 2026-11-09 | change 3 `entity-model-parity` | done | Loader registry covers every standard drawing entity with typed structs (37 registered types; `TestRegistryCompleteness`); MPOLYGON typed via hatch, dimension variants, MLEADER/MULTILEADER alias. Whole-record retention (`RetainedRecordType`) for ACAD_TABLE/ACAD_PROXY_ENTITY/OLE2FRAME/LIGHT/SUN/FIELD/third-party records; point-code tagger cast preserves unparseable strings so ACIS text payloads survive. Operations: Transform (matrix composition tests), BBox incl. INSERT content, Explode for INSERT/POLYLINE/HATCH/DIMENSION/LEADER/MLEADER. Tests: `geom_roundtrip_test.go`, `text_roundtrip_test.go`, `polyline_roundtrip_test.go`, `insert_roundtrip_test.go`, `hatch_roundtrip_test.go`, `mpolygon_roundtrip_test.go`, `leader_roundtrip_test.go`, `mline_roundtrip_test.go`, `dimension_roundtrip_test.go`, `explode_roundtrip_test.go`, `transform_compose_test.go`, `transform_more_test.go`, `bbox_insert_test.go`, `acis_roundtrip_test.go`, `surface_roundtrip_test.go`, `misc_roundtrip_test.go`, `registry_completeness_test.go`. ACIS bodies are retained, not parsed. |
 | 2026-11-09 | change 2 `dxf-version-encoding-parity` | done | Version profiles R12–R2018 (`format/version.go`); `$ACADVER` detect/normalize; target-version save with conversion report; R12 sanitizer incl. true-color header variables; codepage-aware load + UTF-8/codepage output; binary writer completed (all sections, EOF, signature, per-code int16/int32/int64 sizing, bool codes as int16 flags) — ASCII and binary tag streams now value-identical on `columns_R2018.dxf` (7734 tags). Fixed code-class lists in `lldxf/tags.go` (string codes 100–109, bool 290–299, int64 160–169) and the binary tagger read path. Tests: `version_encoding_test.go`. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

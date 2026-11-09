@@ -2,9 +2,13 @@ package entity
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
 )
+
+func itoa(v int) string { return strconv.Itoa(v) }
 
 // Attrib represents an ATTRIB entity (attribute)
 type Attrib struct {
@@ -24,6 +28,7 @@ type Attrib struct {
 	color       int       // 62 - Color number
 	extrusion   []float64 // 210,220,230 - Extrusion direction
 	prompt      string    // 3 - Prompt (for ATTDEF)
+	endhandle   string    // SEQEND handle (last attribute of an INSERT list)
 }
 
 // NewAttrib creates a new ATTRIB entity
@@ -66,24 +71,11 @@ func (a *Attrib) IsEntity() bool {
 func (a *Attrib) Format(f format.Formatter) {
 	a.entity.Format(f)
 	f.WriteString(100, "AcDbText")
-	f.WriteString(1, a.textValue)
-	f.WriteString(2, a.tag)
-	f.WriteString(3, a.prompt)
-	f.WriteString(7, a.style)
-	f.WriteString(8, a.layer)
-
-	// Insertion point
-	if len(a.insertPoint) >= 3 {
-		f.WriteFloat(10, a.insertPoint[0])
-		f.WriteFloat(20, a.insertPoint[1])
-		f.WriteFloat(30, a.insertPoint[2])
-	} else if len(a.insertPoint) >= 2 {
-		f.WriteFloat(10, a.insertPoint[0])
-		f.WriteFloat(20, a.insertPoint[1])
-		f.WriteFloat(30, 0.0)
+	if len(a.insertPoint) >= 3 && (a.insertPoint[0] != 0.0 || a.insertPoint[1] != 0.0 || a.insertPoint[2] != 0.0) {
+		for i := 0; i < 3; i++ {
+			f.WriteFloat((i+1)*10, a.insertPoint[i])
+		}
 	}
-
-	// Text properties
 	if a.height != 0.0 {
 		f.WriteFloat(40, a.height)
 	}
@@ -96,21 +88,29 @@ func (a *Attrib) Format(f format.Formatter) {
 	if a.oblique != 0.0 {
 		f.WriteFloat(51, a.oblique)
 	}
-
-	// Justification
-	if a.hAlign != 0 || a.vAlign != 0 {
-		f.WriteInt(72, a.hAlign)
-		f.WriteInt(74, a.vAlign)
-	}
-
-	// Mirror flag
+	f.WriteString(72, itoa(a.hAlign))
+	f.WriteString(74, itoa(a.vAlign))
 	if a.mirror != 0 {
 		f.WriteInt(71, a.mirror)
 	}
-
-	// Color
-	if a.color != 0 {
-		f.WriteInt(62, a.color)
+	f.WriteString(1, a.textValue)
+	f.WriteString(2, a.tag)
+	if a.prompt != "" {
+		f.WriteString(3, a.prompt)
+	}
+	if a.style != "" {
+		f.WriteString(7, a.style)
+	}
+	layerName := a.layer
+	if layerName == "" {
+		if ln := a.LayerName(); ln != "" {
+			layerName = ln
+		} else if l := a.Layer(); l != nil {
+			layerName = l.Name()
+		}
+	}
+	if layerName != "" {
+		f.WriteString(8, layerName)
 	}
 
 	// Extrusion direction
@@ -170,6 +170,49 @@ func (a *Attrib) SetJustification(hAlign, vAlign int) {
 	a.hAlign = hAlign
 	a.vAlign = vAlign
 }
+
+// SetWidthFactor sets the text width factor (code 41).
+func (a *Attrib) SetWidthFactor(w float64) { a.width = w }
+
+// SetOblique sets the obliquity angle (code 51).
+func (a *Attrib) SetOblique(o float64) { a.oblique = o }
+
+// SetMirror sets the mirror flag (code 71).
+func (a *Attrib) SetMirror(m int) { a.mirror = m }
+
+// Justification returns horizontal and vertical justification (codes 72, 74).
+func (a *Attrib) Justification() (int, int) { return a.hAlign, a.vAlign }
+
+// SetEndHandleString records the SEQEND handle that terminates an INSERT's
+// attribute list. The last attribute of the list emits it (code 5) after the
+// attributes so the record sequence round-trips.
+func (a *Attrib) SetEndHandleString(h string) { a.endhandle = h }
+
+// EndHandle returns the SEQEND handle recorded on this attribute.
+func (a *Attrib) EndHandle() string { return a.endhandle }
+
+// SetPrompt sets the attribute prompt (code 3).
+func (a *Attrib) SetPrompt(p string) { a.prompt = p }
+
+// Prompt returns the attribute prompt.
+func (a *Attrib) Prompt() string { return a.prompt }
+
+// Text returns the attribute value (code 1).
+func (a *Attrib) Text() string { return a.textValue }
+
+// Tag returns the attribute tag (code 2).
+func (a *Attrib) Tag() string { return a.tag }
+
+// SetExtrusionComponent sets one component of the extrusion direction.
+func (a *Attrib) SetExtrusionComponent(idx int, v float64) {
+	if len(a.extrusion) < 3 {
+		a.extrusion = []float64{0, 0, 1}
+	}
+	a.extrusion[idx] = v
+}
+
+// ExtrusionDirection returns the extrusion direction (codes 210, 220, 230).
+func (a *Attrib) ExtrusionDirection() []float64 { return a.extrusion }
 
 // SetColor sets the color (implements Entity interface)
 func (a *Attrib) SetColor(color color.ColorNumber) {

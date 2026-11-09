@@ -35,13 +35,26 @@ func NewCircle() *Circle {
 func (c *Circle) Format(f format.Formatter) {
 	c.entity.Format(f)
 	f.WriteString(100, "AcDbCircle")
+	if c.thickness != 0 {
+		f.WriteFloat(39, c.thickness)
+	}
 	for i := 0; i < 3; i++ {
 		f.WriteFloat((i+1)*10, c.Center[i])
 	}
 	f.WriteFloat(40, c.Radius)
-	for i := 0; i < 3; i++ {
-		f.WriteFloat(200+(i+1)*10, c.Direction[i])
+	c.writeDirection(f)
+}
+
+// writeDirection emits the extrusion direction (210, 220, 230). A negative Z
+// component marks a mirrored entity; DXF requires it verbatim.
+func (c *Circle) writeDirection(f format.Formatter) {
+	d := c.Direction
+	if len(d) < 3 {
+		d = []float64{0, 0, 1}
 	}
+	f.WriteFloat(210, d[0])
+	f.WriteFloat(220, d[1])
+	f.WriteFloat(230, d[2])
 }
 
 // CurrentDirection returns extrusion direction.
@@ -126,6 +139,32 @@ func (c *Circle) BBox() ([]float64, []float64) {
 	}
 
 	return cornerMins, cornerMaxs
+}
+
+// Transform applies an affine matrix to the circle. Translation and rotation
+// are exact; a uniform scale scales the radius. Non-uniform scaling produces
+// an ellipse, which CIRCLE cannot represent, so ErrNonUniformScale is
+// returned (documented policy; convert to ELLIPSE at the call site).
+func (c *Circle) Transform(m dxfmath.Matrix44) error {
+	if !IsUniformScale(m, 1e-9) {
+		return ErrNonUniformScale
+	}
+	sx, _, _ := ScaleFactors(m)
+	c.Center = TransformPoint(m, c.Center)
+	c.Radius = abs64(c.Radius * sx)
+	if len(c.Direction) >= 3 {
+		d := TransformDirection(m, c.Direction)
+		n := dxfmath.NewVec3(d[0], d[1], d[2]).Normalized()
+		c.Direction = []float64{n.X(), n.Y(), n.Z()}
+	}
+	return nil
+}
+
+func abs64(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // Copy creates a deep copy of the Circle entity

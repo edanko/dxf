@@ -77,8 +77,8 @@ func (h *Helix) Format(f format.Formatter) {
 	// Write radius (40)
 	f.WriteFloat(40, h.radius)
 
-	// Write turns (90)
-	f.WriteFloat(90, h.turns)
+	// Write turns (90). The DXF spec types code 90 as a 32-bit integer.
+	f.WriteInt(90, int(h.turns))
 
 	// Write turn height (41)
 	f.WriteFloat(41, h.turnHeight)

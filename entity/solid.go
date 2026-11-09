@@ -1,6 +1,9 @@
 package entity
 
-import "github.com/edanko/dxf/format"
+import (
+	"github.com/edanko/dxf/format"
+	dxfmath "github.com/edanko/dxf/math"
+)
 
 type Solid struct {
 	*entity
@@ -60,6 +63,15 @@ func (s *Solid) BBox() ([]float64, []float64) {
 		}
 	}
 	return mins, maxs
+}
+
+// Transform applies an affine matrix to the solid corner points.
+func (s *Solid) Transform(m dxfmath.Matrix44) error {
+	s.FirstPoint = TransformPoint(m, s.FirstPoint)
+	s.SecondPoint = TransformPoint(m, s.SecondPoint)
+	s.ThirdPoint = TransformPoint(m, s.ThirdPoint)
+	s.FourthPoint = TransformPoint(m, s.FourthPoint)
+	return nil
 }
 
 // Copy creates a deep copy of the Solid entity

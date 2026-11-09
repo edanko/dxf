@@ -17,8 +17,9 @@ type Solid3d struct {
 	HistoryHandle handle.Handler // History record handle (DXF R2007+)
 
 	// Geometry data
-	SATData    []byte // SAT/SAB binary data
-	SATVersion int    // ACIS version for SAT format
+	SATData    []byte   // SAT/SAB binary data (retained via rawTags)
+	SATVersion int      // ACIS version for SAT format
+	satLines   []string // text SAT payload lines (code 10 groups)
 
 	// Transformation
 	Transform        *ACASTransform
@@ -155,67 +156,67 @@ func (s *Solid3d) IsEntity() bool {
 // Format writes data to formatter
 func (s *Solid3d) Format(f format.Formatter) {
 	s.entity.Format(f)
-	f.WriteString(100, "AcDb3dSolid")
 
-	// Write ACIS version
-	if s.Version != 0 {
-		f.WriteInt(70, s.Version)
-	}
-
-	// Write UID
-	if s.UID != "" {
-		f.WriteString(1, s.UID)
-	}
-
-	// Write history handle (DXF R2007+)
+	// AcDbEntity common section carries history handle (code 350) when set.
 	if s.HistoryHandle != nil && s.HistoryHandle.Handle() != "0" {
 		f.WriteString(350, s.HistoryHandle.Handle())
 	}
 
-	// Write flags
-	if s.Flags != 0 {
-		f.WriteInt(71, s.Flags)
+	f.WriteString(100, "AcDbModelerGeometry")
+	// Modeler geometry version (code 70) and history GUID string (code 1).
+	f.WriteInt(70, 0)
+	if s.UID != "" {
+		f.WriteString(1, s.UID)
 	}
 
-	// Write SAT data if available
-	if len(s.SATData) > 0 {
-		// Note: This would need binary encoding support in formatter
-		// For now, write as hex string or skip
-		f.WriteInt(90, len(s.SATData))
+	f.WriteString(100, "AcDb3dSolid")
+	// ACIS version (code 70).
+	f.WriteInt(70, s.Version)
+	// Solid flags (code 91); only when no binary SAB payload is retained in
+	// rawTags, which already carries code 91.
+	if len(s.SATData) == 0 {
+		f.WriteInt(91, s.Flags)
 	}
 
-	// Write transformation matrix if present
-	if s.Transform != nil {
-		// Write 16 float values for 4x4 matrix
-		for i := 0; i < 16; i++ {
-			f.WriteFloat(40+i, s.Transform.Matrix[i])
-		}
-	}
+	// SAT (text ACIS) payload: count of lines, then each line verbatim.
+	s.writeSATHistory(f)
 
-	// Write bounding box if calculated
-	if s.boundingBox != nil {
-		f.WriteFloat(10, s.boundingBox.Min.X())
-		f.WriteFloat(20, s.boundingBox.Min.Y())
-		f.WriteFloat(30, s.boundingBox.Min.Z())
-		f.WriteFloat(11, s.boundingBox.Max.X())
-		f.WriteFloat(21, s.boundingBox.Max.Y())
-		f.WriteFloat(31, s.boundingBox.Max.Z())
-	}
-
-	// Write geometric properties
+	// Geometric properties and center (AcDb3dSolid section).
 	if s.volume != 0 {
-		f.WriteFloat(42, s.volume)
+		f.WriteFloat(40, s.volume)
 	}
 	if s.surfaceArea != 0 {
-		f.WriteFloat(43, s.surfaceArea)
+		f.WriteFloat(41, s.surfaceArea)
 	}
-
-	// Write center point
 	center := s.GetCenter()
 	f.WriteFloat(10, center.X())
 	f.WriteFloat(20, center.Y())
 	f.WriteFloat(30, center.Z())
 }
+
+// RawWholeRecord reports whole-record retention: a 3DSOLID with an opaque
+// binary SAT/SAB payload (codes 90/310) re-emits its retained tags verbatim,
+// and the typed accessors below are unavailable for such records.
+func (s *Solid3d) RawWholeRecord() bool { return len(s.SATData) > 0 }
+
+// writeSATHistory emits the stored ACIS payload. Text SAT data (code 10 lines)
+// round-trips verbatim; binary SAB data (codes 90/310) is retained through
+// rawTags by the binder, so it must not be re-emitted here.
+func (s *Solid3d) writeSATHistory(f format.Formatter) {
+	if len(s.satLines) == 0 {
+		return
+	}
+	f.WriteInt(90, len(s.satLines))
+	for _, ln := range s.satLines {
+		f.WriteString(10, ln)
+	}
+}
+
+// SATLines returns the stored text SAT payload lines.
+func (s *Solid3d) SATLines() []string { return s.satLines }
+
+// SetSATLines replaces the text SAT payload.
+func (s *Solid3d) SetSATLines(lines []string) { s.satLines = lines }
 
 // String outputs data using default formatter
 func (s *Solid3d) String() string {

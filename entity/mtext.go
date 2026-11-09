@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/edanko/dxf/format"
+	dxfmath "github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/table"
 )
 
@@ -425,14 +426,34 @@ func (m *MText) updateLegacyFlags() {
 	}
 }
 
+// Transform applies an affine matrix to the MTEXT insertion point; text
+// height and reference width scale, and rotation shifts with the XY-plane
+// rotation component.
+func (m *MText) Transform(mtx dxfmath.Matrix44) error {
+	m.Coord1 = TransformPoint(mtx, m.Coord1)
+	sx, sy, _ := ScaleFactors(mtx)
+	scale := (sx + sy) / 2
+	m.Height *= scale
+	m.Width *= scale
+	if rot := math.Atan2(mtx.Get(1, 0), mtx.Get(0, 0)); rot != 0 {
+		m.Rotation += rot * 180 / math.Pi
+	}
+	return nil
+}
+
 // Format writes data to formatter with enhanced MTEXT support
 func (m *MText) Format(f format.Formatter) {
 	m.entity.Format(f)
 	f.WriteString(100, "AcDbMText")
 
-	// Insertion point
-	for i := 0; i < 3; i++ {
-		f.WriteFloat((i+1)*10, m.Coord1[i])
+	// Insertion point. Code 30 is omitted for the default z = 0 plane.
+	if len(m.Coord1) >= 3 && m.Coord1[2] != 0 {
+		for i := 0; i < 3; i++ {
+			f.WriteFloat((i+1)*10, m.Coord1[i])
+		}
+	} else {
+		f.WriteFloat(10, m.Coord1[0])
+		f.WriteFloat(20, m.Coord1[1])
 	}
 
 	// Text height

@@ -71,6 +71,33 @@ type Region struct {
 
 	// Geometry
 	OuterLoop *Loop
+
+	// satLines carries the retained ACIS text payload (code 90 count, then
+	// code 10 lines). Payload-bearing records re-emit verbatim.
+	satLines []string
+}
+
+// SATLines returns the stored ACIS text payload lines.
+func (r *Region) SATLines() []string { return r.satLines }
+
+// SetSATLines replaces the ACIS text payload.
+func (r *Region) SetSATLines(lines []string) { r.satLines = lines }
+
+// RawWholeRecord reports whole-record retention for payload-bearing records.
+func (r *Region) RawWholeRecord() bool { return len(r.satLines) > 0 }
+
+// BBox returns the bounding box of the region record. Payload-bearing ACIS
+// records carry no typed geometry, so the box is a degenerate point at origin.
+func (r *Region) BBox() ([]float64, []float64) { return []float64{0, 0, 0}, []float64{0, 0, 0} }
+
+// Format writes the region record: a payload-bearing region re-emits its
+// retained tags verbatim; an empty region writes the subclass markers only.
+func (r *Region) Format(f format.Formatter) {
+	r.entity.Format(f)
+	if len(r.satLines) > 0 {
+		return
+	}
+	f.WriteString(100, "AcDbRegion")
 }
 
 // NewRegion creates a new region
@@ -275,6 +302,7 @@ type Body struct {
 	// SAT data (if loaded from file)
 	SATData    []byte
 	SATVersion int
+	satLines   []string // retained ACIS text payload (90 count, 10 lines)
 
 	// Sub-entities (for complex bodies)
 	SubBodies []*Body
@@ -417,8 +445,20 @@ func (b *Body) IsEntity() bool {
 }
 
 // Format writes data to formatter
+// SATLines returns the stored ACIS text payload lines.
+func (b *Body) SATLines() []string { return b.satLines }
+
+// SetSATLines replaces the ACIS text payload.
+func (b *Body) SetSATLines(lines []string) { b.satLines = lines }
+
+// RawWholeRecord reports whole-record retention for payload-bearing records.
+func (b *Body) RawWholeRecord() bool { return len(b.satLines) > 0 }
+
 func (b *Body) Format(f format.Formatter) {
 	b.entity.Format(f)
+	if len(b.satLines) > 0 {
+		return // retained tags carry the complete record verbatim
+	}
 	f.WriteString(100, "AcDbModelerGeometry")
 
 	// Write ACIS version

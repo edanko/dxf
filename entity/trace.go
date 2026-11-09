@@ -4,6 +4,7 @@ import (
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
+	dxfmath "github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/table"
 )
 
@@ -183,6 +184,15 @@ func (t *Trace) LoadAttributes(attrs map[string]interface{}) error {
 		t.Thickness = thickness
 	}
 
+	return nil
+}
+
+// Transform applies an affine matrix to the trace points (x y z quadruples).
+func (t *Trace) Transform(m dxfmath.Matrix44) error {
+	for i := 0; i+2 < len(t.Points); i += 3 {
+		p := TransformPoint(m, []float64{t.Points[i], t.Points[i+1], t.Points[i+2]})
+		t.Points[i], t.Points[i+1], t.Points[i+2] = p[0], p[1], p[2]
+	}
 	return nil
 }
 

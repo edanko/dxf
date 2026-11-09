@@ -203,7 +203,7 @@ func (s *Shape) Format(f format.Formatter) {
 }
 
 // Transform applies a transformation matrix to the shape
-func (s *Shape) Transform(matrix dxfmath.Matrix44) {
+func (s *Shape) Transform(matrix dxfmath.Matrix44) error {
 	// Transform insertion point
 	s.insertPoint = matrix.MulVec(s.insertPoint)
 
@@ -211,7 +211,11 @@ func (s *Shape) Transform(matrix dxfmath.Matrix44) {
 	s.extrusion = matrix.TransformVector(s.extrusion)
 
 	// Scale and rotation are handled by the matrix transformation
+	return nil
 }
+
+// Copy produces a deep copy (Copy interface).
+func (s *Shape) Copy() Entity { return s.Clone() }
 
 // Clone creates a deep copy of the shape
 func (s *Shape) Clone() Entity {

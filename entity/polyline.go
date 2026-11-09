@@ -1,8 +1,12 @@
 package entity
 
 import (
+	"fmt"
+
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
+
+	dxfmath "github.com/edanko/dxf/math"
 )
 
 // Polyline represents POLYLINE Entity.
@@ -87,6 +91,40 @@ func (p *Polyline) SetEndHandleString(h string) { p.endhandle = h }
 // EndHandle returns the SEQEND handle.
 func (p *Polyline) EndHandle() string { return p.endhandle }
 
+// Subentities returns the vertex records owned by this polyline.
+// Explode decomposes the polyline into LINE segments between consecutive
+// vertices. Bulged segments are emitted as straight chords; a closed
+// polyline adds the closing segment.
+func (p *Polyline) Explode() ([]Entity, error) {
+	if len(p.Vertices) < 2 {
+		return nil, fmt.Errorf("polyline: fewer than two vertices")
+	}
+	var out []Entity
+	for i := 0; i+1 < len(p.Vertices); i++ {
+		out = append(out, p.lineSegment(p.Vertices[i], p.Vertices[i+1]))
+	}
+	if p.Flag&1 != 0 && len(p.Vertices) > 2 {
+		out = append(out, p.lineSegment(p.Vertices[len(p.Vertices)-1], p.Vertices[0]))
+	}
+	return out, nil
+}
+
+func (p *Polyline) lineSegment(a, b *Vertex) Entity {
+	la := NewLine()
+	la.Start = append([]float64(nil), a.Coord...)
+	la.End = append([]float64(nil), b.Coord...)
+	la.SetLayer(p.Layer())
+	return la
+}
+
+func (p *Polyline) Subentities() []Entity {
+	subs := make([]Entity, 0, len(p.Vertices))
+	for _, v := range p.Vertices {
+		subs = append(subs, v)
+	}
+	return subs
+}
+
 func (p *Polyline) BBox() ([]float64, []float64) {
 	mins := make([]float64, 3)
 	maxs := make([]float64, 3)
@@ -101,6 +139,14 @@ func (p *Polyline) BBox() ([]float64, []float64) {
 		}
 	}
 	return mins, maxs
+}
+
+// Transform applies an affine matrix to all polyline vertices.
+func (p *Polyline) Transform(m dxfmath.Matrix44) error {
+	for _, v := range p.Vertices {
+		v.Coord = TransformPoint(m, v.Coord)
+	}
+	return nil
 }
 
 // Copy creates a deep copy of the Polyline entity

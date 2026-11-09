@@ -148,10 +148,17 @@ func (w *Wipeout) SetColor(color color.ColorNumber) {
 }
 
 // Getters
-func (w *Wipeout) InsertPoint() dxfmath.Vec3            { return w.insertPoint }
-func (w *Wipeout) UVector() dxfmath.Vec3                { return w.uVector }
-func (w *Wipeout) VVector() dxfmath.Vec3                { return w.vVector }
-func (w *Wipeout) ImageSize() dxfmath.Vec2              { return w.imageSize }
+func (w *Wipeout) InsertPoint() dxfmath.Vec3 { return w.insertPoint }
+func (w *Wipeout) UVector() dxfmath.Vec3     { return w.uVector }
+func (w *Wipeout) VVector() dxfmath.Vec3     { return w.vVector }
+func (w *Wipeout) ImageSize() dxfmath.Vec2   { return w.imageSize }
+
+// SetFlags sets the display flags (code 70).
+func (w *Wipeout) SetFlags(v int) { w.flags = v }
+
+// SetClippingBoundaryType sets the clipping boundary type (code 71).
+func (w *Wipeout) SetClippingBoundaryType(v int) { w.clippingBoundaryType = v }
+
 func (w *Wipeout) ClippingBoundaryType() int            { return w.clippingBoundaryType }
 func (w *Wipeout) BoundaryPoints() []ImageBoundaryPoint { return w.boundaryPoints }
 func (w *Wipeout) Flags() int                           { return w.flags }

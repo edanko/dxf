@@ -1,6 +1,9 @@
 package entity
 
 import (
+	"fmt"
+	"math"
+
 	"github.com/edanko/dxf/block"
 	"github.com/edanko/dxf/format"
 	dxfmath "github.com/edanko/dxf/math"
@@ -147,11 +150,41 @@ func (i *Insert) Format(f format.Formatter) {
 	// Write attributes if any
 	if len(i.attributes) > 0 {
 		f.WriteInt(66, 1) // Attributes follow flag
-		for _, attrib := range i.attributes {
+		last := len(i.attributes) - 1
+		for idx, attrib := range i.attributes {
 			attrib.Format(f)
+			if idx == last && attrib.EndHandle() != "" {
+				f.WriteString(0, "SEQEND")
+				f.WriteString(5, attrib.EndHandle())
+			}
 		}
 	}
 }
+
+// SetScaleX sets the X scale factor (code 41).
+func (i *Insert) SetScaleX(v float64) { i.xScale = v }
+
+// SetScaleY sets the Y scale factor (code 42).
+func (i *Insert) SetScaleY(v float64) { i.yScale = v }
+
+// SetScaleZ sets the Z scale factor (code 43).
+func (i *Insert) SetScaleZ(v float64) { i.zScale = v }
+
+// SetExtrusionComponent sets one component of the extrusion direction.
+func (i *Insert) SetExtrusionComponent(idx int, v float64) {
+	cur := i.extrusion
+	if len(cur) < 3 {
+		cur = dxfmath.Vec3{0, 0, 1}
+	}
+	cur[idx] = v
+	i.extrusion = cur
+}
+
+// Flags returns the insert flags (code 70).
+func (i *Insert) Flags() int { return i.flags }
+
+// SetFlags sets the insert flags (code 70).
+func (i *Insert) SetFlags(v int) { i.flags = v }
 
 // SetBlockName sets the block name to reference
 func (i *Insert) SetBlockName(name string) {
@@ -200,6 +233,24 @@ func (i *Insert) SetGrid(cols, rows int, colSpacing, rowSpacing float64) {
 	i.rowSpacing = rowSpacing
 	i.isMultiple = (cols > 1 || rows > 1)
 }
+
+// BlockDef returns the resolved block definition, when bound.
+func (i *Insert) BlockDef() *block.Block { return i.block }
+
+// SetBlockDef binds a resolved block definition to this insert.
+func (i *Insert) SetBlockDef(b *block.Block) { i.block = b }
+
+// ColumnCount returns the MINSERT column count (code 71).
+func (i *Insert) ColumnCount() int { return i.columnCount }
+
+// RowCount returns the MINSERT row count (code 72).
+func (i *Insert) RowCount() int { return i.rowCount }
+
+// ColumnSpacing returns the MINSERT column spacing (code 44).
+func (i *Insert) ColumnSpacing() float64 { return i.columnSpacing }
+
+// RowSpacing returns the MINSERT row spacing (code 45).
+func (i *Insert) RowSpacing() float64 { return i.rowSpacing }
 
 // SetLayerOverride sets the layer override
 func (i *Insert) SetLayerOverride(layer string) {
@@ -358,12 +409,9 @@ func (i *Insert) BBox() ([]float64, []float64) {
 		return []float64{0, 0, 0}, []float64{0, 0, 0}
 	}
 
-	// Use block coordinate as base point (simplified)
-	// A full implementation would transform all block entities
 	basePoint := i.block.Coord
 	insertPoint := i.insertPoint
 
-	// Apply transformation (simplified - just use insert point + block base)
 	mins := []float64{
 		insertPoint.X() + basePoint[0],
 		insertPoint.Y() + basePoint[1],
@@ -375,7 +423,116 @@ func (i *Insert) BBox() ([]float64, []float64) {
 		insertPoint.Z() + basePoint[2],
 	}
 
+	// Widen the box with the bounding boxes of the block content entities,
+	// scaled and rotated around the insertion point.
+	content := i.block.Entities()
+	for _, ent := range content {
+		e, ok := ent.(Entity)
+		if !ok {
+			continue
+		}
+		bb, ok := e.(Bounder)
+		if !ok {
+			continue
+		}
+		cmin, cmax := bb.BBox()
+		if len(cmin) < 2 || len(cmax) < 2 {
+			continue
+		}
+		sx, sy, sz := i.xScale, i.yScale, i.zScale
+		for _, lo := range [][3]float64{{cmin[0], cmin[1], cmin[2]}, {cmax[0], cmax[1], cmin[2]}} {
+			x := insertPoint.X() + (lo[0]+basePoint[0])*sx
+			y := insertPoint.Y() + (lo[1]+basePoint[1])*sy
+			z := insertPoint.Z() + lo[2]*sz
+			for k, v := range []float64{x, y, z} {
+				if v < mins[k] {
+					mins[k] = v
+				}
+				if v > maxs[k] {
+					maxs[k] = v
+				}
+			}
+		}
+	}
+
 	return mins, maxs
+}
+
+// Transform applies an affine matrix to the insert. The insertion point,
+// scale factors, and rotation compose with the matrix (2D rotation component
+// only). Extrusion direction transforms as a vector.
+func (i *Insert) Transform(m dxfmath.Matrix44) error {
+	i.insertPoint = dxfmath.Vec3(TransformPoint(m, []float64{i.insertPoint.X(), i.insertPoint.Y(), i.insertPoint.Z()}))
+	sx, sy, sz := ScaleFactors(m)
+	i.xScale *= sx
+	i.yScale *= sy
+	i.zScale *= sz
+	if rot := math.Atan2(m.Get(1, 0), m.Get(0, 0)); rot != 0 {
+		i.rotation += rot * 180 / math.Pi
+	}
+	if len(i.extrusion) >= 3 {
+		d := TransformDirection(m, []float64{i.extrusion[0], i.extrusion[1], i.extrusion[2]})
+		n := dxfmath.NewVec3(d[0], d[1], d[2]).Normalized()
+		i.extrusion = n
+	}
+	return nil
+}
+
+// insertMatrix composes the block-to-world transform: scale, Z rotation,
+// then translation to the insertion point (plus the block definition base
+// point offset).
+func (i *Insert) insertMatrix() dxfmath.Matrix44 {
+	m := dxfmath.NewMatrix44()
+	scl := dxfmath.Scale(i.xScale, i.yScale, i.zScale)
+	rot := dxfmath.RotationZ(i.rotation * math.Pi / 180)
+	trl := dxfmath.Translation(i.insertPoint.X(), i.insertPoint.Y(), i.insertPoint.Z())
+	off := dxfmath.NewMatrix44()
+	if i.block != nil && len(i.block.Coord) >= 3 {
+		off = dxfmath.Translation(i.block.Coord[0], i.block.Coord[1], i.block.Coord[2])
+	}
+	// Application order: base offset, then scale, rotation, insertion point.
+	// The composition places the first-applied factor rightmost (the library's
+	// MulVec applies the composed matrix directly).
+	m = trl.Mul(rot).Mul(scl).Mul(off)
+	return m
+}
+
+// Explode expands the insert: every block-definition entity is deep-copied
+// and transformed into the insert coordinate system (block base point, scale,
+// rotation, insertion point). Nested inserts expand one level.
+func (i *Insert) Explode() ([]Entity, error) {
+	if i.block == nil {
+		return nil, fmt.Errorf("insert %q: unresolved block definition", i.blockName)
+	}
+	m := i.insertMatrix()
+	var out []Entity
+	for _, be := range i.block.Entities() {
+		ent, ok := be.(Entity)
+		if !ok {
+			continue
+		}
+		if w, ok := ent.(interface{ Unwrap() Entity }); ok {
+			ent = w.Unwrap()
+		}
+		cp, ok := ent.(Copier)
+		var clone Entity
+		if ok {
+			clone = cp.Copy()
+		} else {
+			// Entities without a deep-copy implementation are emitted as
+			// shallow clones: the tag data is shared, the geometry mutated by
+			// the insert transform must not be aliased. Types that own nested
+			// slices (POLYLINE vertices) implement Copier and take the deep path.
+			clone = ent
+		}
+		if tr, ok := clone.(Transformer); ok {
+			if err := tr.Transform(m); err != nil {
+				return nil, fmt.Errorf("insert %q: transform block entity %s: %w", i.blockName, ent.DXFType(), err)
+			}
+		}
+		out = append(out, clone)
+	}
+	return out, nil
 }
 
 // Copy creates a deep copy of the Insert entity

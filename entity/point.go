@@ -41,9 +41,13 @@ func NewPoint(coord ...float64) *Point {
 func (p *Point) Format(f format.Formatter) {
 	p.entity.Format(f)
 	f.WriteString(100, "AcDbPoint")
+	if p.thickness != 0 {
+		f.WriteFloat(39, p.thickness)
+	}
 	for i := 0; i < 3; i++ {
 		f.WriteFloat((i+1)*10, p.Coord[i])
 	}
+	p.entity.FormatBaseExtrusion(f)
 }
 
 func (p *Point) BBox() ([]float64, []float64) {
@@ -53,6 +57,12 @@ func (p *Point) BBox() ([]float64, []float64) {
 // SetCoord sets the point coordinates
 func (p *Point) SetCoord(coord dxfmath.Vec3) {
 	p.Coord = []float64{coord.X(), coord.Y(), coord.Z()}
+}
+
+// Transform applies an affine matrix to the point coordinates.
+func (p *Point) Transform(m dxfmath.Matrix44) error {
+	p.Coord = TransformPoint(m, p.Coord)
+	return nil
 }
 
 // Copy creates a deep copy of the Point entity

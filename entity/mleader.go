@@ -438,6 +438,47 @@ func (m *MLeader) SetBitFlags(flags int) {
 	m.BitFlags = flags
 }
 
+// Transform applies an affine matrix to every leader-line vertex, break
+// point, and text location.
+func (m *MLeader) Transform(mtx math.Matrix44) error {
+	for li := range m.Lines {
+		line := &m.Lines[li]
+		for vi := range line.Vertices {
+			v := &line.Vertices[vi]
+			if len(v.Point) >= 2 {
+				p := TransformPoint(mtx, []float64{v.Point[0], v.Point[1], 0})
+				v.Point = []float64{p[0], p[1]}
+			}
+		}
+		for bi := range line.BreakPoints {
+			bp := &line.BreakPoints[bi]
+			if len(*bp) >= 2 {
+				p := TransformPoint(mtx, []float64{(*bp)[0], (*bp)[1], 0})
+				*bp = []float64{p[0], p[1]}
+			}
+		}
+	}
+	return nil
+}
+
+// Explode decomposes the leader lines into LINE segments. Text content is not
+// exploded (it stays attached to the multileader object).
+func (m *MLeader) Explode() ([]Entity, error) {
+	var out []Entity
+	for _, line := range m.Lines {
+		for i := 0; i+1 < len(line.Vertices); i++ {
+			la := NewLine()
+			la.Start = append([]float64(nil), line.Vertices[i].Point...)
+			la.End = append([]float64(nil), line.Vertices[i+1].Point...)
+			out = append(out, la)
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("mleader: no leader line segments")
+	}
+	return out, nil
+}
+
 // Format writes data to formatter
 func (m *MLeader) Format(f format.Formatter) {
 	m.entity.Format(f)
@@ -446,12 +487,12 @@ func (m *MLeader) Format(f format.Formatter) {
 	// Basic properties
 	f.WriteInt(170, m.Version)
 	if m.StyleHandle != "" {
-		f.WriteString(3, m.StyleHandle)
+		f.WriteString(340, m.StyleHandle)
 	}
 	f.WriteFloat(140, m.AnnotationScale)
 	f.WriteInt(171, m.ContextType)
 	f.WriteInt(172, m.BitFlags)
-	f.WriteFloat(141, m.Scale)
+	f.WriteFloat(41, m.Scale)
 
 	// Arrowhead properties
 	if m.ArrowheadEnabled {
@@ -459,43 +500,42 @@ func (m *MLeader) Format(f format.Formatter) {
 	} else {
 		f.WriteInt(290, 0)
 	}
-	f.WriteInt(340, m.ArrowheadType)
-	f.WriteFloat(141, m.ArrowheadSize)
-	if m.ArrowheadColor != 0 {
-		f.WriteInt(91, int(m.ArrowheadColor))
-	}
+	f.WriteInt(173, m.ArrowheadType)
+	f.WriteFloat(40, m.ArrowheadSize)
 
-	// Leader line properties
-	if m.HasLeaderLine {
-		f.WriteInt(291, 1) // Leader line enabled
-	} else {
-		f.WriteInt(291, 0)
+	// Leader line properties: count then per-line vertex coordinates.
+	f.WriteInt(271, len(m.Lines))
+	for _, line := range m.Lines {
+		f.WriteInt(271, line.Type)
+		for _, v := range line.Vertices {
+			if len(v.Point) >= 3 {
+				f.WriteFloat(10, v.Point[0])
+				f.WriteFloat(20, v.Point[1])
+				f.WriteFloat(30, v.Point[2])
+			}
+		}
 	}
-	f.WriteInt(341, m.LeaderLineType)
-	f.WriteFloat(92, m.ArrowheadDirection)
 
 	// Landing properties
 	if m.HasLanding {
-		f.WriteInt(292, 1) // Landing enabled
+		f.WriteInt(291, 1) // Landing distance positive flag
 	} else {
-		f.WriteInt(292, 0)
+		f.WriteInt(291, 0)
 	}
-	f.WriteFloat(141, m.LandingDistance)
-	f.WriteFloat(142, m.LandingGap)
+	f.WriteFloat(44, m.LandingDistance)
+	f.WriteFloat(45, m.LandingGap)
 
 	// Hook line properties
 	if m.HasDogleg {
-		f.WriteInt(293, 1) // Dogleg enabled
+		f.WriteInt(292, 1) // Dogleg enabled
 	} else {
-		f.WriteInt(293, 0)
+		f.WriteInt(292, 0)
 	}
-	f.WriteInt(11, int(m.HookLineDirection))
-	f.WriteFloat(40, m.HookLineLength)
+	f.WriteFloat(46, m.HookLineDirection)
+	f.WriteFloat(47, m.HookLineLength)
 
-	// Content type
-	f.WriteInt(172, m.ContentType)
-
-	// Write content based on type
+	// Content type and content
+	f.WriteInt(175, m.ContentType)
 	switch m.ContentType {
 	case 1: // MTEXT
 		m.writeMTextContent(f)
@@ -508,18 +548,12 @@ func (m *MLeader) Format(f format.Formatter) {
 	}
 
 	// Attachment points
-	f.WriteInt(173, m.HorizontalAttachment)
-	f.WriteInt(174, m.VerticalAttachment)
+	f.WriteInt(176, m.HorizontalAttachment)
+	f.WriteInt(177, m.VerticalAttachment)
 
 	// Colors
 	if m.Color != 0 {
-		f.WriteInt(92, int(m.Color))
-	}
-	if m.Text.Color != 0 {
-		f.WriteInt(94, int(m.Text.Color))
-	}
-	if m.ArrowheadColor != 0 {
-		f.WriteInt(91, int(m.ArrowheadColor))
+		f.WriteInt(90, int(m.Color))
 	}
 }
 

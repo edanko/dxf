@@ -424,7 +424,7 @@ func (b *documentBinder) bindBlocks() {
 }
 
 // asBlockEntity adapts an entity.Entity to block.BlockEntity. All library
-// entities, including GenericEntity, satisfy the interface directly; external
+// entities, including retained records, satisfy the interface directly; external
 // implementations that do not are wrapped with a minimal adapter.
 func asBlockEntity(e entity.Entity) block.BlockEntity {
 	if be, ok := e.(block.BlockEntity); ok {
@@ -438,6 +438,9 @@ type blockEntityAdapter struct {
 	entity.Entity
 	raw []block.TagPair
 }
+
+// Unwrap exposes the adapted entity for consumers that need the concrete type.
+func (a *blockEntityAdapter) Unwrap() entity.Entity { return a.Entity }
 
 func (a *blockEntityAdapter) RawTags() []block.TagPair { return a.raw }
 
@@ -469,6 +472,29 @@ func (b *documentBinder) bindEntities() {
 		if e == nil {
 			continue
 		}
+		if ins, ok := e.(*entity.Insert); ok {
+			// Consume the ATTRIB records (and trailing SEQEND) that belong to
+			// this INSERT so attributes are attached to the block reference.
+			for i+1 < len(objects) && strings.EqualFold(objects[i+1].DXFType(), "ATTRIB") {
+				i++
+				if a := loadAttrib(objects[i]); a != nil {
+					if h := objects[i].GetHandle(); h != "" {
+						a.SetHandleString(h)
+					}
+					a.SetLayer(ins.Layer())
+					ins.AddAttribute(a)
+				}
+			}
+			if i+1 < len(objects) && strings.EqualFold(objects[i+1].DXFType(), "SEQEND") {
+				i++
+				// SEQEND terminates the attribute list; keep its handle on the
+				// last attribute so it survives round trips.
+				attrs := ins.GetAllAttributes()
+				if len(attrs) > 0 {
+					attrs[len(attrs)-1].SetEndHandleString(objects[i].GetHandle())
+				}
+			}
+		}
 		if p, ok := e.(*entity.Polyline); ok {
 			// Consume the VERTEX records and the trailing SEQEND that belong
 			// to this POLYLINE so they are not emitted twice.
@@ -487,11 +513,32 @@ func (b *documentBinder) bindEntities() {
 				p.SetEndHandleString(objects[i].GetHandle())
 			}
 		}
+		if ins, ok := e.(*entity.Insert); ok {
+			b.resolveInsertBlock(ins)
+		}
 		if err := b.d.AddEntity(e); err != nil {
 			b.report.SkippedEntities++
 			b.report.Issues = append(b.report.Issues, err.Error())
 		}
 		b.entities++
+	}
+}
+
+// resolveInsertBlock resolves an insert's block definition from the document
+// blocks so bbox and explode operations work on loaded documents.
+func (b *documentBinder) resolveInsertBlock(ins *entity.Insert) {
+	if ins.BlockDef() != nil {
+		return
+	}
+	name := ins.BlockName()
+	if name == "" {
+		return
+	}
+	for _, blk := range b.d.Blocks() {
+		if blk.Name == name {
+			ins.SetBlockDef(blk)
+			return
+		}
 	}
 }
 
@@ -558,8 +605,8 @@ func attachRawTags(e entity.Entity, tags lldxf.Tags) {
 	if e == nil {
 		return
 	}
-	if _, ok := e.(*GenericEntity); ok {
-		return
+	if r, ok := e.(interface{ RawWholeRecord() bool }); ok && r.RawWholeRecord() {
+		return // retained records already carry every tag
 	}
 	setter, ok := e.(interface{ SetRawTags([]entity.TagPair) })
 	if !ok {

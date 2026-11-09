@@ -2,7 +2,8 @@ package entity
 
 import (
 	"github.com/edanko/dxf/format"
-	"github.com/edanko/dxf/math"
+
+	math "github.com/edanko/dxf/math"
 )
 
 // Spline represents SPLINE Entity.
@@ -297,6 +298,22 @@ func (s *Spline) BBox() ([]float64, []float64) {
 	}
 
 	return mins, maxs
+}
+
+// Transform applies an affine matrix to all control and fit points.
+func (s *Spline) Transform(m math.Matrix44) error {
+	for i := range s.Controls {
+		s.Controls[i] = TransformPoint(m, s.Controls[i])
+	}
+	for i := range s.Fits {
+		s.Fits[i] = TransformPoint(m, s.Fits[i])
+	}
+	if len(s.Normal) >= 3 {
+		d := TransformDirection(m, s.Normal)
+		n := vec3norm(d)
+		s.Normal = []float64{n.X(), n.Y(), n.Z()}
+	}
+	return nil
 }
 
 // Copy creates a deep copy of the Spline entity

@@ -134,14 +134,18 @@ func (t *Tolerance) Format(f format.Formatter) {
 }
 
 // Transform applies a transformation matrix to the tolerance
-func (t *Tolerance) Transform(matrix dxfmath.Matrix44) {
+func (t *Tolerance) Transform(matrix dxfmath.Matrix44) error {
 	// Transform insertion point
 	t.insertPoint = matrix.MulVec(t.insertPoint)
 
 	// Transform direction vectors (rotation only)
 	t.extrusion = matrix.TransformVector(t.extrusion)
 	t.xAxisVector = matrix.TransformVector(t.xAxisVector)
+	return nil
 }
+
+// Copy produces a deep copy (Copy interface).
+func (t *Tolerance) Copy() Entity { return t.Clone() }
 
 // Clone creates a deep copy of the tolerance
 func (t *Tolerance) Clone() Entity {

@@ -2,8 +2,10 @@ package entity
 
 import (
 	"fmt"
+
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
+	dxfmath "github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/table"
 )
 
@@ -71,7 +73,8 @@ type MLine struct {
 	HasFill  bool          // 73 - Has fill flag
 
 	// Style reference
-	MLineStyle *MLineStyle // Style definition (for reference)
+	MLineStyle  *MLineStyle // Style definition (for reference)
+	StyleHandle string      // 75 - MLINE style object handle
 
 	// Color and visibility
 	Color     color.ColorNumber // 62 - Main color number
@@ -233,7 +236,7 @@ func (m *MLine) Format(f format.Formatter) {
 	f.WriteString(100, "AcDbMLine")
 
 	// Basic properties
-	f.WriteString(2, m.StyleName)
+	f.WriteString(3, m.StyleName)
 	f.WriteInt(72, m.Justification)
 	f.WriteFloat(40, m.Scale)
 	f.WriteInt(70, m.Flags)
@@ -276,24 +279,17 @@ func (m *MLine) Format(f format.Formatter) {
 		}
 	}
 
-	// MLINE properties flags
-	flags := 0
-	if m.Closed {
-		flags |= 1
-	}
+	// MLINE fill flag (AcDbMLine code 74). Closed state is retained through
+	// raw tags when not representable here.
 	if m.HasFill {
-		flags |= 2
-	}
-	if flags != 0 {
-		f.WriteInt(73, flags)
+		f.WriteInt(74, 1)
+	} else {
+		f.WriteInt(74, 0)
 	}
 
-	// Color and layer
-	if int(m.Color) != 0 {
-		f.WriteInt(62, int(m.Color))
-	}
-	if m.LayerName != "0" {
-		f.WriteString(8, m.LayerName)
+	// Style object handle (AcDbMLine code 75).
+	if m.StyleHandle != "" {
+		f.WriteString(75, m.StyleHandle)
 	}
 
 	// Style-specific properties
@@ -324,6 +320,20 @@ func (m *MLine) Format(f format.Formatter) {
 			}
 		}
 	}
+}
+
+// Transform applies an affine matrix to all mline vertices.
+func (m *MLine) Transform(mtx dxfmath.Matrix44) error {
+	for i := range m.Vertices {
+		v := &m.Vertices[i]
+		if v.HasVertex {
+			v.Point = TransformPoint(mtx, v.Point)
+		}
+		if v.HasMiter {
+			v.MiterDirection = TransformDirection(mtx, v.MiterDirection)
+		}
+	}
+	return nil
 }
 
 // BBox returns bounding box

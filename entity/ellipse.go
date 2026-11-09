@@ -135,9 +135,17 @@ func (e *Ellipse) IsFull() bool {
 }
 
 // Format writes data to formatter.
+// RawWholeRecord reports whole-record retention: an ELLIPSE carrying embedded
+// spline data cannot be re-emitted from the typed model, so its retained
+// record is written verbatim.
+func (e *Ellipse) RawWholeRecord() bool { return len(e.rawTags) > 0 }
+
 func (e *Ellipse) Format(f format.Formatter) {
 	e.entity.Format(f)
 	f.WriteString(100, "AcDbEllipse")
+	if e.thickness != 0 {
+		f.WriteFloat(39, e.thickness)
+	}
 
 	// Write center point
 	for i := 0; i < 3; i++ {
@@ -156,6 +164,8 @@ func (e *Ellipse) Format(f format.Formatter) {
 	if e.Ratio != 1.0 {
 		f.WriteFloat(200, e.Ratio)
 	}
+
+	e.entity.FormatBaseExtrusion(f)
 }
 
 // PointAt evaluates the ellipse at parameter t (0 to 1)
@@ -200,6 +210,22 @@ func (e *Ellipse) BBox() ([]float64, []float64) {
 	}
 
 	return mins, maxs
+}
+
+// Transform applies an affine matrix to the ellipse center; the major and
+// minor radii scale by the uniform XY scale factors (non-uniform shear is not
+// decomposed). Rotation in the XY plane shifts the start/end parameters.
+func (e *Ellipse) Transform(m dxfmath.Matrix44) error {
+	sx, sy, _ := ScaleFactors(m)
+	e.Center = TransformPoint(m, e.Center)
+	e.Major *= sx
+	e.Minor *= sy
+	rot := math.Atan2(m.Get(1, 0), m.Get(0, 0))
+	if rot != 0 {
+		e.Start += rot
+		e.End += rot
+	}
+	return nil
 }
 
 // Copy creates a deep copy of the Ellipse entity

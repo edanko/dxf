@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/edanko/dxf/format"
+	dxfmath "github.com/edanko/dxf/math"
 )
 
 // Line represents LINE Entity.
@@ -34,12 +35,16 @@ func NewLine() *Line {
 func (l *Line) Format(f format.Formatter) {
 	l.entity.Format(f)
 	f.WriteString(100, "AcDbLine")
+	if l.thickness != 0 {
+		f.WriteFloat(39, l.thickness)
+	}
 	for i := 0; i < 3; i++ {
 		f.WriteFloat((i+1)*10, l.Start[i])
 	}
 	for i := 0; i < 3; i++ {
 		f.WriteFloat((i+1)*10+1, l.End[i])
 	}
+	l.entity.FormatBaseExtrusion(f)
 }
 
 func (l *Line) BBox() ([]float64, []float64) {
@@ -88,6 +93,16 @@ func (l *Line) Move(x, y, z float64) {
 		l.Start[i] += val
 		l.End[i] += val
 	}
+}
+
+// Transform applies an affine matrix to the line endpoints.
+func (l *Line) Transform(m dxfmath.Matrix44) error {
+	l.Start = TransformPoint(m, l.Start)
+	l.End = TransformPoint(m, l.End)
+	if len(l.StretchingDirection) >= 3 {
+		l.StretchingDirection = TransformDirection(m, l.StretchingDirection)
+	}
+	return nil
 }
 
 // Copy creates a deep copy of the Line entity
