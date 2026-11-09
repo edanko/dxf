@@ -2,14 +2,17 @@ package table
 
 import (
 	"github.com/edanko/dxf/format"
-	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/lldxf"
 )
 
 // BlockRecord represents BLOCK_RECORD SymbolTable.
 type BlockRecord struct {
-	handle string
-	owner  handle.Handler
-	name   string
+	EntryBase
+
+	name string
+
+	blockScaling int // 280 insert units (0 none, 1 horizontal, 2 vertical, 3 both)
+	exploding    int // 281 exploding flags (bit 1: explode yields insert)
 }
 
 // NewBlockRecord creates a new BlockRecord.
@@ -26,34 +29,31 @@ func (b *BlockRecord) IsSymbolTable() bool {
 
 // Format writes data to formatter.
 func (b *BlockRecord) Format(f format.Formatter) {
-	f.WriteString(0, "BLOCK_RECORD")
-	f.WriteString(5, b.handle)
-	if b.owner != nil {
-		f.WriteString(330, b.owner.Handle())
-	}
-	f.WriteString(100, "AcDbSymbolTableRecord")
+	b.FormatCommon(f, "BLOCK_RECORD", "AcDbBlockTableRecord")
 	f.WriteString(100, "AcDbBlockTableRecord")
 	f.WriteString(2, b.name)
-	f.WriteInt(70, 0)
-	f.WriteInt(280, 1)
-	f.WriteInt(281, 0)
+	f.WriteInt(70, b.flags)
+	f.WriteInt(280, b.blockScaling)
+	f.WriteInt(281, b.exploding)
+	b.FormatCommonTail(f)
 }
 
-// Handle returns a handle value.
-func (b *BlockRecord) Handle() string {
-	return b.handle
-}
+// BlockScaling returns the insert-units flag (code 280).
+func (b *BlockRecord) BlockScaling() int { return b.blockScaling }
 
-// SetHandle sets a handle.
-func (b *BlockRecord) SetHandle(hg *handle.HandleGenerator) {
-	if b.handle == "" {
-		b.handle = hg.Next()
-	}
-}
+// SetBlockScaling sets the insert-units flag (code 280).
+func (b *BlockRecord) SetBlockScaling(v int) { b.blockScaling = v }
 
-// SetOwner sets an owner.
-func (b *BlockRecord) SetOwner(h handle.Handler) {
-	b.owner = h
+// Exploding returns the exploding flags (code 281).
+func (b *BlockRecord) Exploding() int { return b.exploding }
+
+// SetExploding sets the exploding flags (code 281).
+func (b *BlockRecord) SetExploding(v int) { b.exploding = v }
+
+// RetainTags records BLOCK_RECORD codes the typed model does not emit.
+func (b *BlockRecord) RetainTags(tags lldxf.Tags) {
+	emitted := map[int]bool{0: true, 2: true, 5: true, 70: true, 100: true, 280: true, 281: true, 330: true, 340: true}
+	b.RetainUnhandled(tags, emitted)
 }
 
 // Name returns a name of BLOCK_RECORD (code 2).

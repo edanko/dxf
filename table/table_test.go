@@ -72,13 +72,13 @@ func TestLayerSetLineWidth(t *testing.T) {
 func TestLayerFlag(t *testing.T) {
 	layer := NewLayer("Test", color.Blue, nil)
 
-	if layer.flag != 0 {
-		t.Errorf("Expected flag 0, got %d", layer.flag)
+	if layer.flags != 0 {
+		t.Errorf("Expected flag 0, got %d", layer.flags)
 	}
 
 	layer.SetFlag(1)
-	if layer.flag != 1 {
-		t.Errorf("Expected flag 1, got %d", layer.flag)
+	if layer.flags != 1 {
+		t.Errorf("Expected flag 1, got %d", layer.flags)
 	}
 }
 
@@ -86,12 +86,12 @@ func TestLayerFreezeUnfreeze(t *testing.T) {
 	layer := NewLayer("Test", color.Blue, nil)
 
 	layer.Freeze()
-	if layer.flag&1 != 1 {
+	if layer.flags&1 != 1 {
 		t.Error("Layer should be frozen")
 	}
 
 	layer.UnFreeze()
-	if layer.flag&1 != 0 {
+	if layer.flags&1 != 0 {
 		t.Error("Layer should be unfrozen")
 	}
 }
@@ -100,12 +100,12 @@ func TestLayerLockUnlock(t *testing.T) {
 	layer := NewLayer("Test", color.Blue, nil)
 
 	layer.Lock()
-	if layer.flag&4 != 4 {
+	if layer.flags&4 != 4 {
 		t.Error("Layer should be locked")
 	}
 
 	layer.UnLock()
-	if layer.flag&4 != 0 {
+	if layer.flags&4 != 0 {
 		t.Error("Layer should be unlocked")
 	}
 }
@@ -349,12 +349,12 @@ func TestBlockRecordSetHandle(t *testing.T) {
 func TestLayerFrozen(t *testing.T) {
 	layer := NewLayer("Test", color.Blue, nil)
 
-	if layer.flag&1 != 0 {
+	if layer.flags&1 != 0 {
 		t.Error("Layer should not be frozen initially")
 	}
 
 	layer.Freeze()
-	if layer.flag&1 != 1 {
+	if layer.flags&1 != 1 {
 		t.Error("Layer should be frozen after Freeze()")
 	}
 }
@@ -362,12 +362,12 @@ func TestLayerFrozen(t *testing.T) {
 func TestLayerLocked(t *testing.T) {
 	layer := NewLayer("Test", color.Blue, nil)
 
-	if layer.flag&4 != 0 {
+	if layer.flags&4 != 0 {
 		t.Error("Layer should not be locked initially")
 	}
 
 	layer.Lock()
-	if layer.flag&4 != 4 {
+	if layer.flags&4 != 4 {
 		t.Error("Layer should be locked after Lock()")
 	}
 }

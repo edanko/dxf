@@ -311,6 +311,9 @@ func (h *Hatch) IsEntity() bool {
 // this entity type and must preserve the source record spelling).
 func (h *Hatch) SetRecordTypeName(name string) { h.entity.SetRecordTypeName(name) }
 
+// RecordTypeName returns the code 0 record name this hatch emits.
+func (h *Hatch) RecordTypeName() string { return h.entity.recordTypeName() }
+
 // RawWholeRecord reports whole-record retention: a HATCH whose boundary paths
 // include edge (non-polyline) geometry cannot be re-emitted from the typed
 // model, so its retained record is written verbatim.

@@ -2395,8 +2395,6 @@ func loadSolid3d(tags lldxf.Tags) *entity.Solid3d {
 	}
 	if lines := acisStringPayload(tags); len(lines) > 0 {
 		s.SetSATLines(lines)
-		s.SetRawTags(acisRawPairs(tags))
-		s.SetRawWholeRecord(true)
 	}
 	return s
 }
@@ -2406,8 +2404,6 @@ func loadRegion(tags lldxf.Tags) *entity.Region {
 	loadCommonAttribs(r, tags)
 	if lines := acisStringPayload(tags); len(lines) > 0 {
 		r.SetSATLines(lines)
-		r.SetRawTags(acisRawPairs(tags))
-		r.SetRawWholeRecord(true)
 	}
 	return r
 }
@@ -2443,8 +2439,6 @@ func loadBody(tags lldxf.Tags) *entity.Body {
 	}
 	if lines := acisStringPayload(tags); len(lines) > 0 {
 		b.SetSATLines(lines)
-		b.SetRawTags(acisRawPairs(tags))
-		b.SetRawWholeRecord(true)
 	}
 	return b
 }

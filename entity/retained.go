@@ -71,14 +71,7 @@ func (r *RetainedRecordType) BBox() ([]float64, []float64) {
 
 // tagValueText renders a tag value as its canonical text form.
 func tagValueText(tag lldxf.Tag) string {
-	switch v := tag.Value().(type) {
-	case string:
-		return v
-	case []byte:
-		return string(v)
-	default:
-		return fmt.Sprintf("%v", v)
-	}
+	return lldxf.FormatValue(tag)
 }
 
 // GetAttributes returns the retained group codes keyed by code string.

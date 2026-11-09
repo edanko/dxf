@@ -9,8 +9,10 @@ type Dictionary struct {
 	*BaseObject
 
 	// Core properties
-	HardOwned bool   `dxf:"280"` // Hard ownership flag (0=soft, 1=hard)
-	Owner     string `dxf:"330"` // Owner handle (usually "0" for root dictionary)
+	HardOwned bool            `dxf:"280"` // Hard ownership flag (0=soft, 1=hard)
+	noFlag    bool            // source record carries no code-280: Format must not emit one
+	hardKeys  map[string]bool // entry keys loaded from code-360 (emitted as 360)
+	Owner     string          `dxf:"330"` // Owner handle (usually "0" for root dictionary)
 
 	// Dictionary entries
 	entries map[string]*DictionaryEntry
@@ -37,7 +39,9 @@ type DictionaryEntry struct {
 // DictionaryWithDefault represents a DICTIONARYWDFLT object
 type DictionaryWithDefault struct {
 	*Dictionary
-	DefaultName string `dxf:"1"` // Name of default entry
+	DefaultName string `dxf:"1"`   // Name of default entry
+	Schema      int    `dxf:"280"` // Schema flag emitted after the subclass marker
+	hasSchema   bool   // source record carries a schema 280 (second flag)
 }
 
 // DictionaryVar represents a DICTIONARYVAR object
@@ -99,6 +103,14 @@ func (d *Dictionary) SetHandleValue(h string) {
 // SetOwnerString sets the owner handle loaded from a file.
 func (d *Dictionary) SetOwnerString(h string) { d.Owner = h }
 
+// SetNoFlag suppresses the code-280 hard-ownership flag in Format, matching
+// source records that carry no 280 at all.
+func (d *Dictionary) SetNoFlag(v bool) { d.noFlag = v }
+
+// SetHardOwnerKeys records entry keys loaded from code-360; Format re-emits
+// those links as 360 to preserve the wire spelling.
+func (d *Dictionary) SetHardOwnerKeys(keys map[string]bool) { d.hardKeys = keys }
+
 // AddItem adds an object to the dictionary (compatibility method)
 func (d *Dictionary) AddItem(key string, obj Object) {
 	// Add object using its handle as value
@@ -153,58 +165,96 @@ func (d *DictionaryVar) GetValue() string {
 
 // Format writes DICTIONARY data to formatter
 func (d *Dictionary) Format(f format.Formatter) {
-	// Basic header
-	f.WriteString(0, "DICTIONARY")
-	f.WriteString(5, d.Handle())
-	f.WriteString(100, "AcDbDictionary")
-
-	// Write hard ownership flag
-	f.WriteInt(280, func() int {
-		if d.HardOwned {
-			return 1
-		} else {
-			return 0
-		}
-	}())
-
-	// Write owner handle if specified
-	if d.Owner != "" {
-		f.WriteString(330, d.Owner)
-	}
-
-	// Write dictionary entries in insertion order for deterministic output.
+	d.writeHeader(f, 0)
 	for _, key := range d.entryOrder {
 		entry, ok := d.entries[key]
 		if !ok {
 			continue
 		}
-		f.WriteString(3, key)           // Entry name
-		f.WriteString(350, entry.Value) // Soft-owner handle
+		f.WriteString(3, key) // Entry name
+		if d.hardKeys[key] {
+			f.WriteString(360, entry.Value) // Hard-owner handle (wire spelling)
+		} else {
+			f.WriteString(350, entry.Value) // Soft-owner handle
+		}
 	}
 
-	// Note: Default entry handling is done in DictionaryWithDefault.Format()
+	d.formatRetained(f)
 }
 
-// FormatWithDefault writes DICTIONARYWDFLT data to formatter
-func (d *DictionaryWithDefault) Format(f format.Formatter) {
-	// DictionaryWithDefault is a subclass - write base dictionary first
-	d.Dictionary.Format(f)
+// writeHeader emits the code-0 marker, handle, hard-ownership flag (280),
+// owner (330), and AcDbDictionary subclass marker. skip280 suppresses the
+// flag for sub-class writers that emit their own 280 values. after280 places
+// the marker before the flag, matching ACDBDICTIONARYWDFLT records.
+func (d *Dictionary) writeHeader(f format.Formatter, mode int) {
+	wire := d.WireType()
+	if wire == "" {
+		wire = "DICTIONARY"
+	}
+	f.WriteString(0, wire)
+	f.WriteString(5, d.Handle())
+	if mode == 2 {
+		f.WriteString(100, "AcDbDictionary")
+	}
+	if mode != 1 && !d.noFlag {
+		flag := 0
+		if d.HardOwned {
+			flag = 1
+		}
+		f.WriteInt(280, flag)
+	}
+	if d.Owner != "" {
+		f.WriteString(330, d.Owner)
+	}
+	if mode == 0 || mode == 1 {
+		f.WriteString(100, "AcDbDictionary")
+	}
+}
 
-	// Add default entry specification
+// Format writes DICTIONARYWDFLT data to formatter. The schema flag (second
+// code-280 in the record) is emitted by the retained tag stream.
+func (d *DictionaryWithDefault) Format(f format.Formatter) {
+	d.Dictionary.writeHeader(f, 2)
+	for _, key := range d.entryOrder {
+		entry, ok := d.entries[key]
+		if !ok {
+			continue
+		}
+		f.WriteString(3, key)
+		if d.hardKeys[key] {
+			f.WriteString(360, entry.Value)
+		} else {
+			f.WriteString(350, entry.Value)
+		}
+	}
+	f.WriteString(100, "AcDbDictionaryWithDefault")
+	if d.hasSchema { // Schema flag (second 280 of the record)
+		f.WriteInt(280, d.Schema)
+	}
 	if d.DefaultName != "" {
-		f.WriteInt(280, 1)              // Schema flag for dictionary with default
 		f.WriteString(1, d.DefaultName) // Default entry name
 	}
+	d.formatRetained(f)
 }
 
-// FormatVar writes DICTIONARYVAR data to formatter
+// Format writes DICTIONARYVAR data to formatter. The schema flag is emitted
+// before the AcDbDictionary subclass marker by AutoCAD writers.
 func (d *DictionaryVar) Format(f format.Formatter) {
-	// DictionaryVar is a subclass - write base dictionary first
-	d.Dictionary.Format(f)
-
-	// Add variable specification
-	f.WriteInt(280, d.Schema) // Schema number
+	wire := d.WireType()
+	if wire == "" {
+		wire = "DICTIONARYVAR"
+	}
+	f.WriteString(0, wire)
+	f.WriteString(5, d.Handle())
+	if !d.noFlag { // Schema number (first 280 of the record)
+		f.WriteInt(280, d.Schema)
+	}
+	if d.Owner != "" {
+		f.WriteString(330, d.Owner)
+	}
+	f.WriteString(100, "AcDbDictionary")
 	f.WriteString(1, d.Value) // Variable value
+	d.formatRetained(f)
 }
 
 // BBox returns bounding box for dictionary (n/a for object entity)

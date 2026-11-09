@@ -4,6 +4,7 @@ import (
 	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/lldxf"
 )
 
 // Group represents GROUP Object.
@@ -12,10 +13,25 @@ type Group struct {
 	Description   string
 	handle        string
 	owner         handle.Handler
+	reactors      []string // parsed {ACAD_REACTORS links; Format re-emits the group
+	groupTags     int      // number of reactor-group tags in the source record
 	entities      []entity.Entity
 	entityHandles []string
 	selectable    bool
+	retained      lldxf.Tags
 }
+
+// SetReactorHandles stores the parsed reactor links and their source tag span.
+func (g *Group) SetReactorHandles(hs []string, groupTags int) {
+	g.reactors = hs
+	g.groupTags = groupTags
+}
+
+// SetRetainedTags records tags the typed model does not emit.
+func (g *Group) SetRetainedTags(tags lldxf.Tags) { g.retained = tags }
+
+// RetainedTags returns the retained tag stream.
+func (g *Group) RetainedTags() lldxf.Tags { return g.retained }
 
 // SetHandleString sets an explicit handle loaded from a file.
 func (g *Group) SetHandleString(h string) { g.handle = h }
@@ -66,10 +82,14 @@ func (g *Group) SetOwner(d *Dictionary) error {
 func (g *Group) Format(f format.Formatter) {
 	f.WriteString(0, "GROUP")
 	f.WriteString(5, g.handle)
-	if g.owner != nil {
+	if len(g.reactors) > 0 {
 		f.WriteString(102, "{ACAD_REACTORS")
-		f.WriteString(330, g.owner.Handle())
+		for _, r := range g.reactors {
+			f.WriteString(330, r)
+		}
 		f.WriteString(102, "}")
+	}
+	if g.owner != nil {
 		f.WriteString(330, g.owner.Handle())
 	}
 	f.WriteString(100, "AcDbGroup")
@@ -85,6 +105,9 @@ func (g *Group) Format(f format.Formatter) {
 	}
 	for _, h := range g.entityHandles {
 		f.WriteString(340, h)
+	}
+	for _, tag := range g.retained {
+		f.WriteString(int(tag.Code()), lldxf.FormatValue(tag))
 	}
 }
 

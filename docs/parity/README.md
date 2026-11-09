@@ -1,7 +1,7 @@
 # ezdxf Feature Parity Roadmap (Go `dxf`)
 
 Status: research baseline, living document.
-Last updated: 2026-11-08.
+Last updated: 2026-11-09.
 
 This document is the durable entry point for continuing the "Go `dxf` should match
 Python `ezdxf`" effort across sessions and agents. Read this first, then read the
@@ -119,10 +119,10 @@ must be verified before implementation starts.
 | New document, version selection | `document.py`, `sections/header.py` | `DONE` — R12–R2018 profiles (`format/version.go`), `$ACADVER` detection, normalization, target-version save (`TestVersionProfiles`, `TestSaveToTargetVersion`) |
 | HEADER variables (all `$...`) | `lldxf/hdrvars.py`, `sections/headervars.py` | `PARTIAL` — typed core set; other variables retained in `Header.Extra` and re-emitted (`dxf_io_core_test.go`) |
 | CLASSES section | `sections/classes.py` | `DONE` — parsed and re-emitted (`TestClassesRoundTrip`) |
-| TABLES section + all entries | `sections/tables.py`, `tables/*` | `PARTIAL` — all entry types parsed; unknown entries retained raw |
+| TABLES section + all entries | `sections/tables.py`, `tables/*` | `PARTIAL` — all entry types typed with shared base; unknown entries retained raw |
 | BLOCKS section + block records | `sections/blocks.py`, `entities/block.py` | `DONE` — names, handles, layer names, contained entities (`TestLoadBindsAllDocumentSections`, `TestCorpusRoundTrip`) |
 | ENTITIES section | `sections/entities.py` | `PARTIAL` — many types via `GenericEntity` fallback |
-| OBJECTS section | `sections/objects.py`, `dxfobjects/*` | `PARTIAL` — core types typed, unknown retained raw, retrieval by handle (`TestObjectsRetrievableByHandle`) |
+| OBJECTS section | `sections/objects.py`, `dxfobjects/*` | `PARTIAL` — standard object types typed, unknown retained raw, retrieval by handle (`TestObjectsRetrievableByHandle`) |
 | THUMBNAILIMAGE section | `document.py` | `DONE` — retained opaque and re-emitted (`TestOpaqueSectionsAreRetained`) |
 | ACDSDATA section | `sections/acdsdata.py` | `DONE` — retained opaque and re-emitted |
 | Unknown tag retention | `entities/dxfentity.py` | `PARTIAL` — known entities keep unhandled codes; unknown table entries/blocks/typed objects still drop some tags |
@@ -195,15 +195,16 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 
 | Area | ezdxf reference | Go baseline |
 |---|---|---|
-| APPID, BLOCK_RECORD, DIMSTYLE, LAYER, LTYPE, STYLE, UCS, VIEW, VPORT | `tables/*`, `entities/*` | `PARTIAL` |
-| Dictionaries, XRECORD, DICTIONARYVAR, DICTIONARYWITHDEFAULT | `entities/dictionary.py` | `PARTIAL` |
-| GROUP | `entities/dxfgroups.py` | `PARTIAL` |
-| LAYOUT, PLOTSETTINGS | `entities/layout.py`, `dxfobjects/plotsettings.py` | `STUB` |
-| MLINESTYLE, MLEADERSTYLE, TABLESTYLE | `entities/mlinestyle.py`, `mleader.py`, `table.py` | `ABSENT`/`STUB` |
-| MATERIAL, VISUALSTYLE, SUN, LIGHT, GEODATA | `entities/material.py`, `visualstyle.py`, `sun.py`, `light.py`, `geodata.py` | `PARTIAL` |
-| SPATIAL_FILTER, IDBUFFER, RASTERVARIABLES, WIPEOUTVARIABLES | `entities/spatial_filter.py`, `idbuffer.py` | `STUB` |
+| APPID, BLOCK_RECORD, DIMSTYLE, LAYER, LTYPE, STYLE, UCS, VIEW, VPORT | `tables/*`, `entities/*` | `PARTIAL` — shared `EntryBase` (handle/owner/flags/xdata/extdict/reactors), generic lookup/add/remove/rename with duplicate-name errors, typed parse/format (`TestParseTablesEntryCounts`, `TestTableLookupAddRemoveRename`, `TestTableHandlesOwnersUnique`) |
+| Dictionaries, XRECORD, DICTIONARYVAR, DICTIONARYWITHDEFAULT | `entities/dictionary.py` | `PARTIAL` — typed round trip and key lookup (`TestDictionary*`) |
+| GROUP | `entities/dxfgroups.py` | `PARTIAL` — typed round trip (`TestGroup*`) |
+| LAYOUT, PLOTSETTINGS | `entities/layout.py`, `dxfobjects/plotsettings.py` | `PARTIAL` — typed name/block record/flags, retained round trip (`TestLayoutNameAndBlockRecord`) |
+| MLINESTYLE, MLEADERSTYLE, TABLESTYLE | `entities/mlinestyle.py`, `mleader.py`, `table.py` | `PARTIAL` — typed name/description/flags, retained round trip (`TestStandardObjectTypedModels`) |
+| MATERIAL, VISUALSTYLE, SUN, LIGHT, GEODATA | `entities/material.py`, `visualstyle.py`, `sun.py`, `light.py`, `geodata.py` | `PARTIAL` — typed name/description/flags, retained round trip |
+| SPATIAL_FILTER, IDBUFFER, RASTERVARIABLES, WIPEOUTVARIABLES | `entities/spatial_filter.py`, `idbuffer.py` | `PARTIAL` — typed models, retained round trip |
+| SORTENTSTABLE, FIELDLIST, IMAGEDEF, IMAGEDEF_REACTOR, UNDERLAYDEFINITION, PDF/DWF/DGN DEFINITION | `entities/sortentstable.py`, `field.py`, `image.py`, `underlay.py` | `PARTIAL` — typed sort order, entity handles, filename/size (`TestImageDefPathAndSize`, `TestSortEntsTableOrder`) |
 | ACAD_PROXY_ENTITY, ACAD_XREC_ROUNDTRIP | `entities/acad_proxy_entity.py` | `PARTIAL` |
-| Extension dictionary/reactors on every entity | `xdict.py`, `appdata.py` | `PARTIAL` |
+| Extension dictionary/reactors on every entity | `xdict.py`, `appdata.py` | `PARTIAL` — preserved on typed table entries and objects (`TestObjectReactorsAndExtDict`) |
 
 ### 4. High-level document and layout API
 

@@ -10,10 +10,34 @@ import (
 	"github.com/edanko/dxf/lldxf"
 )
 
+// point2First returns the first pair of codes base/base+1 (repeats dropped).
+func point2First(tags lldxf.Tags, base int) []float64 {
+	return []float64{tagFloatByCodeFirst(tags, base), tagFloatByCodeFirst(tags, base+1)}
+}
+
+// point3First returns the first triple of codes base/base+1/base+2.
+func point3First(tags lldxf.Tags, base int) []float64 {
+	return []float64{
+		tagFloatByCodeFirst(tags, base),
+		tagFloatByCodeFirst(tags, base+1),
+		tagFloatByCodeFirst(tags, base+2),
+	}
+}
+
+// tagFloatByCodeFirst returns the value of the first tag with the given code.
+func tagFloatByCodeFirst(tags lldxf.Tags, code int) float64 {
+	for _, tag := range tags {
+		if int(tag.Code()) == code {
+			return tagFloat(tag)
+		}
+	}
+	return 0
+}
+
 // fixedHandle is a handle.Handler with a value loaded from a DXF file.
 type fixedHandle string
 
-func (h fixedHandle) Handle() string                   { return string(h) }
+func (h fixedHandle) Handle() string                    { return string(h) }
 func (h fixedHandle) SetHandle(*handle.HandleGenerator) {}
 
 // RawSymbolTable retains a table entry that has no typed model yet.
@@ -30,6 +54,9 @@ func (r *RawSymbolTable) IsSymbolTable() bool { return true }
 
 // Name returns the entry name (code 2).
 func (r *RawSymbolTable) Name() string { return r.name }
+
+// SetName renames the raw entry.
+func (r *RawSymbolTable) SetName(name string) { r.name = name }
 
 // Handle returns the entry handle.
 func (r *RawSymbolTable) Handle() string { return r.handle }
@@ -69,6 +96,9 @@ func ParseTables(tags lldxf.Tags) Tables {
 		t := NewTable("")
 		entryTags := make([]lldxf.Tags, 0)
 		var current lldxf.Tags
+		dimstyle := false
+		inDimTail := false     // inside the DIMSTYLE header tail (71 count + 340 links)
+		var dimTail lldxf.Tags // tail captured at the table header (71 count + 340 links)
 		for i < len(tags) {
 			tag := tags[i]
 			if tag.Code() == 0 {
@@ -78,6 +108,9 @@ func ParseTables(tags lldxf.Tags) Tables {
 					i++
 					goto tableDone
 				default:
+					if inDimTail {
+						inDimTail = false
+					}
 					if len(current) > 0 {
 						entryTags = append(entryTags, current)
 					}
@@ -86,13 +119,27 @@ func ParseTables(tags lldxf.Tags) Tables {
 					continue
 				}
 			}
+			if inDimTail {
+				dimTail = append(dimTail, tag)
+				i++
+				continue
+			}
 			if len(current) == 0 {
 				// Table header tags (name, handle, count, subclass markers).
-				switch tag.Code() {
+				switch int(tag.Code()) {
 				case 2:
 					t.name = tagString(tag)
 				case 5:
 					t.handle = tagString(tag)
+				case 100:
+					if strings.EqualFold(strings.ToUpper(tagString(tag)), "AcDbDimStyleTable") {
+						dimstyle = true
+					}
+				case 71:
+					if dimstyle && len(current) == 0 {
+						inDimTail = true
+						dimTail = lldxf.Tags{tag}
+					}
 				}
 			} else {
 				current = append(current, tag)
@@ -100,6 +147,10 @@ func ParseTables(tags lldxf.Tags) Tables {
 			i++
 		}
 	tableDone:
+		if len(dimTail) > 0 && len(current) > 0 {
+			current = append(current, dimTail...)
+			dimTail = nil
+		}
 		if len(current) > 0 {
 			entryTags = append(entryTags, current)
 		}
@@ -113,7 +164,10 @@ func ParseTables(tags lldxf.Tags) Tables {
 
 // ParseTableEntry parses one symbol-table entry.
 func ParseTableEntry(tableName string, tags lldxf.Tags) SymbolTable {
-	typeName := strings.ToUpper(tags.DXFType())
+	typeName := recordTypeName(tags)
+	if typeName == "" {
+		typeName = strings.ToUpper(tags.DXFType())
+	}
 	name := tagStringByCode(tags, 2)
 	if name == "" {
 		name = typeName
@@ -127,10 +181,21 @@ func ParseTableEntry(tableName string, tags lldxf.Tags) SymbolTable {
 			ltName = "Continuous"
 		}
 		l := NewLayer(name, color.ColorNumber(tagIntByCode(tags, 62)), NewLineType(ltName, ""))
-		l.handle = tags.GetHandle()
-		l.flag = tagIntByCode(tags, 70)
+		l.SetHandleValue(tags.GetHandle())
+		if v, ok := tagIntByCodeOK(tags, 70); ok {
+			l.SetFlags(v)
+		}
 		if w, ok := tagIntByCodeOK(tags, 370); ok {
 			l.lineWidth = w
+		}
+		if t, ok := tagIntByCodeOK(tags, 440); ok {
+			l.SetTransparency(t)
+		}
+		if p, ok := tagIntByCodeOK(tags, 290); ok {
+			l.SetPlottable(p != 0)
+		}
+		if tc, ok := tagIntByCodeOK(tags, 420); ok {
+			l.SetTrueColor(tc)
 		}
 		if ps := tagStringByCode(tags, 390); ps != "" {
 			l.PlotStyle = fixedHandle(ps)
@@ -144,56 +209,145 @@ func ParseTableEntry(tableName string, tags lldxf.Tags) SymbolTable {
 			}
 		}
 		lt := NewLineType(name, tagStringByCode(tags, 3), lengths...)
-		lt.handle = tags.GetHandle()
+		lt.SetHandleValue(tags.GetHandle())
+		if v70, ok := tagIntByCodeOK(tags, 70); ok {
+			lt.SetFlags(v70)
+		}
+		if a, ok := tagIntByCodeOK(tags, 72); ok {
+			lt.SetAlignment(a)
+		}
+		if n, ok := tagIntByCodeOK(tags, 73); ok && n > len(lengths) {
+			// Complex linetype: per-element records follow each code 49.
+			lt.lengths = nil
+			var e LineTypeElement
+			inElement := false
+			for _, tag := range tags {
+				switch int(tag.Code()) {
+				case 49:
+					if inElement {
+						lt.AddElement(e)
+					}
+					e = LineTypeElement{DashLength: tagFloat(tag)}
+					inElement = true
+				case 74:
+					e.SegLen = int(tagValueInt(tag))
+				case 75:
+					e.ShapeNum = int(tagValueInt(tag))
+				case 9:
+					e.TextValue = tagString(tag)
+				case 50:
+					e.Rotation = tagFloat(tag)
+				case 46:
+					e.XScale = tagFloat(tag)
+				case 44:
+					e.XOffset = tagFloat(tag)
+				case 45:
+					e.YOffset = tagFloat(tag)
+				}
+			}
+			if inElement {
+				lt.AddElement(e)
+			}
+		}
 		st = lt
 	case "STYLE":
 		s := NewStyle(name)
-		s.handle = tags.GetHandle()
+		s.SetHandleValue(tags.GetHandle())
 		s.FixedTextHeight = tagFloatByCode(tags, 40)
 		s.WidthFactor = tagFloatByCode(tags, 41)
 		s.LastHeightUsed = tagFloatByCode(tags, 42)
 		s.ObliqueAngle = tagFloatByCode(tags, 50)
 		s.FontName = tagStringByCode(tags, 3)
 		s.BigFontName = tagStringByCode(tags, 4)
+		if v70, ok := tagIntByCodeOK(tags, 70); ok {
+			s.SetFlags(v70)
+		}
 		st = s
 	case "BLOCK_RECORD":
 		b := NewBlockRecord(name)
-		b.handle = tags.GetHandle()
+		b.SetHandleValue(tags.GetHandle())
+		if v70, ok := tagIntByCodeOK(tags, 70); ok {
+			b.SetFlags(v70)
+		}
+		if v, ok := tagIntByCodeOK(tags, 280); ok {
+			b.SetBlockScaling(v)
+		}
+		if v, ok := tagIntByCodeOK(tags, 281); ok {
+			b.SetExploding(v)
+		}
 		st = b
 	case "APPID":
 		a := NewAppID(name)
-		a.handle = tags.GetHandle()
+		a.SetHandleValue(tags.GetHandle())
+		if v70, ok := tagIntByCodeOK(tags, 70); ok {
+			a.SetFlags(v70)
+		}
 		st = a
 	case "DIMSTYLE":
 		d := NewDimStyle(name)
-		d.handle = tags.GetHandle()
+		d.SetHandleValue(tags.GetHandle())
+		if v70, ok := tagIntByCodeOK(tags, 70); ok {
+			d.SetFlags(v70)
+		}
+		for _, tag := range tags {
+			code := int(tag.Code())
+			if code == 0 || code == 2 || code == 5 || code == 102 || code == 105 || code == 330 || code == 70 || code == 100 || code == 350 {
+				continue
+			}
+			d.SetVar(code, tagString(tag))
+		}
+
 		st = d
 	case "UCS":
 		u := NewUCS(name)
-		u.handle = tags.GetHandle()
+		u.SetHandleValue(tags.GetHandle())
+		if v70, ok := tagIntByCodeOK(tags, 70); ok {
+			u.SetFlags(v70)
+		}
 		st = u
 	case "VIEW":
 		v := NewView(name)
-		v.handle = tags.GetHandle()
+		v.SetHandleValue(tags.GetHandle())
+		if v70, ok := tagIntByCodeOK(tags, 70); ok {
+			v.SetFlags(v70)
+		}
 		st = v
 	case "VPORT":
 		v := NewViewport(name)
-		v.handle = tags.GetHandle()
-		v.LowerLeft = point2(tags, 10)
-		v.UpperRight = point2(tags, 11)
-		v.ViewCenter = point2(tags, 12)
-		v.SnapBase = point2(tags, 13)
-		v.SnapSpacing = point2(tags, 14)
-		v.GridSpacing = point2(tags, 15)
-		v.ViewDirection = point3(tags, 16)
-		v.ViewTarget = point3(tags, 17)
-		v.Height = tagFloatByCode(tags, 40)
-		v.AspectRatio = tagFloatByCode(tags, 41)
-		v.LensLength = tagFloatByCode(tags, 42)
-		v.FrontClip = tagFloatByCode(tags, 43)
-		v.BackClip = tagFloatByCode(tags, 44)
-		v.SnapAngle = tagFloatByCode(tags, 50)
-		v.TwistAngle = tagFloatByCode(tags, 51)
+		v.SetHandleValue(tags.GetHandle())
+		v.LowerLeft = point2First(tags, 10)
+		v.UpperRight = point2First(tags, 11)
+		v.ViewCenter = point2First(tags, 12)
+		v.SnapBase = point2First(tags, 13)
+		v.SnapSpacing = point2First(tags, 14)
+		v.GridSpacing = point2First(tags, 15)
+		v.ViewDirection = point3First(tags, 16)
+		v.ViewTarget = point3First(tags, 17)
+		v.Height = tagFloatByCodeFirst(tags, 40)
+		v.AspectRatio = tagFloatByCodeFirst(tags, 41)
+		v.LensLength = tagFloatByCodeFirst(tags, 42)
+		v.FrontClip = tagFloatByCodeFirst(tags, 43)
+		v.BackClip = tagFloatByCodeFirst(tags, 44)
+		v.SnapAngle = tagFloatByCodeFirst(tags, 50)
+		v.TwistAngle = tagFloatByCodeFirst(tags, 51)
+		if f2, ok := tagIntByCodeOK(tags, 70); ok {
+			v.SetFlags(f2)
+		}
+		if v71, ok := tagIntByCodeOK(tags, 71); ok {
+			v.ViewportType = v71
+		}
+		if v72, ok := tagIntByCodeOK(tags, 72); ok {
+			v.UCSIconSetting = v72
+		}
+		if v73, ok := tagIntByCodeOK(tags, 73); ok {
+			v.SnapOn = v73
+		}
+		if v74, ok := tagIntByCodeOK(tags, 74); ok {
+			v.GridOn = v74
+		}
+		if v75, ok := tagIntByCodeOK(tags, 75); ok {
+			v.ZoomFlags = v75
+		}
 		st = v
 	default:
 		st = &RawSymbolTable{
@@ -203,8 +357,13 @@ func ParseTableEntry(tableName string, tags lldxf.Tags) SymbolTable {
 			tags:     tags,
 		}
 	}
-	if st != nil {
-		st.SetOwner(nil)
+	if oh := tagStringByCode(tags, 330); oh != "" {
+		if ownerSetter, ok := st.(interface{ SetOwnerHandle(string) }); ok {
+			ownerSetter.SetOwnerHandle(oh)
+		}
+	}
+	if retainer, ok := st.(interface{ RetainTags(lldxf.Tags) }); ok {
+		retainer.RetainTags(tags)
 	}
 	return st
 }
@@ -214,7 +373,35 @@ func isTag(tag lldxf.Tag, code int, value string) bool {
 }
 
 func tagString(tag lldxf.Tag) string {
-	return fmt.Sprintf("%v", tag.Value())
+	return lldxf.FormatValue(tag)
+}
+
+// recordTypeName returns the entry's type marker: the first code-0 value that
+// is not a group-code number. DIMSTYLE records inside the DIMSTYLE table start
+// mid-table (code 105 handle, no leading marker), and their stream contains
+// numeric code-0 pairs (the table tail's 71 count followed by a 340 link);
+// skipping those keeps record typing robust for such streams.
+func recordTypeName(tags lldxf.Tags) string {
+	for _, tag := range tags {
+		if int(tag.Code()) != 0 {
+			continue
+		}
+		v := strings.TrimSpace(tagString(tag))
+		if v == "" || isNumericToken(v) {
+			continue
+		}
+		return strings.ToUpper(v)
+	}
+	return ""
+}
+
+func isNumericToken(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return len(s) > 0
 }
 
 func tagStringByCode(tags lldxf.Tags, code int) string {
@@ -304,3 +491,29 @@ func (t *Table) SetHandleString(h string) { t.handle = h }
 
 // Entries returns the table entries.
 func (t *Table) Entries() []SymbolTable { return t.tables }
+
+// tagValueInt coerces a tag value to int (tagger stores small ints as int8/int16/int32).
+func tagValueInt(tag lldxf.Tag) int64 {
+	switch v := tag.Value().(type) {
+	case int:
+		return int64(v)
+	case int8:
+		return int64(v)
+	case int16:
+		return int64(v)
+	case int32:
+		return int64(v)
+	case int64:
+		return v
+	case uint16:
+		return int64(v)
+	case uint32:
+		return int64(v)
+	case float64:
+		return int64(v)
+	default:
+		var n int64
+		fmt.Sscanf(tagString(tag), "%d", &n)
+		return n
+	}
+}

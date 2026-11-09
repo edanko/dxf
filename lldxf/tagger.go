@@ -60,8 +60,14 @@ func (t *asciiTagger) Next() bool {
 		return false
 	}
 
-	// Create tag
-	t.tag = NewDXFTag(GroupCode(code), value)
+	// Create tag. Binary data codes (260/261, 310-319, 1004) carry hex-encoded
+	// payloads in ASCII DXF; decode them to raw bytes so repeated round trips
+	// neither grow nor corrupt the payload.
+	if isBinaryDataCode(GroupCode(code)) {
+		t.tag = BinaryTagFromHex(GroupCode(code), value)
+	} else {
+		t.tag = NewDXFTag(GroupCode(code), value)
+	}
 	return true
 }
 

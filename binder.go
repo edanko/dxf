@@ -605,12 +605,12 @@ func attachRawTags(e entity.Entity, tags lldxf.Tags) {
 	if e == nil {
 		return
 	}
-	if r, ok := e.(interface{ RawWholeRecord() bool }); ok && r.RawWholeRecord() {
-		return // retained records already carry every tag
-	}
 	setter, ok := e.(interface{ SetRawTags([]entity.TagPair) })
 	if !ok {
 		return
+	}
+	if getter, ok := e.(interface{ RawTags() []entity.TagPair }); ok && len(getter.RawTags()) > 0 {
+		return // raw tags already derived; keep them append-only
 	}
 	f := format.NewASCII()
 	e.Format(f)
@@ -624,7 +624,10 @@ func attachRawTags(e entity.Entity, tags lldxf.Tags) {
 	raw := make([]entity.TagPair, 0)
 	for _, tag := range tags {
 		code := int(tag.Code())
-		if code == 0 || code == 5 || code == 105 || emitted[code] {
+		// 66 is a derived "entities follow" flag for INSERT/POLYLINE that the
+		// typed model emits once vertices/attributes are attached. Retaining it
+		// as an unknown tag duplicates it after attribute binding.
+		if code == 0 || code == 5 || code == 66 || code == 105 || emitted[code] {
 			continue
 		}
 		raw = append(raw, entity.TagPair{Code: code, Value: tagStringValue(tag)})
@@ -717,8 +720,5 @@ func sortedHandles(handles []string) []string {
 }
 
 func tagStringValue(tag lldxf.Tag) string {
-	if b, ok := tag.Value().([]byte); ok {
-		return string(b)
-	}
-	return fmt.Sprintf("%v", tag.Value())
+	return lldxf.FormatValue(tag)
 }

@@ -1,8 +1,10 @@
 // Color Number
 package color
 
-// AutoCAD color index number (code 62)
-type ColorNumber uint8
+// AutoCAD color index number (code 62). Signed so that the DXF conventions
+// fit: -1 = ByLayer, 0 = ByBlock, negative ACI = color-ignored flag, and
+// -1 on entities paired with a 420 true-color value.
+type ColorNumber int32
 
 // color number: 1 - 9
 const (

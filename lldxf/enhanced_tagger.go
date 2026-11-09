@@ -276,6 +276,14 @@ func (bt *BinaryTagger) Next() bool {
 		}
 	}
 
+	// Binary data codes (260/261, 310-319, 1004): keep raw bytes as
+	// DXFBinaryTag so formatters emit them in wire form.
+	if isBinaryDataCode(GroupCode(code)) {
+		data, _ := value.([]byte)
+		bt.tag = &DXFBinaryTag{DXFTag{code: GroupCode(code), value: data}}
+		return true
+	}
+
 	bt.tag = NewDXFTag(GroupCode(code), value)
 	return true
 }

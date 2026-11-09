@@ -10,14 +10,15 @@ import (
 )
 
 var typedHeaderVariables = map[string]bool{
-	"$ACADVER":  true,
-	"$INSBASE":  true,
-	"$INSUNITS": true,
-	"$LUNITS":   true,
-	"$EXTMIN":   true,
-	"$EXTMAX":   true,
-	"$LTSCALE":  true,
-	"$HANDSEED": true,
+	"$ACADVER":     true,
+	"$DWGCODEPAGE": true,
+	"$INSBASE":     true,
+	"$INSUNITS":    true,
+	"$LUNITS":      true,
+	"$EXTMIN":      true,
+	"$EXTMAX":      true,
+	"$LTSCALE":     true,
+	"$HANDSEED":    true,
 }
 
 // Parse parses a HEADER section into a Header, retaining variables that do not
@@ -56,7 +57,7 @@ func Parse(tags lldxf.Tags) *Header {
 
 // tagString formats a tag value as a string.
 func tagString(tag lldxf.Tag) string {
-	return fmt.Sprintf("%v", tag.Value())
+	return lldxf.FormatValue(tag)
 }
 
 // firstString returns the value of the first tag formatted as a string.

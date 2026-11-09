@@ -2,29 +2,34 @@ package table
 
 import (
 	"github.com/edanko/dxf/format"
-	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/lldxf"
 )
 
 // Viewport represents VPORT SymbolTable.
 type Viewport struct {
-	handle        string
-	owner         handle.Handler
-	name          string // 2
-	LowerLeft     []float64
-	UpperRight    []float64
-	ViewCenter    []float64
-	SnapBase      []float64
-	SnapSpacing   []float64
-	GridSpacing   []float64
-	ViewDirection []float64
-	ViewTarget    []float64
-	Height        float64
-	AspectRatio   float64
-	LensLength    float64
-	FrontClip     float64
-	BackClip      float64
-	SnapAngle     float64
-	TwistAngle    float64
+	EntryBase
+
+	name           string // 2
+	LowerLeft      []float64
+	UpperRight     []float64
+	ViewCenter     []float64
+	SnapBase       []float64
+	SnapSpacing    []float64
+	GridSpacing    []float64
+	ViewDirection  []float64
+	ViewTarget     []float64
+	Height         float64
+	AspectRatio    float64
+	LensLength     float64
+	FrontClip      float64
+	BackClip       float64
+	SnapAngle      float64
+	TwistAngle     float64
+	ViewportType   int // 71
+	UCSIconSetting int // 72
+	SnapOn         int // 73
+	GridOn         int // 74
+	ZoomFlags      int // 75
 }
 
 // NewViewport creates a new Viewport.
@@ -57,15 +62,10 @@ func (v *Viewport) IsSymbolTable() bool {
 
 // Format writes data to formatter.
 func (v *Viewport) Format(f format.Formatter) {
-	f.WriteString(0, "VPORT")
-	f.WriteString(5, v.handle)
-	if v.owner != nil {
-		f.WriteString(330, v.owner.Handle())
-	}
-	f.WriteString(100, "AcDbSymbolTableRecord")
+	v.FormatCommon(f, "VPORT", "AcDbViewportTableRecord")
 	f.WriteString(100, "AcDbViewportTableRecord")
 	f.WriteString(2, v.name)
-	f.WriteInt(70, 0)
+	f.WriteInt(70, v.flags)
 	for i := 0; i < 2; i++ {
 		f.WriteFloat((i+1)*10, v.LowerLeft[i])
 	}
@@ -97,23 +97,25 @@ func (v *Viewport) Format(f format.Formatter) {
 	f.WriteFloat(44, v.BackClip)
 	f.WriteFloat(50, v.SnapAngle)
 	f.WriteFloat(51, v.TwistAngle)
+	f.WriteInt(71, v.ViewportType)
+	f.WriteInt(72, v.UCSIconSetting)
+	f.WriteInt(73, v.SnapOn)
+	f.WriteInt(74, v.GridOn)
+	f.WriteInt(75, v.ZoomFlags)
+	v.FormatCommonTail(f)
 }
 
-// Handle returns a handle value.
-func (v *Viewport) Handle() string {
-	return v.handle
-}
-
-// SetHandle sets a handle.
-func (v *Viewport) SetHandle(hg *handle.HandleGenerator) {
-	if v.handle == "" {
-		v.handle = hg.Next()
+// RetainTags records VPORT codes the typed model does not emit.
+func (v *Viewport) RetainTags(tags lldxf.Tags) {
+	emitted := map[int]bool{
+		0: true, 2: true, 5: true, 70: true, 100: true, 330: true,
+		10: true, 20: true, 11: true, 21: true, 12: true, 22: true,
+		13: true, 23: true, 14: true, 24: true, 15: true, 25: true,
+		16: true, 26: true, 36: true, 17: true, 27: true, 37: true,
+		40: true, 41: true, 42: true, 43: true, 44: true, 50: true, 51: true,
+		71: true, 72: true, 73: true, 74: true, 75: true,
 	}
-}
-
-// SetOwner sets an owner.
-func (v *Viewport) SetOwner(h handle.Handler) {
-	v.owner = h
+	v.RetainUnhandled(tags, emitted)
 }
 
 // Name returns a name of VPORT (code 2).

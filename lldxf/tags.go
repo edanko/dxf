@@ -1,6 +1,7 @@
 package lldxf
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
@@ -85,9 +86,49 @@ type DXFBinaryTag struct {
 }
 
 // String returns the binary tag string representation
+// String renders the tag for ASCII DXF output: binary payloads are hex-encoded
+// uppercase, matching the wire form.
 func (t *DXFBinaryTag) String() string {
+	if b, ok := t.value.([]byte); ok {
+		return fmt.Sprintf("%d\n%s\n", t.code, strings.ToUpper(hex.EncodeToString(b)))
+	}
 	return fmt.Sprintf("%d\n%s\n", t.code, t.value)
 }
+
+// BinaryTagFromHex builds a binary data tag (codes 260/261/310-319/1004) from
+// an ASCII hex payload string (as found in DXF text streams), decoding it to
+// raw bytes. Non-hex payloads are kept as their raw byte form.
+func BinaryTagFromHex(code GroupCode, hexPayload string) Tag {
+	data := decodeHexPayload(hexPayload)
+	if data == nil {
+		data = []byte(hexPayload)
+	}
+	return &DXFBinaryTag{DXFTag{code: code, value: data}}
+}
+
+// IsBinaryDataCode is documented on the unexported predicate.
+var _ = IsBinaryDataCode
+
+// FormatValue renders a tag value in its canonical text form for the string
+// model and ASCII output: binary data payloads (codes 260/261, 310-319, 1004)
+// become uppercase hex matching the wire form; other values use %v. Keeping
+// every tag-to-string conversion on this path makes retained tags stable
+// across repeated round trips.
+func FormatValue(tag Tag) string {
+	if bin, ok := tag.(*DXFBinaryTag); ok {
+		if b, ok := bin.value.([]byte); ok {
+			return strings.ToUpper(hex.EncodeToString(b))
+		}
+	}
+	if lldxfSelfIsBinary(isBinaryDataCode(tag.Code())) {
+		if b, ok := tag.Value().([]byte); ok {
+			return strings.ToUpper(hex.EncodeToString(b))
+		}
+	}
+	return fmt.Sprintf("%v", tag.Value())
+}
+
+func lldxfSelfIsBinary(v bool) bool { return v }
 
 // Clone creates a deep copy of the binary tag
 func (t *DXFBinaryTag) Clone() Tag {
@@ -225,8 +266,12 @@ func castTagValue(code GroupCode, value interface{}) interface{} {
 
 // Helper functions for group code classification
 
+// IsBinaryDataCode reports group codes carrying hex-encoded binary payloads
+// (310-319, 1004).
+func IsBinaryDataCode(code GroupCode) bool { return isBinaryDataCode(code) }
+
 func isBinaryDataCode(code GroupCode) bool {
-	binaryCodes := []GroupCode{310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 1004}
+	binaryCodes := []GroupCode{260, 261, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 1004}
 	for _, c := range binaryCodes {
 		if code == c {
 			return true
@@ -420,6 +465,45 @@ func castToString(value interface{}) string {
 	default:
 		return fmt.Sprintf("%v", v)
 	}
+}
+
+// decodeHexPayload converts an ASCII DXF binary payload (hex digits, optional
+// spaces) to raw bytes. Non-hex input is returned as nil so callers can fall
+// back to the string form.
+func decodeHexPayload(s string) []byte {
+	var digits []byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == ' ' || c == '\t' {
+			continue
+		}
+		digits = append(digits, c)
+	}
+	if len(digits)%2 != 0 {
+		return nil
+	}
+	out := make([]byte, len(digits)/2)
+	for i := range out {
+		hi, ok1 := hexDigit(digits[2*i])
+		lo, ok2 := hexDigit(digits[2*i+1])
+		if !ok1 || !ok2 {
+			return nil
+		}
+		out[i] = hi<<4 | lo
+	}
+	return out
+}
+
+func hexDigit(c byte) (byte, bool) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0', true
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10, true
+	case c >= 'A' && c <= 'F':
+		return c - 'A' + 10, true
+	}
+	return 0, false
 }
 
 func castToBinary(value interface{}) []byte {
