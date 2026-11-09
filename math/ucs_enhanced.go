@@ -58,18 +58,9 @@ func UCSFromEulerAngles(origin Vec3, yaw, pitch, roll float64) *UCS {
 
 // UCSFromAxisAndAngle creates UCS from origin, primary axis, and rotation angle
 func UCSFromAxisAndAngle(origin, axis Vec3, angle float64) *UCS {
-	// Create rotation matrix using Rodrigues' rotation formula
-	k := axis.Normalized()
-	cos := math.Cos(angle)
-	sin := math.Sin(angle)
-
-	// Rotation matrix components
-	rotation := Matrix44{
-		cos + k.X()*k.X()*(1-cos), k.X()*k.Y()*(1-cos) - k.Z()*sin, 0,
-		k.Y()*k.X()*(1-cos) + k.Z()*sin, cos + k.Y()*k.Y()*(1-cos), 0,
-		k.X() * sin, k.Y() * sin, cos + k.Z()*k.Z()*(1-cos),
-		0, 0, 0, 1,
-	}
+	// Rotate the world frame about the axis with the proper Rodrigues
+	// matrix (RotationAxis); the frame axes are the rotation columns.
+	rotation := RotationAxis(axis, angle)
 
 	// Extract axes
 	xAxis := Vec3{rotation.Get(0, 0), rotation.Get(1, 0), rotation.Get(2, 0)}

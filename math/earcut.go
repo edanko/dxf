@@ -2,7 +2,6 @@ package math
 
 import (
 	"math"
-	"sort"
 )
 
 // Point2D represents a 2D point for triangulation
@@ -50,10 +49,12 @@ func IsClockwise(points []Point2D) bool {
 		area += (points[j].X - points[i].X) * (points[j].Y + points[i].Y)
 	}
 
-	return area < 0
+	// The shoelace sum Σ(xj−xi)(yj+yi) equals −2A where A is the signed
+	// (counter-clockwise positive) area, so positive means clockwise.
+	return area > 0
 }
 
-// Node represents a linked list node for earcut algorithm
+// Node represents a linked list node for triangulation
 type Node struct {
 	Index   int
 	Point   Point2D
@@ -105,377 +106,592 @@ func NewTriangulation() *Triangulation {
 	}
 }
 
-// Earcut implements Mapbox earcut algorithm for polygon triangulation with holes
+// Earcut triangulates a simple polygon with holes using ear clipping with
+// needle bridges (the mapbox earcut approach: each hole is merged into the
+// exterior ring through a visibility bridge, then convex ears are clipped
+// from the resulting simple ring).
+//
+// The returned indices refer to the concatenation of exterior followed by
+// each hole in order. Exterior rings are triangulated counter-clockwise;
+// windings are normalised on the internal copies (input slices are not
+// modified). Degenerate inputs produce an empty result.
+//
+// Known limitation: because bridge endpoints must be existing vertices, a
+// hole floating centered inside the exterior (no exterior vertex shares the
+// hole's row) is merged through a diagonal needle that winds a small bay
+// outside the clipped ring, so the triangle area sum falls short of the
+// true region area. The shortfall is detectable: ValidateTriangulation
+// passes (triangles never overlap) and DiagnoseTriangulation reports an
+// IssueAreaMismatch.
 func Earcut(exterior []Point2D, holes [][]Point2D) []int {
-	points := make([]Point2D, 0, len(exterior)+len(holes)*3)
-
-	// Add exterior points
-	for _, p := range exterior {
-		points = append(points, p)
+	if len(exterior) < 3 {
+		return []int{}
 	}
 
-	// Add hole points in reverse order (clockwise)
-	holesIndices := make([]int, 0, len(holes))
+	// Build the concatenated vertex list and per-ring index lists.
+	vertices := make([]Point2D, 0, len(exterior))
+	vertices = append(vertices, exterior...)
+	rings := make([][]int, 0, 1+len(holes))
+	extRing := make([]int, 0, len(exterior))
+	for i := range exterior {
+		extRing = append(extRing, i)
+	}
+	rings = append(rings, extRing)
 	for _, hole := range holes {
-		holesIndices = append(holesIndices, len(points))
-		for _, p := range hole {
-			points = append(points, p)
+		base := len(vertices)
+		holeRing := make([]int, 0, len(hole))
+		for i, p := range hole {
+			vertices = append(vertices, p)
+			holeRing = append(holeRing, base+i)
+		}
+		if len(holeRing) >= 3 {
+			// Normalise hole windings on the internal copy to clockwise:
+			// the needle-bridge merge below traverses a hole from the bridge
+			// entry along its Next chain, and the triangulated region must
+			// lie to the left of that traversal (i.e. outside the hole).
+			if ringArea(vertices, holeRing) > 0 {
+				reverseInts(holeRing)
+			}
+			rings = append(rings, holeRing)
 		}
 	}
 
-	// Find proper hole that fits in each hole if there are nested holes
-	processedHoles := make([][]int, 0)
-	for i := range holes {
-		processedHoles = append(processedHoles, []int{i})
+	exteriorRing := rings[0]
+	if ringArea(vertices, exteriorRing) < 0 {
+		reverseInts(exteriorRing)
+	}
+	outer := ringList(vertices, exteriorRing)
+	if outer == nil {
+		return []int{}
 	}
 
-	processedHoles = eliminateHoles(points, processedHoles, len(exterior))
-
-	// Filter out empty hole lists
-	var finalHoles [][]int
-	for _, holeGroup := range processedHoles {
-		if len(holeGroup) > 0 {
-			finalHoles = append(finalHoles, holeGroup)
+	// Original hole polygons for visibility checks and ear-clipping guards.
+	holePolys := make([][]Point2D, 0, len(holes))
+	for _, hole := range rings[1:] {
+		poly := make([]Point2D, 0, len(hole))
+		for _, idx := range hole {
+			poly = append(poly, vertices[idx])
 		}
+		holePolys = append(holePolys, poly)
 	}
 
-	// Triangulate
-	indices := earcutLinked(points, finalHoles, len(exterior))
-
-	return indices
-}
-
-// eliminateHoles finds the proper hole that fits in each group of holes
-func eliminateHoles(points []Point2D, holes [][]int, exteriorLen int) [][]int {
-	if len(holes) == 0 {
-		return holes
-	}
-
-	// Sort holes by x coordinate of the first point
-	sort.Slice(holes, func(i, j int) bool {
-		if len(holes[i]) == 0 || len(holes[j]) == 0 {
-			return false
-		}
-		return points[holes[i][0]].X < points[holes[j][0]].X
-	})
-
-	// Process holes to eliminate nested ones
-	var result [][]int
-	processed := make([]bool, len(holes))
-
-	for i := range holes {
-		if processed[i] {
+	// Merge every hole into the (growing) outer ring through a bridge:
+	// the exterior is counter-clockwise, the holes clockwise (normalised
+	// above), so the merged needle ring bounds the region on its left.
+	for i := 1; i < len(rings); i++ {
+		ring := ringList(vertices, rings[i])
+		if ring == nil {
 			continue
 		}
+		outer = bridgeHoleIntoRing(outer, ring, holePolys)
+	}
 
-		currentHole := holes[i]
-		minDist := math.Inf(1)
-		minHole := i
+	return earClip(outer, holePolys)
+}
 
-		// Find hole with minimum distance
-		for j := range holes {
-			if processed[j] || i == j {
+// ringArea returns the doubled signed area of an index ring (positive for
+// counter-clockwise).
+func ringArea(vertices []Point2D, ring []int) float64 {
+	area := 0.0
+	for i, idx := range ring {
+		j := ring[(i+1)%len(ring)]
+		area += vertices[idx].X*vertices[j].Y - vertices[j].X*vertices[idx].Y
+	}
+	return area
+}
+
+func reverseInts(ring []int) {
+	for i, j := 0, len(ring)-1; i < j; i, j = i+1, j-1 {
+		ring[i], ring[j] = ring[j], ring[i]
+	}
+}
+
+// ringList builds a circular doubly linked list from an index ring,
+// dropping consecutive duplicate points and collinear middles.
+func ringList(vertices []Point2D, ring []int) *Node {
+	var head, tail *Node
+	for _, idx := range ring {
+		p := vertices[idx]
+		if tail != nil && tail.Point == p {
+			continue
+		}
+		node := NewNode(idx, p)
+		if head == nil {
+			head = node
+			node.Prev = node
+			node.Next = node
+		} else {
+			node.Prev = tail
+			node.Next = head
+			tail.Next = node
+			head.Prev = node
+		}
+		tail = node
+	}
+	if head == nil || head.Next == head {
+		return nil
+	}
+	for {
+		if nodeCount(head) < 3 {
+			return nil
+		}
+		changed := false
+		cur := head
+		for i := 0; i < nodeCount(head); i++ {
+			next, prev := cur.Next, cur.Prev
+			if next == prev && cur.Point == prev.Point {
+				RemoveNode(cur)
+				head = prev
+				changed = true
+				cur = prev
 				continue
 			}
-
-			dist := minHoleDistance(points, currentHole, holes[j])
-			if dist < minDist {
-				minDist = dist
-				minHole = j
-			}
-		}
-
-		// If no smaller hole found, this is a valid outer hole
-		if minHole == i {
-			result = append(result, currentHole)
-			processed[i] = true
-		}
-	}
-
-	return result
-}
-
-// minHoleDistance finds minimum distance between two holes
-func minHoleDistance(points []Point2D, holeA, holeB []int) float64 {
-	minDist := math.Inf(1)
-
-	// Check distance from each point in holeA to each point in holeB
-	for _, i := range holeA {
-		for _, j := range holeB {
-			dist := math.Sqrt(
-				math.Pow(points[i].X-points[j].X, 2) +
-					math.Pow(points[i].Y-points[j].Y, 2),
-			)
-			if dist < minDist {
-				minDist = dist
-			}
-		}
-	}
-
-	return minDist
-}
-
-// earcutLinked performs the actual earcut triangulation on linked list
-func earcutLinked(points []Point2D, holes [][]int, exteriorLen int) []int {
-	hasHoles := len(holes) > 0
-
-	// Create linked lists
-	nodes := make([]*Node, len(points))
-	outerNode := linkedList(points, 0, exteriorLen, nodes)
-
-	if hasHoles {
-		minX, minY := points[0].X, points[0].Y
-		for _, p := range points {
-			if p.X < minX {
-				minX = p.X
-			}
-			if p.Y < minY {
-				minY = p.Y
-			}
-		}
-
-		for _, hole := range holes {
-			if len(hole) == 0 {
+			if cur.Point != prev.Point && cur.Point != next.Point && Area(prev.Point, cur.Point, next.Point) == 0 {
+				RemoveNode(cur)
+				head = next
+				changed = true
+				cur = next
 				continue
 			}
-			holeNode := linkedList(points, hole[0], len(hole), nodes)
+			cur = next
+		}
+		if !changed {
+			return head
+		}
+	}
+}
 
-			// Find the bridge between hole and outer polygon
-			bridgeNode := findHoleBridge(holeNode, outerNode, minX, minY, points)
+func nodeCount(node *Node) int {
+	if node == nil {
+		return 0
+	}
+	count := 0
+	for cur := node; ; cur = cur.Next {
+		count++
+		if cur.Next == node {
+			return count
+		}
+	}
+}
 
-			if bridgeNode != nil {
-				splitPolygon(bridgeNode, holeNode, nodes, points)
+// reverseRingList reverses a circular linked list in place and returns the
+// new head (the old tail).
+func reverseRingList(head *Node) *Node {
+	if head == nil {
+		return nil
+	}
+	var tail *Node
+	cur := head
+	for {
+		cur.Prev, cur.Next = cur.Next, cur.Prev
+		tail = cur
+		if cur.Next == head {
+			break
+		}
+		cur = cur.Next
+	}
+	return tail
+}
+
+// bridgeHoleIntoRing merges the hole ring into the outer ring with a
+// visibility bridge. holesPolys are the original hole polygons (including
+// hole itself) used for visibility checks.
+func bridgeHoleIntoRing(outer, hole *Node, holesPolys [][]Point2D) *Node {
+	holeNode := leftmostNode(hole)
+	if holeNode == nil || outer == nil {
+		return outer
+	}
+	bridge := findBridgeTarget(outer, holeNode, holesPolys)
+	if bridge == nil {
+		// No visible vertex: leave the hole unmerged (degenerate input).
+		return outer
+	}
+	return splitPolygon(bridge, holeNode)
+}
+
+func leftmostNode(head *Node) *Node {
+	best := head
+	for cur := head.Next; cur != head; cur = cur.Next {
+		if cur.Point.X < best.Point.X || (cur.Point.X == best.Point.X && cur.Point.Y < best.Point.Y) {
+			best = cur
+		}
+	}
+	return best
+}
+
+// findBridgeTarget returns the outer ring vertex to bridge the hole's
+// leftmost node to. The selection follows the mapbox earcut findHoleBridge
+// rule: candidates lie at or left of the hole's leftmost vertex and must be
+// visible; the winner maximizes the slope ratio (q.y - p.y) / (q.x - p.x)
+// (horizontal bridges score highest, targets below-left beat above-right),
+// which keeps the splitPolygon connector segments (hole-chain tail ->
+// bridge start and bridge end -> outer continuation) clear of the hole.
+// Ties break toward the closer vertex. Falls back to the closest visible
+// vertex when no left candidate exists.
+func findBridgeTarget(outer, holeNode *Node, holesPolys [][]Point2D) *Node {
+	outerPoly := ringPoints(outer)
+	q := holeNode.Point
+
+	var best *Node
+	bestTx := math.Inf(-1)
+	bestDist := math.Inf(1)
+	for cur := outer; ; cur = cur.Next {
+		if cur.Point.X <= q.X && visible(q, cur.Point, outerPoly, holesPolys) {
+			var tx float64
+			switch {
+			case cur.Point.Y == q.Y:
+				d := cur.Point.Y - q.Y
+				tx = 1 / (d*d + 1e-5)
+			case cur.Point.X == q.X:
+				tx = 1e10
+			default:
+				tx = (q.Y - cur.Point.Y) / (q.X - cur.Point.X)
+			}
+			d := dist2(q, cur.Point)
+			if tx > bestTx || (tx == bestTx && d < bestDist) {
+				bestTx = tx
+				bestDist = d
+				best = cur
 			}
 		}
-	}
-
-	// Filter out eliminated nodes
-	var filteredNodes []*Node
-	for _, node := range nodes {
-		if node != nil {
-			filteredNodes = append(filteredNodes, node)
-		}
-	}
-
-	// Triangulate the resulting polygon
-	triangles := filterPoints(filteredNodes, points)
-
-	return triangles
-}
-
-// linkedList creates a circular doubly linked list from a range of nodes
-func linkedList(points []Point2D, start, end int, nodes []*Node) *Node {
-	var lastNode *Node
-
-	for i := start; i < end; i++ {
-		node := NewNode(i, points[i])
-		nodes[i] = node
-
-		if lastNode == nil {
-			lastNode = node
-		} else {
-			lastNode.Next = node
-			node.Prev = lastNode
-		}
-
-		lastNode = node
-	}
-
-	if lastNode != nil {
-		// Make it circular
-		lastNode.Next = nodes[start]
-		nodes[start].Prev = lastNode
-	}
-
-	return nodes[start]
-}
-
-// findHoleBridge finds the bridge between a hole and the outer polygon
-func findHoleBridge(holeNode, outerNode *Node, minX, minY float64, points []Point2D) *Node {
-	var bridge *Node
-
-	// Find the node in the outer polygon that can connect to the hole
-	p := holeNode
-	for {
-		// Try to find a valid bridge
-		bridge = findBridge(p, outerNode, minX, minY, points)
-		if bridge != nil {
-			break
-		}
-
-		p = p.Next
-
-		// If we've gone all the way around the hole
-		if p == holeNode {
+		if cur.Next == outer {
 			break
 		}
 	}
-
-	return bridge
-}
-
-// findBridge finds a valid bridge between two nodes
-func findBridge(leftNode, rightNode *Node, minX, minY float64, points []Point2D) *Node {
-	var p *Node = leftNode
-
-	for {
-		// Find intersection of ray with polygon
-		if isPointInPolygon(points, p.Point, minX, minY) {
-			return p
-		}
-
-		p = p.Next
-
-		if p == leftNode {
-			break
-		}
+	if best != nil {
+		return best
 	}
 
-	return nil
-}
-
-// isPointInPolygon checks if a point is inside a polygon using ray casting
-func isPointInPolygon(points []Point2D, testPoint Point2D, minX, minY float64) bool {
-	inside := false
-	p1 := points[0]
-
-	for i := 1; i <= len(points); i++ {
-		var p2 Point2D
-		if i == len(points) {
-			p2 = points[0]
-		} else {
-			p2 = points[i]
-		}
-
-		if testPoint.Y > math.Min(p1.Y, p2.Y) {
-			if testPoint.Y <= math.Max(p1.Y, p2.Y) {
-				if testPoint.X <= math.Max(p1.X, p2.X) {
-					if p1.Y != p2.Y {
-						xIntersection := (testPoint.Y-p1.Y)*(p2.X-p1.X)/(p2.Y-p1.Y) + p1.X
-						if p1.Y == p2.Y || testPoint.X <= xIntersection {
-							inside = !inside
-						}
-					}
-				}
+	// Fallback: closest visible vertex (holes flush against the left edge).
+	for cur := outer; ; cur = cur.Next {
+		if visible(q, cur.Point, outerPoly, holesPolys) {
+			d := dist2(q, cur.Point)
+			if d < bestDist {
+				bestDist = d
+				best = cur
 			}
 		}
-		p1 = p2
-	}
-
-	return inside
-}
-
-// splitPolygon splits a polygon by connecting a hole to it
-func splitPolygon(bridgeNode, holeNode *Node, nodes []*Node, points []Point2D) {
-	// Find the nodes to split
-	bridgeNext := bridgeNode.Next
-
-	// Create new nodes for the split
-	bridgeIndex := len(nodes)
-	holeIndex := bridgeIndex + 1
-
-	bridgeNew := NewNode(bridgeIndex, bridgeNode.Point)
-	holeNew := NewNode(holeIndex, holeNode.Point)
-
-	nodes = append(nodes, bridgeNew, holeNew)
-
-	// Reconnect the linked lists
-	bridgeNode.Next = holeNew
-	holeNew.Prev = bridgeNode
-
-	holeNode.Next = bridgeNext
-	bridgeNext.Prev = holeNode
-
-	holeNew.Next = bridgeNew
-	bridgeNew.Prev = holeNew
-}
-
-// filterPoints performs ear clipping and returns triangle indices
-func filterPoints(nodes []*Node, points []Point2D) []int {
-	var triangles []int
-
-	// While there are at least 3 nodes left
-	for len(nodes) >= 3 {
-		earNode := findEar(nodes, points)
-
-		if earNode == nil {
-			// No ear found, something went wrong
+		if cur.Next == outer {
 			break
 		}
-
-		// Add triangle indices
-		triangles = append(triangles, earNode.Prev.Index, earNode.Index, earNode.Next.Index)
-
-		// Remove the ear
-		RemoveNode(earNode)
-
-		// Rebuild nodes array without the removed node
-		var newNodes []*Node
-		current := earNode.Next
-		for current != earNode {
-			newNodes = append(newNodes, current)
-			current = current.Next
-		}
-		nodes = newNodes
 	}
-
-	return triangles
+	return best
 }
 
-// findEar finds an ear in the polygon
-func findEar(nodes []*Node, points []Point2D) *Node {
-	for _, node := range nodes {
-		if isEar(nodes, node, points) {
-			return node
+func ringPoints(head *Node) []Point2D {
+	pts := make([]Point2D, 0, nodeCount(head))
+	for cur := head; ; cur = cur.Next {
+		pts = append(pts, cur.Point)
+		if cur.Next == head {
+			return pts
 		}
 	}
-	return nil
 }
 
-// isEar checks if a node forms an ear
-func isEar(nodes []*Node, node *Node, points []Point2D) bool {
-	a := node.Prev.Point
-	b := node.Point
-	c := node.Next.Point
+func dist2(a, b Point2D) float64 {
+	return (a.X-b.X)*(a.X-b.X) + (a.Y-b.Y)*(a.Y-b.Y)
+}
 
-	// Check if triangle is clockwise
-	if Area(a, b, c) >= 0 {
+// visible reports whether the segment a-b is a valid bridge: it properly
+// crosses no edge of the outer polygon or any hole, and its midpoint lies
+// strictly inside the outer polygon and strictly outside every hole.
+func visible(a, b Point2D, outerPoly []Point2D, holesPolys [][]Point2D) bool {
+	if a == b {
 		return false
 	}
-
-	// Check if any other point is inside the triangle
-	for _, otherNode := range nodes {
-		if otherNode == node || otherNode == node.Prev || otherNode == node.Next {
-			continue
-		}
-
-		if isPointInTriangle(otherNode.Point, a, b, c) {
+	if !edgesClear(a, b, outerPoly) {
+		return false
+	}
+	for _, hole := range holesPolys {
+		if !edgesClear(a, b, hole) {
 			return false
 		}
 	}
-
+	mid := Point2D{X: (a.X + b.X) / 2, Y: (a.Y + b.Y) / 2}
+	if !pointInPolygonStrict(mid, outerPoly) {
+		return false
+	}
+	for _, hole := range holesPolys {
+		if pointInPolygonOnBoundary(mid, hole) {
+			return false
+		}
+	}
 	return true
 }
 
-// isPointInTriangle checks if a point is inside a triangle
-func isPointInTriangle(p, a, b, c Point2D) bool {
-	// Check if point is on same side of all edges
-	sign1 := signArea(p, a, b)
-	sign2 := signArea(p, b, c)
-	sign3 := signArea(p, c, a)
-
-	hasNeg := (sign1 < 0) || (sign2 < 0) || (sign3 < 0)
-	hasPos := (sign1 > 0) || (sign2 > 0) || (sign3 > 0)
-
-	return !(hasNeg && hasPos)
+// edgesClear reports whether segment a-b properly crosses (or collinearly
+// overlaps) any edge of poly, ignoring edges that share an endpoint with a
+// or b (touching is allowed for bridges).
+func edgesClear(a, b Point2D, poly []Point2D) bool {
+	n := len(poly)
+	for i := range poly {
+		p := poly[i]
+		q := poly[(i+1)%n]
+		if p == a || q == a || p == b || q == b {
+			continue
+		}
+		if bridgeSegmentsIntersect(a, b, p, q) {
+			return false
+		}
+	}
+	return true
 }
 
-// signArea helps determine which side of a line a point is on
-func signArea(p, a, b Point2D) float64 {
-	return (p.X-b.X)*(a.Y-b.Y) - (a.X-b.X)*(p.Y-b.Y)
+// bridgeSegmentsIntersect reports proper crossings and collinear overlaps.
+func bridgeSegmentsIntersect(a1, a2, b1, b2 Point2D) bool {
+	o1 := Area(a1, a2, b1)
+	o2 := Area(a1, a2, b2)
+	o3 := Area(b1, b2, a1)
+	o4 := Area(b1, b2, a2)
+	if (o1 > 0) != (o2 > 0) && (o3 > 0) != (o4 > 0) && o1 != 0 && o2 != 0 && o3 != 0 && o4 != 0 {
+		return true
+	}
+	// Collinear cases: point on segment (inclusive).
+	if o1 == 0 && onSegment(a1, a2, b1) {
+		return true
+	}
+	if o2 == 0 && onSegment(a1, a2, b2) {
+		return true
+	}
+	if o3 == 0 && onSegment(b1, b2, a1) {
+		return true
+	}
+	if o4 == 0 && onSegment(b1, b2, a2) {
+		return true
+	}
+	return false
 }
 
-// TriangulatePolygon triangulates a simple polygon (no holes)
+func onSegment(a, b, p Point2D) bool {
+	return p.X >= math.Min(a.X, b.X) && p.X <= math.Max(a.X, b.X) &&
+		p.Y >= math.Min(a.Y, b.Y) && p.Y <= math.Max(a.Y, b.Y)
+}
+
+// pointInPolygonStrict uses ray casting; points on the boundary (edges or
+// vertices) count as outside — strict containment is required for bridge
+// midpoints and for the ear-clipping hole-overlap predicates.
+func pointInPolygonStrict(p Point2D, poly []Point2D) bool {
+	n := len(poly)
+	for i, j := 0, n-1; i < n; j, i = i, i+1 {
+		if Area(poly[j], poly[i], p) == 0 && onSegment(poly[j], poly[i], p) {
+			return false
+		}
+	}
+	inside := false
+	for i, j := 0, n-1; i < n; j, i = i, i+1 {
+		a, b := poly[j], poly[i]
+		if (a.Y > p.Y) != (b.Y > p.Y) {
+			xInt := a.X + (p.Y-a.Y)/(b.Y-a.Y)*(b.X-a.X)
+			if xInt > p.X {
+				inside = !inside
+			}
+		}
+	}
+	return inside
+}
+
+// pointInPolygonOnBoundary treats boundary points as inside.
+func pointInPolygonOnBoundary(p Point2D, poly []Point2D) bool {
+	n := len(poly)
+	for i, j := 0, n-1; i < n; j, i = i, i+1 {
+		a, b := poly[j], poly[i]
+		if Area(a, b, p) == 0 && onSegment(a, b, p) {
+			return true
+		}
+	}
+	return pointInPolygonStrict(p, poly)
+}
+
+// splitPolygon splices nodes a and b of one circular list into a single
+// list traversed a→b→b2→…→a2→a (the mapbox splitPolygon with duplicated
+// bridge nodes).
+func splitPolygon(a, b *Node) *Node {
+	a2 := NewNode(a.Index, a.Point)
+	b2 := NewNode(b.Index, b.Point)
+	aNext := a.Next
+	bPrev := b.Prev
+
+	a.Next = b
+	b.Prev = a
+
+	a2.Next = b2
+	b2.Prev = a2
+
+	b2.Next = aNext
+	aNext.Prev = b2
+
+	bPrev.Next = a2
+	a2.Prev = bPrev
+
+	return a
+}
+
+// earClip clips convex ears from the simple ring until fewer than three
+// nodes remain. The mapbox fallback (split along the diagonal of the
+// smallest convex vertex) guarantees progress when no ear exists. holes
+// are the original hole polygons: an ear must never swallow one.
+func earClip(ring *Node, holes [][]Point2D) []int {
+	triangles := make([]int, 0)
+	if ring == nil {
+		return triangles
+	}
+	n := nodeCount(ring)
+	guard := 0
+	limit := 8*n + 16
+	for n >= 3 && guard < limit {
+		guard++
+		earFound := false
+		cur := ring
+		for i := 0; i < n; i++ {
+			if isEar(cur, holes) {
+				triangles = append(triangles, cur.Index, cur.Next.Index, cur.Prev.Index)
+				next := cur.Next
+				RemoveNode(cur)
+				ring = next
+				n--
+				earFound = true
+				break
+			}
+			cur = cur.Next
+		}
+		if !earFound {
+			split := smallestConvex(ring, n)
+			if split == nil {
+				break
+			}
+			ring = splitPolygon(split, split.Next.Next)
+			n += 2
+		}
+	}
+	return triangles
+}
+
+// isEar reports whether node is a convex corner whose triangle contains no
+// other ring vertex strictly inside. When holes are provided, the triangle
+// must also not overlap any hole interior (holes are the original hole
+// polygons; the merged needle ring contains hole boundary edges as needle
+// edges, so the strict predicates of holeOverlapsTriangle are required —
+// the inclusive bridge intersection tests would reject every ear).
+func isEar(node *Node, holes [][]Point2D) bool {
+	prev, next := node.Prev, node.Next
+	if prev == node || next == node || prev == next {
+		return false
+	}
+	if Area(prev.Point, node.Point, next.Point) <= 0 {
+		return false
+	}
+	// Scan every other ring node (mapbox pointsInside), skipping the three
+	// triangle corners by pointer; duplicated bridge points share the same
+	// coordinates and are filtered as non-strict (on-edge) cases.
+	for p := node.Next.Next; ; p = p.Next {
+		if p != node && p != prev && p != next &&
+			pointInTriangleStrict(p.Point, prev.Point, node.Point, next.Point) {
+			return false
+		}
+		if p == node {
+			break
+		}
+	}
+	if len(holes) > 0 {
+		tri := [3]Point2D{prev.Point, node.Point, next.Point}
+		for _, hole := range holes {
+			if holeOverlapsTriangle(hole, tri) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// holeOverlapsTriangle reports whether the interior of the hole polygon
+// strictly overlaps the interior of the CCW triangle. Only strict
+// predicates are used — shared bridge needles and tangent boundary touches
+// must never reject an ear. Detection: a hole vertex strictly inside the
+// triangle, the triangle centroid strictly inside the hole, the hole
+// centroid (when inside the hole) strictly inside the triangle, a triangle
+// vertex strictly inside the hole, an edge midpoint of one polygon
+// strictly inside the other (catches tangential overlap where every vertex
+// sits on the other's boundary), or a proper edge crossing.
+func holeOverlapsTriangle(hole []Point2D, tri [3]Point2D) bool {
+	a, b, c := tri[0], tri[1], tri[2]
+	centroid := Point2D{X: (a.X + b.X + c.X) / 3, Y: (a.Y + b.Y + c.Y) / 3}
+	if pointInPolygonStrict(centroid, hole) {
+		return true
+	}
+	var hx, hy float64
+	for _, p := range hole {
+		hx += p.X
+		hy += p.Y
+		if pointInTriangleStrict(p, a, b, c) {
+			return true
+		}
+	}
+	holeCentroid := Point2D{X: hx / float64(len(hole)), Y: hy / float64(len(hole))}
+	if pointInPolygonStrict(holeCentroid, hole) && pointInTriangleStrict(holeCentroid, a, b, c) {
+		return true
+	}
+	for _, p := range tri {
+		if pointInPolygonStrict(p, hole) {
+			return true
+		}
+	}
+	for i := range hole {
+		p, q := hole[i], hole[(i+1)%len(hole)]
+		mid := Point2D{X: (p.X + q.X) / 2, Y: (p.Y + q.Y) / 2}
+		if pointInTriangleStrict(mid, a, b, c) {
+			return true
+		}
+		for j := range tri {
+			if segmentsProperlyCross(p, q, tri[j], tri[(j+1)%3]) {
+				return true
+			}
+		}
+	}
+	for j := range tri {
+		mid := Point2D{X: (tri[j].X + tri[(j+1)%3].X) / 2, Y: (tri[j].Y + tri[(j+1)%3].Y) / 2}
+		if pointInPolygonStrict(mid, hole) {
+			return true
+		}
+	}
+	return false
+}
+
+// segmentsProperlyCross reports a strict transverse crossing of segments
+// ab and cd (a point lying on the other segment's endpoint does not count;
+// collinear overlap is handled by the strict interior tests above).
+func segmentsProperlyCross(a, b, c, d Point2D) bool {
+	o1 := Area(a, b, c)
+	o2 := Area(a, b, d)
+	o3 := Area(c, d, a)
+	o4 := Area(c, d, b)
+	return o1 != 0 && o2 != 0 && o3 != 0 && o4 != 0 &&
+		(o1 > 0) != (o2 > 0) && (o3 > 0) != (o4 > 0)
+}
+
+// pointInTriangleStrict tests strict containment (CCW triangle a,b,c).
+func pointInTriangleStrict(p, a, b, c Point2D) bool {
+	return Area(a, b, p) > 0 && Area(b, c, p) > 0 && Area(c, a, p) > 0
+}
+
+// smallestConvex returns the convex node with the smallest corner area
+// (the mapbox ear-queue fallback vertex).
+func smallestConvex(ring *Node, n int) *Node {
+	var best *Node
+	bestArea := math.Inf(1)
+	cur := ring
+	for i := 0; i < n; i++ {
+		area := Area(cur.Prev.Point, cur.Point, cur.Next.Point)
+		if area > 0 && area < bestArea {
+			bestArea = area
+			best = cur
+		}
+		cur = cur.Next
+	}
+	return best
+}
+
+// TriangulatePolygon triangulates a simple polygon (counter-clockwise
+// winding is enforced in place on the input slice).
 func TriangulatePolygon(polygon []Point2D) []int {
 	if len(polygon) < 3 {
 		return []int{}
@@ -492,7 +708,9 @@ func TriangulatePolygon(polygon []Point2D) []int {
 	return Earcut(polygon, nil)
 }
 
-// TriangulatePolygonWithHoles triangulates a polygon with holes
+// TriangulatePolygonWithHoles triangulates a polygon with holes (exterior
+// counter-clockwise, holes clockwise; windings are enforced in place on the
+// input slices).
 func TriangulatePolygonWithHoles(exterior []Point2D, holes [][]Point2D) []int {
 	if len(exterior) < 3 {
 		return []int{}
@@ -500,7 +718,7 @@ func TriangulatePolygonWithHoles(exterior []Point2D, holes [][]Point2D) []int {
 
 	// Ensure exterior is in counter-clockwise order
 	if IsClockwise(exterior) {
-		// Reverse the exterior polygon
+		// Reverse the exterior
 		for i, j := 0, len(exterior)-1; i < j; i, j = i+1, j-1 {
 			exterior[i], exterior[j] = exterior[j], exterior[i]
 		}
@@ -509,7 +727,7 @@ func TriangulatePolygonWithHoles(exterior []Point2D, holes [][]Point2D) []int {
 	// Ensure holes are in clockwise order
 	for i, hole := range holes {
 		if !IsClockwise(hole) {
-			// Reverse the hole polygon
+			// Reverse the hole
 			for j, k := 0, len(hole)-1; j < k; j, k = j+1, k-1 {
 				hole[j], hole[k] = hole[k], hole[j]
 			}
@@ -537,27 +755,24 @@ func TriangulateConvexPolygon(polygon []Point2D) []int {
 	return indices
 }
 
-// ValidateTriangulation checks if a triangulation is valid
+// ValidateTriangulation checks that every index is in range and that no
+// two triangles overlap in their interiors (shared edges and vertices are
+// allowed).
 func ValidateTriangulation(vertices []Point2D, indices []int) bool {
-	// Check that all indices are valid
+	if len(indices)%3 != 0 {
+		return false
+	}
 	for _, index := range indices {
 		if index < 0 || index >= len(vertices) {
 			return false
 		}
 	}
 
-	// Check that triangles are formed correctly
-	if len(indices)%3 != 0 {
-		return false
-	}
-
-	// Check that triangles don't overlap (simplified check)
-	for i := 0; i < len(indices); i += 3 {
-		tri1 := [3]Point2D{vertices[indices[i]], vertices[indices[i+1]], vertices[indices[i+2]]}
-
-		for j := i + 3; j < len(indices); j += 3 {
-			tri2 := [3]Point2D{vertices[indices[j]], vertices[indices[j+1]], vertices[indices[j+2]]}
-
+	count := len(indices) / 3
+	for i := 0; i < count; i++ {
+		tri1 := trianglePoints(vertices, indices, i)
+		for j := i + 1; j < count; j++ {
+			tri2 := trianglePoints(vertices, indices, j)
 			if trianglesOverlap(tri1, tri2) {
 				return false
 			}
@@ -567,17 +782,47 @@ func ValidateTriangulation(vertices []Point2D, indices []int) bool {
 	return true
 }
 
-// trianglesOverlap checks if two triangles overlap (simplified)
+func trianglePoints(vertices []Point2D, indices []int, t int) [3]Point2D {
+	return [3]Point2D{
+		vertices[indices[t*3]],
+		vertices[indices[t*3+1]],
+		vertices[indices[t*3+2]],
+	}
+}
+
+// trianglesOverlap reports strict interior overlap: a strict segment
+// crossing of two edges, or a vertex strictly inside the other triangle.
 func trianglesOverlap(tri1, tri2 [3]Point2D) bool {
-	// This is a simplified check - full implementation would be more complex
-	// For now, just check if they share any vertices
-	for _, v1 := range tri1 {
-		for _, v2 := range tri2 {
-			if v1.Equal(v2, 1e-6) {
-				return true // They share a vertex, not an overlap but adjacent
+	for i := 0; i < 3; i++ {
+		a1, a2 := tri1[i], tri1[(i+1)%3]
+		for j := 0; j < 3; j++ {
+			b1, b2 := tri2[j], tri2[(j+1)%3]
+			if properCross(a1, a2, b1, b2) {
+				return true
 			}
 		}
 	}
-
+	for i := 0; i < 3; i++ {
+		if pointInTriangleStrict(tri1[i], tri2[0], tri2[1], tri2[2]) {
+			return true
+		}
+		if pointInTriangleStrict(tri2[i], tri1[0], tri1[1], tri1[2]) {
+			return true
+		}
+	}
 	return false
+}
+
+// properCross reports a proper transversal crossing of the two segments
+// (no shared endpoints, no touching).
+func properCross(a1, a2, b1, b2 Point2D) bool {
+	if a1 == b1 || a1 == b2 || a2 == b1 || a2 == b2 {
+		return false
+	}
+	o1 := Area(a1, a2, b1)
+	o2 := Area(a1, a2, b2)
+	o3 := Area(b1, b2, a1)
+	o4 := Area(b1, b2, a2)
+	return o1 != 0 && o2 != 0 && o3 != 0 && o4 != 0 &&
+		(o1 > 0) != (o2 > 0) && (o3 > 0) != (o4 > 0)
 }

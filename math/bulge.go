@@ -99,9 +99,11 @@ func (b Bulge) Center(start, end Vec2) Vec2 {
 		return midpoint
 	}
 
-	// Direction from midpoint to center
+	// Direction from midpoint to center. A positive (counter-clockwise) bulge
+	// puts the arc to the right of the chord's travel direction, so the centre
+	// lies on the left perpendicular; clockwise mirrors that.
 	dir := end.Sub(start).Perpendicular().Normalized()
-	if !b.IsClockwise() {
+	if b.IsClockwise() {
 		dir = dir.Mul(-1)
 	}
 
@@ -197,12 +199,12 @@ func (b Bulge) BoundingBox(start, end Vec2) (min, max Vec2) {
 	if !b.IsArc() {
 		// Simple line segment bounding box
 		return Vec2{
-				math.Min(start.X(), end.X()),
-				math.Min(start.Y(), end.Y()),
-			}, Vec2{
-				math.Max(start.X(), end.X()),
-				math.Max(start.Y(), end.Y()),
-			}
+			math.Min(start.X(), end.X()),
+			math.Min(start.Y(), end.Y()),
+		}, Vec2{
+			math.Max(start.X(), end.X()),
+			math.Max(start.Y(), end.Y()),
+		}
 	}
 
 	center := b.Center(start, end)

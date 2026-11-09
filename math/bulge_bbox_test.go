@@ -52,8 +52,10 @@ func TestBulgeCenter(t *testing.T) {
 	bulge = NewBulgeFromAngle(math.Pi / 2) // 90 degrees
 	center = bulge.Center(start, end)
 
-	// For a 90-degree arc from (0,0) to (2,0), center should be at (1,-1)
-	arcExpected := Vec2{1, -1}
+	// For a 90-degree arc from (0,0) to (2,0) (positive bulge = arc on the
+	// right of the chord travel, center on the left), the center is at (1,1)
+	// (ezdxf.math.bulge_center).
+	arcExpected := Vec2{1, 1}
 
 	if !center.IsEqual(arcExpected, 1e-9) {
 		t.Errorf("Expected center %v, got %v", arcExpected, center)

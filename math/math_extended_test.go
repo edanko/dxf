@@ -370,7 +370,9 @@ func TestBulgeCenterLocation(t *testing.T) {
 	bulge := NewBulgeFromAngle(math.Pi / 2)
 
 	center := bulge.Center(start, end)
-	expected := Vec2{2, -2}
+	// Positive bulge: arc on the right of the chord travel, center on the
+	// left (ezdxf.math.bulge_center((0,0),(4,0),tan(pi/8)) = (2,2)).
+	expected := Vec2{2, 2}
 
 	if !center.IsEqual(expected, 1e-9) {
 		t.Errorf("Expected center %v, got %v", expected, center)

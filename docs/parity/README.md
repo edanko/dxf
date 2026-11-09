@@ -224,19 +224,20 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
-| Vec2/Vec3, Matrix44, transformations | `math/_vector.py`, `_matrix44.py`, `transformtools.py` | `PARTIAL` |
-| Bounding boxes (2D/3D, extents) | `math/bbox.py`, `bbox.py` | `PARTIAL` |
-| Bezier (3P/4P, derivatives, flattening) | `math/_bezier3p.py`, `_bezier4p.py` | `PARTIAL` |
-| B-spline/NURBS (knots, derivatives, interpolation) | `math/_bspline.py`, `bspline.py`, `cspline.py` | `PARTIAL` |
-| Bulge/arc helpers | `math/bulge.py`, `arc.py` | `PARTIAL` |
-| OCS/UCS | `math/ucs.py`, `concepts/ocs.rst` | `PARTIAL` |
-| Offset 2D | `math/offset2d.py` | `PARTIAL` |
-| Triangulation (earcut, Delaunay) | `math/_mapbox_earcut.py`, `triangulation.py` | `PARTIAL` |
-| Clipping (polygon, line, portal) | `math/clipping.py`, `tools/clipping_portal.py` | `ABSENT`/`STUB` |
-| Shape/construct2d/construct3d | `math/shape.py`, `construct2d.py`, `construct3d.py` | `PARTIAL` |
+| Vec2/Vec3, Matrix44, transformations | `math/_vector.py`, `_matrix44.py`, `transformtools.py` | `DONE` — zero-safe normalization, compose/invert/decompose with singular-matrix errors, WCS/UCS/OCS point/vector/direction round trips (`TestZeroVectorNormalizationIsSafe`, `TestMatrixDecompositionRoundTrip`, `TestSingularMatrixErrors`, `TestUCSPointVectorDirectionRoundTrips`) |
+| Bounding boxes (2D/3D, extents) | `math/bbox.py`, `bbox.py` | `DONE` — union, intersection, containment, size/volume, 2D/3D transforms (`TestBoundingBox2DTransform`, `TestBBox3DOperations`, `TestBBox3DContainsPoint3D`, `TestBBox3DCenter`) |
+| Bezier (3P/4P, derivatives, flattening) | `math/_bezier3p.py`, `_bezier4p.py` | `DONE` — evaluation, derivatives, split, bbox, flattening, arc length (`TestBezier`, `TestBezierTangent`, `TestBezierControlPoints`) |
+| B-spline/NURBS (knots, derivatives, interpolation) | `math/_bspline.py`, `bspline.py`, `cspline.py` | `DONE` — clamped/periodic forms, knot insertion, derivatives, rational circle exactness, Catmull-Rom/BSpline interpolation (`TestClampedBSplineForm`, `TestPeriodicBSplineForm`, `TestInsertKnotPreservesShape`, `TestRationalCircleIsExact`, `TestRationalCircleArcIsExact`, `TestInterpolateBSplinePassesThroughPoints`) |
+| Curve fitting | `math/fit.py`, `cspline.py` | `DONE` — polynomial fit, least-squares circle, interpolation in `math/fit` (`TestFitPolynomialLine`, `TestFitPolynomialParabola`, `TestFitCircleLSQOnSampledCircle`) |
+| Bulge/arc helpers | `math/bulge.py`, `arc.py` | `DONE` — bidirectional bulge/arc/segment conversion; center sign matches ezdxf (positive bulge puts center left of chord travel) (`TestBulgeArcRoundTrip`, `TestBulgeCenterLocation`, `TestBulgeSegmentApproximate`) |
+| OCS/UCS | `math/ucs.py`, `concepts/ocs.rst` | `DONE` — arbitrary-axis rule and angle conversions verified against ezdxf 1.4.6 probes (`TestOCSAxisMatchesEzdxfProbe`, `TestOCSAngleToWCSMatchesEzdxfProbe`, `TestUCSFromEulerAnglesIsOrthogonalAndRightHanded`) |
+| Offset 2D | `math/offset2d.py` | `DONE` — polyline offset with round joins plus Bezier/spline offsets (`TestOffsetPolylineParallelAndJoins`, `TestOffsetBezierAndSplineParallel`) |
+| Triangulation (earcut, Delaunay) | `math/_mapbox_earcut.py`, `triangulation.py` | `PARTIAL` — ear-clip with holes, Delaunay, degenerate-input handling, diagnostics (`TestTriangulatePolygonWithHole`, `TestTriangulateDegenerateInput`). Known gap: a hole floating centered in a polygon merges through a diagonal needle bridge that winds a thin bay outside the clipped ring, leaving an area shortfall that `DiagnoseTriangulation` reports as an area mismatch |
+| Clipping (polygon, line, portal) | `math/clipping.py`, `tools/clipping_portal.py` | `PARTIAL` — polygon clipping to rect/convex windows (`TestClipPolygonToRect`, `TestClipPolygonToConvex`); portal clipping `ABSENT` |
+| Shape/construct2d/3d | `math/shape.py`, `construct2d.py`, `construct3d.py` | `PARTIAL` — construct2d/construct3d helpers incl. 3-point circles, line intersections, point-line distances (`TestConstruct2DCircleFrom3Points`, `TestConstruct3DLineLineIntersection`, `TestConstruct3DTriangleArea`); `Shape` container `ABSENT` |
 | R-tree | `math/rtree.py` | `DONE`-ish (`spatial`) |
-| Perlin noise, clustering, parametrization | `math/perlin.py`, `clustering.py`, `parametrize.py` | `ABSENT`/`STUB` |
-| Intersections, curve tools, legacy math | `math/curvetools.py`, `legacy.py` | `PARTIAL` |
+| Perlin noise, clustering, parametrization | `math/perlin.py`, `clustering.py`, `parametrize.py` | `PARTIAL` — arc-length parametrization `DONE` (`TestParameterizeMonotonic`); Perlin/clustering `ABSENT` |
+| Intersections, curve tools, legacy math | `math/curvetools.py`, `legacy.py` | `DONE` — typed line/segment/Bezier/ray-plane results with parallel, coincident, and tangent handling (`TestIntersectSegmentSegment2D`, `TestIntersectLineBezier2D`, `TestIntersectBezierBezier2D`, `TestIntersectRayPlane`, `TestIntersectLineLine3D`) |
 
 ### 6. Path, rendering, visualization
 

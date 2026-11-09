@@ -34,18 +34,8 @@ func (ocs OCS) ToWCS(point Vec3) Vec3 {
 		return point
 	}
 
-	// Calculate arbitrary X-axis perpendicular to extrusion
-	var xAxis Vec3
-	if math.Abs(ocs.extrusion[0]) < 0.015625 && math.Abs(ocs.extrusion[1]) < 0.015625 {
-		// Extrusion is close to Z-axis, use world Y-axis
-		xAxis = ocs.extrusion.Cross(Vec3{0, 1, 0}).Normalized()
-	} else {
-		// Use world Z-axis
-		xAxis = ocs.extrusion.Cross(Vec3{0, 0, 1}).Normalized()
-	}
-
-	// Y-axis is perpendicular to both extrusion and X-axis
-	yAxis := ocs.extrusion.Cross(xAxis).Normalized()
+	// Plane basis perpendicular to the extrusion (ezdxf OCS.__init__).
+	xAxis, yAxis := ocsPlaneBasis(ocs.extrusion)
 
 	// Transform: point = x*xAxis + y*yAxis + z*extrusion
 	return xAxis.Mul(point[0]).Add(yAxis.Mul(point[1])).Add(ocs.extrusion.Mul(point[2]))
@@ -58,18 +48,8 @@ func (ocs OCS) ToOCS(point Vec3) Vec3 {
 		return point
 	}
 
-	// Calculate arbitrary X-axis perpendicular to extrusion
-	var xAxis Vec3
-	if math.Abs(ocs.extrusion[0]) < 0.015625 && math.Abs(ocs.extrusion[1]) < 0.015625 {
-		// Extrusion is close to Z-axis, use world Y-axis
-		xAxis = ocs.extrusion.Cross(Vec3{0, 1, 0}).Normalized()
-	} else {
-		// Use world Z-axis
-		xAxis = ocs.extrusion.Cross(Vec3{0, 0, 1}).Normalized()
-	}
-
-	// Y-axis is perpendicular to both extrusion and X-axis
-	yAxis := ocs.extrusion.Cross(xAxis).Normalized()
+	// Plane basis perpendicular to the extrusion (ezdxf OCS.__init__).
+	xAxis, yAxis := ocsPlaneBasis(ocs.extrusion)
 
 	// Transform back using dot products
 	return Vec3{
@@ -109,19 +89,12 @@ func (ocs OCS) AngleToWCS(angle float64) float64 {
 		return angle
 	}
 
-	// Calculate arbitrary X-axis perpendicular to extrusion
-	var xAxis Vec3
-	if math.Abs(ocs.extrusion[0]) < 0.015625 && math.Abs(ocs.extrusion[1]) < 0.015625 {
-		// Extrusion is close to Z-axis, use world Y-axis
-		xAxis = ocs.extrusion.Cross(Vec3{0, 1, 0}).Normalized()
-	} else {
-		// Use world Z-axis
-		xAxis = ocs.extrusion.Cross(Vec3{0, 0, 1}).Normalized()
-	}
+	// Plane basis perpendicular to the extrusion (ezdxf OCS.__init__).
+	xAxis, yAxis := ocsPlaneBasis(ocs.extrusion)
 
-	// Transform angle by rotating the X-axis
-	// Calculate angle between transformed X-axis and world X-axis
-	transformedX := xAxis.Mul(math.Cos(angle)).Add(ocs.extrusion.Cross(xAxis).Mul(math.Sin(angle)))
+	// Transform the OCS direction (cos, sin) into WCS and take the angle
+	// of its XY projection: ezdxf OCS.to_wcs(Vec3.from_angle(angle)).
+	transformedX := xAxis.Mul(math.Cos(angle)).Add(yAxis.Mul(math.Sin(angle)))
 
 	return math.Atan2(transformedX[1], transformedX[0])
 }
