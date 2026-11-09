@@ -5,6 +5,7 @@ import (
 	"github.com/edanko/dxf/class"
 	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/header"
+	"github.com/edanko/dxf/lldxf"
 	"github.com/edanko/dxf/object"
 	"github.com/edanko/dxf/table"
 )
@@ -137,6 +138,36 @@ func (d *Drawing) SetRecoveryReport(r *RecoveryReport) { d.recoveryReport = r }
 // RecoveryReport returns the recovery report, or nil for a normal load.
 func (d *Drawing) RecoveryReport() *RecoveryReport { return d.recoveryReport }
 
+// SetSourceVersion sets the source DXF version declaration from the original file.
+func (d *Drawing) SetSourceVersion(v string) { d.sourceVersion = v }
+
+// SourceVersion returns the source DXF version.
+func (d *Drawing) SourceVersion() string { return d.sourceVersion }
+
+// SetNormalizedVersion sets the normalized DXF version (after load normalization).
+func (d *Drawing) SetNormalizedVersion(v string) { d.normalizedVersion = v }
+
+// NormalizedVersion returns the normalized DXF version.
+func (d *Drawing) NormalizedVersion() string { return d.normalizedVersion }
+
+// SetTargetVersion sets the target version for writing (if different from current).
+func (d *Drawing) SetTargetVersion(v string) { d.targetVersion = v }
+
+// TargetVersion returns the target version for writing.
+func (d *Drawing) TargetVersion() string { return d.targetVersion }
+
+// SetCodepage sets the DWG codepage from the source file.
+func (d *Drawing) SetCodepage(p string) { d.codepage = p }
+
+// Codepage returns the DWG codepage.
+func (d *Drawing) Codepage() string { return d.codepage }
+
+// SetConversion records how the document was normalized or converted.
+func (d *Drawing) SetConversion(r *header.ConversionReport) { d.conversion = r }
+
+// Conversion returns the conversion report, or nil if no normalization occurred.
+func (d *Drawing) Conversion() *header.ConversionReport { return d.conversion }
+
 // SetEntityLayer resolves an entity layer by name, falling back to layer 0.
 func (d *Drawing) SetEntityLayer(e entity.Entity, name string) {
 	if e == nil {
@@ -170,9 +201,8 @@ func (d *Drawing) observeHandles() {
 	}
 	for _, b := range d.blocksSection {
 		observe(b.Handle())
-		for _, e := range b.Entities() {
-			observe(e.Handle())
-		}
+		observe(b.EndHandle())
+		observeBlockEntities(b, observe)
 	}
 	for _, e := range d.entitiesSection {
 		observe(e.Handle())
@@ -182,45 +212,97 @@ func (d *Drawing) observeHandles() {
 	}
 }
 
-func (d *Drawing) writeComments(section string) {
-	if d.formatter == nil {
-		return
-	}
-	for _, comment := range d.comments[section] {
-		d.formatter.WriteString(999, comment)
-	}
-}
-
-func (d *Drawing) writeOpaqueSections() {
-	if len(d.opaqueSections) == 0 || d.formatter == nil {
-		return
-	}
-	written := make(map[string]bool)
-	write := func(name string, tags []RawTag) {
-		d.formatter.WriteString(0, "SECTION")
-		d.formatter.WriteString(2, name)
-		for _, tag := range tags {
-			d.formatter.WriteString(tag.Code, tag.Value)
-		}
-		d.formatter.WriteString(0, "ENDSEC")
-		written[name] = true
-	}
-	for _, name := range d.sectionOrder {
-		if tags, ok := d.opaqueSections[name]; ok && !isKnownSection(name) {
-			write(name, tags)
-		}
-	}
-	for name, tags := range d.opaqueSections {
-		if !written[name] && !isKnownSection(name) {
-			write(name, tags)
-		}
-	}
-}
-
 func isKnownSection(name string) bool {
 	switch name {
 	case "HEADER", "CLASSES", "TABLES", "BLOCKS", "ENTITIES", "OBJECTS":
 		return true
 	}
 	return false
+}
+
+// RenameNamesForCodepage re-decodes names of layers, styles, line types, and
+// blocks that were read as raw codepage bytes by the ASCII tagger.
+// observeBlockRecords feeds every handle in the block's retained raw tags to
+// the generator so nested blocks and unbuildable records never collide.
+func observeBlockRecords(b *block.Block, observe func(string)) {
+	for _, t := range b.RawTags() {
+		if t.Code == 5 {
+			observe(t.Value)
+		}
+	}
+}
+
+func observeBlockEntities(b *block.Block, observe func(string)) {
+	for _, e := range b.Entities() {
+		observe(e.Handle())
+		if nb, ok := e.(*block.Block); ok {
+			observe(nb.Handle())
+			observe(nb.EndHandle())
+			observeBlockRecords(nb, observe)
+			observeBlockEntities(nb, observe)
+		}
+	}
+}
+
+func (d *Drawing) RenameNamesForCodepage(codepage string) {
+	decode := func(name string) string {
+		if name == "" {
+			return name
+		}
+		return lldxf.DecodeCodepageBytes([]byte(name), codepage)
+	}
+
+	newLayers := make(map[string]*table.Layer, len(d.Layers))
+	for name, l := range d.Layers {
+		n := decode(name)
+		if n != name {
+			l.SetName(n)
+		}
+		newLayers[n] = l
+	}
+	d.Layers = newLayers
+	if d.CurrentLayer != nil {
+		d.CurrentLayer = d.Layers[decode(d.CurrentLayer.Name())]
+	}
+
+	newStyles := make(map[string]*table.Style, len(d.Styles))
+	for name, st := range d.Styles {
+		n := decode(name)
+		if n != name {
+			st.SetName(n)
+		}
+		newStyles[n] = st
+	}
+	d.Styles = newStyles
+	if d.CurrentStyle != nil {
+		d.CurrentStyle = d.Styles[decode(d.CurrentStyle.Name())]
+	}
+
+	for _, tbl := range d.tablesSection {
+		switch tbl.Name() {
+		case "LAYER":
+			for _, e := range tbl.Entries() {
+				if l, ok := e.(*table.Layer); ok {
+					l.SetName(decode(l.Name()))
+				}
+			}
+		case "STYLE":
+			for _, e := range tbl.Entries() {
+				if st, ok := e.(*table.Style); ok {
+					st.SetName(decode(st.Name()))
+				}
+			}
+		case "LTYPE":
+			for _, e := range tbl.Entries() {
+				if lt, ok := e.(*table.LineType); ok {
+					lt.SetName(decode(lt.Name()))
+				}
+			}
+		}
+	}
+
+	for _, b := range d.blocksSection {
+		b.Name = decode(b.Name)
+		b.Description = decode(b.Description)
+	}
 }

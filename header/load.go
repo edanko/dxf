@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/insunit"
 	"github.com/edanko/dxf/lldxf"
 )
@@ -58,6 +59,14 @@ func tagString(tag lldxf.Tag) string {
 	return fmt.Sprintf("%v", tag.Value())
 }
 
+// firstString returns the value of the first tag formatted as a string.
+func firstString(tags lldxf.Tags) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	return tagString(tags[0])
+}
+
 // ParseTyped fills the typed fields of h from a HEADER tag stream.
 func ParseTyped(tags lldxf.Tags) *Header {
 	h := Parse(tags)
@@ -67,7 +76,21 @@ func ParseTyped(tags lldxf.Tags) *Header {
 		switch name {
 		case "$ACADVER":
 			if v := firstString(values); v != "" {
-				h.Version = v
+				h.SourceVersion = v
+				normalized, changed := format.NormalizeVersion(v)
+				h.Version = normalized
+				h.NormalizedVersion = normalized
+				if changed {
+					h.Conversion = &ConversionReport{
+						SourceVersion:     v,
+						NormalizedVersion: normalized,
+						Converted:         []string{"$ACADVER"},
+					}
+				}
+			}
+		case "$DWGCODEPAGE":
+			if v := firstString(values); v != "" {
+				h.Codepage = v
 			}
 		case "$INSBASE":
 			h.InsBase = coords(values, 10, 3)
@@ -105,13 +128,6 @@ func ParseTyped(tags lldxf.Tags) *Header {
 	}
 	flush()
 	return h
-}
-
-func firstString(tags lldxf.Tags) string {
-	for _, tag := range tags {
-		return tagString(tag)
-	}
-	return ""
 }
 
 func firstInt(tags lldxf.Tags) (int, bool) {

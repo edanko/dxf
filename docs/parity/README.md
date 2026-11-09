@@ -116,7 +116,7 @@ must be verified before implementation starts.
 
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
-| New document, version selection | `document.py`, `sections/header.py` | `PARTIAL` — fixed AC1015 default, `header.Version` settable |
+| New document, version selection | `document.py`, `sections/header.py` | `DONE` — R12–R2018 profiles (`format/version.go`), `$ACADVER` detection, normalization, target-version save (`TestVersionProfiles`, `TestSaveToTargetVersion`) |
 | HEADER variables (all `$...`) | `lldxf/hdrvars.py`, `sections/headervars.py` | `PARTIAL` — typed core set; other variables retained in `Header.Extra` and re-emitted (`dxf_io_core_test.go`) |
 | CLASSES section | `sections/classes.py` | `DONE` — parsed and re-emitted (`TestClassesRoundTrip`) |
 | TABLES section + all entries | `sections/tables.py`, `tables/*` | `PARTIAL` — all entry types parsed; unknown entries retained raw |
@@ -129,9 +129,9 @@ must be verified before implementation starts.
 | Load/save round trip | `document.py` | `DONE` — all 51 `testdata/*.dxf` round-trip with matching inventories (`TestCorpusRoundTrip`) |
 | Recover mode | `recover.py` | `PARTIAL` — missing ENDSEC/EOF and tagger errors recovered with a report (`TestRecoveryLoadsTruncatedDocument`) |
 | Comments (`999`) | `comments.py` | `PARTIAL` — preserved per section and re-emitted at section start; original position is not retained (`TestCommentsArePreservedUnlessStripped`) |
-| R12 strict mode | `r12strict.py` | `ABSENT` |
-| Binary DXF read/write | `lldxf/tagger.py`, `tagwriter.py` | `PARTIAL` |
-| Encoding/codepage handling | `lldxf/encoding.py`, `tools/codepage.py` | `PARTIAL` |
+| R12 strict mode | `r12strict.py` | `DONE` — sanitizer drops non-R12 tables/entities/layers, true-color header variables, records conversion report (`TestR12Downgrade`, `drawing/r12strict.go`) |
+| Binary DXF read/write | `lldxf/tagger.py`, `tagwriter.py` | `DONE` — binary writer emits all sections + EOF with per-code int16/int32/int64/float/raw sizing; ASCII/binary tag streams are value-identical (`TestBinaryASCIIEquivalence`) |
+| Encoding/codepage handling | `lldxf/encoding.py`, `tools/codepage.py` | `DONE` — codepage-aware decode on load (ANSI_1252 etc.), UTF-8 for R2007+, codepage output for older targets (`TestCodepageDecoding`, `TestUTF8AndCodepageOutput`) |
 | File management (temp/backup/zip) | `filemanagement.py`, `tools/zipmanager.py` | `ABSENT` |
 
 ### 2. Entities
@@ -380,5 +380,6 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-08 | proposals 1–13 | created | All 13 changes scaffolded with proposal, delta spec, design, and tasks; `openspec validate --changes --strict` passes (13/13) |
 | 2026-11-08 | implementation | not started | Begin with change 1 (`dxf-io-core-parity`) via `/opsx-apply`; do not build on the WIP `parser.go` helpers |
 | 2026-11-08 | change 1 `dxf-io-core-parity` | done | Two-phase load/bind: `documentBinder` binds HEADER/CLASSES/TABLES/BLOCKS/ENTITIES/OBJECTS; raw-tag retention; opaque sections; comments; recovery; writer section order and unique handles. All 51 fixtures round-trip. Remaining differences: unknown tags on known table entries/blocks/typed objects are partially dropped, comments emit at section start, binary writer unchanged until change 2. Tests: `dxf_io_core_test.go`, `corpus_roundtrip_test.go`, `fuzz_core_test.go`. |
+| 2026-11-09 | change 2 `dxf-version-encoding-parity` | done | Version profiles R12–R2018 (`format/version.go`); `$ACADVER` detect/normalize; target-version save with conversion report; R12 sanitizer incl. true-color header variables; codepage-aware load + UTF-8/codepage output; binary writer completed (all sections, EOF, signature, per-code int16/int32/int64 sizing, bool codes as int16 flags) — ASCII and binary tag streams now value-identical on `columns_R2018.dxf` (7734 tags). Fixed code-class lists in `lldxf/tags.go` (string codes 100–109, bool 290–299, int64 160–169) and the binary tagger read path. Tests: `version_encoding_test.go`. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

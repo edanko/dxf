@@ -14,6 +14,8 @@ type Dictionary struct {
 
 	// Dictionary entries
 	entries map[string]*DictionaryEntry
+	// entryOrder keeps insertion order for deterministic output.
+	entryOrder []string
 
 	// Default entry (for DictionaryWithDefault)
 	DefaultEntry *DictionaryEntry `dxf:"340"` // Handle to default entry
@@ -77,6 +79,9 @@ func (d *Dictionary) AddEntry(key string, value string) {
 		Key:   key,
 		Value: value,
 	}
+	if _, exists := d.entries[key]; !exists {
+		d.entryOrder = append(d.entryOrder, key)
+	}
 	d.entries[key] = entry
 }
 
@@ -109,6 +114,12 @@ func (d *Dictionary) GetEntry(key string) (*DictionaryEntry, bool) {
 // RemoveEntry removes an entry from the dictionary
 func (d *Dictionary) RemoveEntry(key string) {
 	delete(d.entries, key)
+	for i, k := range d.entryOrder {
+		if k == key {
+			d.entryOrder = append(d.entryOrder[:i], d.entryOrder[i+1:]...)
+			break
+		}
+	}
 }
 
 // GetEntries returns all dictionary entries
@@ -161,8 +172,12 @@ func (d *Dictionary) Format(f format.Formatter) {
 		f.WriteString(330, d.Owner)
 	}
 
-	// Write dictionary entries
-	for key, entry := range d.entries {
+	// Write dictionary entries in insertion order for deterministic output.
+	for _, key := range d.entryOrder {
+		entry, ok := d.entries[key]
+		if !ok {
+			continue
+		}
 		f.WriteString(3, key)           // Entry name
 		f.WriteString(350, entry.Value) // Soft-owner handle
 	}

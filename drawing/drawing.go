@@ -44,6 +44,14 @@ type Drawing struct {
 	comments       map[string][]string
 	recoveryReport *RecoveryReport
 
+	sourceVersion     string
+	normalizedVersion string
+	targetVersion     string
+	codepage          string
+	conversion        *header.ConversionReport
+	writingBinary     bool
+	writeVersion      string
+
 	dictionary *object.Dictionary
 	groupdict  *object.Dictionary
 	PlotStyle  handle.Handler
@@ -264,13 +272,24 @@ func (d *Drawing) WriteBinaryTo(w io.Writer) (n int64, err error) {
 	if d == nil {
 		return 0, nil
 	}
+	d.writingBinary = true
+	defer func() { d.writingBinary = false }()
 
-	// Create binary formatter with appropriate version
-	version := "AC1021" // Default to R2004
-	if d.formatter != nil {
-		version = d.formatter.Version()
+	target, err := d.resolveWriteVersion()
+	if err != nil {
+		return 0, err
 	}
-	binaryFormatter := format.NewBinary(version)
+
+	binaryFormatter := format.NewBinary(target)
+	if cpd, ok := interface{}(binaryFormatter).(interface{ SetCodepage(string) }); ok {
+		if format.Profile(target).UTF8 {
+			cpd.SetCodepage("")
+		} else if d.codepage != "" {
+			cpd.SetCodepage(d.codepage)
+		}
+	}
+
+	binaryFormatter.Reset()
 
 	// Write binary DXF signature
 	if err := binaryFormatter.WriteSignature(); err != nil {
@@ -279,28 +298,30 @@ func (d *Drawing) WriteBinaryTo(w io.Writer) (n int64, err error) {
 
 	d.setHandle()
 
-	// Format all sections with binary formatter
-	d.headerSection.Format(binaryFormatter)
-	d.classesSection.Format(binaryFormatter)
-	d.tablesSection.Format(binaryFormatter)
-	d.blocksSection.Format(binaryFormatter)
-	d.entitiesSection.Format(binaryFormatter)
-	d.objectsSection.Format(binaryFormatter)
+	r12 := target == format.AC1009
+	var dropped []string
+	for _, sec := range d.writePlan() {
+		if sec.guard && !format.Profile(target).SupportsObjects {
+			continue
+		}
+		emit := sec.emit
+		if r12 && sec.sanitize != nil {
+			emit = sec.sanitize(&dropped)
+		}
+		d.writeCommentsTo(binaryFormatter, sec.name)
+		emit(binaryFormatter)
+	}
+	d.writeOpaqueSectionsTo(binaryFormatter)
 
 	binaryFormatter.WriteString(0, "EOF")
-
-	// Get binary data and write to output writer
-	binaryData := binaryFormatter.Output()
-	if binaryData == "" {
-		return 0, nil
+	if len(dropped) > 0 {
+		d.recordConversionDrop(target, dropped)
 	}
-
-	bytesWritten, err := io.WriteString(w, binaryData)
-	if err != nil {
-		return int64(bytesWritten), err
+	total := binaryFormatter.BytesWritten()
+	if _, err := binaryFormatter.WriteTo(w); err != nil {
+		return 0, err
 	}
-
-	return int64(bytesWritten), nil
+	return int64(total), nil
 }
 
 // Enhanced Entity Management Methods
@@ -967,32 +988,146 @@ func (d *Drawing) AddToGroup(name string, es ...entity.Entity) error {
 	return fmt.Errorf("group %s doesn't exist", name)
 }
 
-// WriteTo write the dxf file data to the given writer until
-// there is no more data to write or if an error occurs. The return
-// value n is the number of bytes writer.
-// This method full fills the io.WriterTo interface.
+// writeSection is one section of a document write pass.
+type writeSection struct {
+	name  string
+	emit  func(f format.Formatter)
+	guard bool // skip when the target version does not support it (R12)
+	// sanitize, when set, replaces the emit function for restricted targets
+	// (R12) and records dropped content in the conversion report.
+	sanitize func(dropped *[]string) func(f format.Formatter)
+}
+
+// writePlan returns the sections to emit, in order.
+func (d *Drawing) writePlan() []writeSection {
+	return []writeSection{
+		{name: "HEADER", emit: func(ff format.Formatter) {
+			d.headerSection.FormatAt(ff, d.writeVersion)
+		}},
+		{name: "CLASSES", emit: func(ff format.Formatter) { d.classesSection.Format(ff) }, guard: true},
+		{name: "TABLES", emit: func(ff format.Formatter) { d.tablesSection.Format(ff) }, sanitize: d.sanitizeTables},
+		{name: "BLOCKS", emit: func(ff format.Formatter) { d.blocksSection.Format(ff) }, sanitize: d.sanitizeBlocks},
+		{name: "ENTITIES", emit: func(ff format.Formatter) { d.entitiesSection.Format(ff) }, sanitize: d.sanitizeEntities},
+		{name: "OBJECTS", emit: func(ff format.Formatter) { d.objectsSection.Format(ff) }, guard: true},
+	}
+}
+
+// writeCommentsTo writes retained code 999 comments for a section.
+func (d *Drawing) writeCommentsTo(f format.Formatter, section string) {
+	for _, comment := range d.comments[section] {
+		f.WriteString(999, comment)
+	}
+}
+
+// writeOpaqueSectionsTo appends retained opaque sections to f.
+func (d *Drawing) writeOpaqueSectionsTo(f format.Formatter) {
+	if len(d.opaqueSections) == 0 {
+		return
+	}
+	written := make(map[string]bool)
+	write := func(name string, tags []RawTag) {
+		f.WriteString(0, "SECTION")
+		f.WriteString(2, name)
+		for _, tag := range tags {
+			f.WriteString(tag.Code, tag.Value)
+		}
+		f.WriteString(0, "ENDSEC")
+		written[name] = true
+	}
+	for _, name := range d.sectionOrder {
+		if tags, ok := d.opaqueSections[name]; ok && !isKnownSection(name) {
+			write(name, tags)
+		}
+	}
+	for name, tags := range d.opaqueSections {
+		if !written[name] && !isKnownSection(name) {
+			write(name, tags)
+		}
+	}
+}
+
+// resolveWriteVersion determines the version to write and records a
+// conversion report when the normalized source differs from the target.
+func (d *Drawing) resolveWriteVersion() (string, error) {
+	target := d.targetVersion
+	if target == "" && d.headerSection != nil {
+		target = d.headerSection.Version
+	}
+	if target == "" {
+		return format.AC1015, nil
+	}
+	if !format.IsSupportedVersion(target) {
+		return "", fmt.Errorf("unsupported target DXF version %q", target)
+	}
+	if !format.Profile(target).SupportsBinary && d.writingBinary {
+		return "", fmt.Errorf("DXF version %s does not support binary output, use ASCII", target)
+	}
+	d.writeVersion = target
+	if d.codepage != "" && d.headerSection != nil {
+		d.headerSection.Codepage = d.codepage
+	}
+	normalized := d.normalizedVersion
+	if normalized == "" && d.headerSection != nil {
+		normalized = d.headerSection.Version
+	}
+	if normalized != "" && normalized != target {
+		d.conversion = &header.ConversionReport{
+			SourceVersion:     normalized,
+			NormalizedVersion: target,
+			Converted:         []string{"$ACADVER"},
+		}
+	}
+	return target, nil
+}
+
+// WriteTo writes the drawing in ASCII DXF format to w.
 func (d *Drawing) WriteTo(w io.Writer) (n int64, err error) {
 	if d == nil {
 		return 0, nil
 	}
-	d.setHandle()
-	d.formatter.Reset()
-	d.writeComments("HEADER")
-	d.headerSection.Format(d.formatter)
-	d.writeComments("CLASSES")
-	d.classesSection.Format(d.formatter)
-	d.writeComments("TABLES")
-	d.tablesSection.Format(d.formatter)
-	d.writeComments("BLOCKS")
-	d.blocksSection.Format(d.formatter)
-	d.writeComments("ENTITIES")
-	d.entitiesSection.Format(d.formatter)
-	d.writeComments("OBJECTS")
-	d.objectsSection.Format(d.formatter)
-	d.writeOpaqueSections()
+	target, err := d.resolveWriteVersion()
+	if err != nil {
+		return 0, err
+	}
+	f := d.formatter
+	if f == nil {
+		f = format.NewASCII()
+		d.formatter = f
+	}
+	if sv, ok := f.(interface{ SetVersion(string) }); ok {
+		sv.SetVersion(target)
+	}
+	if cpd, ok := f.(interface{ SetCodepage(string) }); ok {
+		if format.Profile(target).UTF8 {
+			cpd.SetCodepage("")
+		} else if d.codepage != "" {
+			cpd.SetCodepage(d.codepage)
+		}
+	}
 
-	d.formatter.WriteString(0, "EOF")
-	return d.formatter.WriteTo(w)
+	d.setHandle()
+	f.Reset()
+	profile := format.Profile(f.Version())
+	r12 := f.Version() == format.AC1009
+	var dropped []string
+	for _, sec := range d.writePlan() {
+		if sec.guard && !profile.SupportsObjects {
+			continue
+		}
+		emit := sec.emit
+		if r12 && sec.sanitize != nil {
+			emit = sec.sanitize(&dropped)
+		}
+		d.writeCommentsTo(f, sec.name)
+		emit(f)
+	}
+	d.writeOpaqueSectionsTo(f)
+
+	f.WriteString(0, "EOF")
+	if len(dropped) > 0 {
+		d.recordConversionDrop(targetOf(f), dropped)
+	}
+	return f.WriteTo(w)
 }
 
 var _ io.WriterTo = &Drawing{}

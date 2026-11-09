@@ -23,6 +23,9 @@ type DXFTag struct {
 	value interface{}
 }
 
+// SetValue replaces the tag's value.
+func (t *DXFTag) SetValue(v interface{}) { t.value = v }
+
 // NewDXFTag creates a new DXF tag with automatic type casting
 func NewDXFTag(code GroupCode, value interface{}) Tag {
 	// Special case: if value is already a coordinate array and code is a point code, preserve it
@@ -287,9 +290,6 @@ func isInt32Code(code GroupCode) bool {
 	// Based on DXF specification
 	int32Codes := []GroupCode{
 		90, 91, 92, 93, 94, 95, 96, 97, 98, 99, // Counts, handles
-		100, 101, 102, 103, 104, // String codes (actually stored as string)
-		105,                // Handle
-		106, 107, 108, 109, // String codes
 		420, 421, 422, 423, 424, 425, 426, 427, 428, 429, // Annotation related
 		430, 431, 432, 433, 434, 435, 436, 437, 438, 439, // Dictionary handles
 		440, 441, 442, 443, 444, 445, 446, 447, 448, 449, // More ints
@@ -309,8 +309,7 @@ func isInt64Code(code GroupCode) bool {
 	// Group codes that typically contain 64-bit integers
 	// Based on DXF specification
 	int64Codes := []GroupCode{
-		160, 161, 162, 163, 164, 165, 166, 167, 168, 169, // Lengths, counts
-		170, 171, 172, 173, 174, 175, 176, 177, 178, 179, // Moved to int16
+		160, 161, 162, 163, 164, 165, 166, 167, 168, 169, // Lengths, counts (int64 in binary DXF)
 	}
 	for _, c := range int64Codes {
 		if code == c {
@@ -422,4 +421,47 @@ func castToBinary(value interface{}) []byte {
 	default:
 		return []byte(fmt.Sprintf("%v", v))
 	}
+}
+
+// BinaryValueKind classifies how a group code's value is encoded in binary DXF.
+type BinaryValueKind int
+
+const (
+	BinaryString BinaryValueKind = iota // null-terminated UTF-16LE string
+	BinaryFloat                         // 64-bit double
+	BinaryInt16                         // 16-bit little-endian integer
+	BinaryInt32                         // 32-bit little-endian integer
+	BinaryInt64                         // 64-bit little-endian integer
+	BinaryRaw                           // int32 byte count followed by raw bytes
+)
+
+// BinaryKindFor returns the binary encoding kind for a group code, matching
+// castTagValue: the value type a tag holds after casting is determined here.
+func BinaryKindFor(code GroupCode) BinaryValueKind {
+	switch {
+	case isBinaryDataCode(code):
+		return BinaryRaw
+	case isFloatCode(code):
+		return BinaryFloat
+	case isInt64Code(code):
+		return BinaryInt64
+	case isInt32Code(code):
+		return BinaryInt32
+	case isInt16Code(code):
+		return BinaryInt16
+	case IsBinaryBoolCode(code):
+		return BinaryInt16
+	default:
+		return BinaryString
+	}
+}
+
+// IsBinaryBoolCode reports whether a code stores a boolean (as int16) in binary DXF.
+func IsBinaryBoolCode(code GroupCode) bool {
+	for c := GroupCode(290); c <= GroupCode(299); c++ {
+		if code == c {
+			return true
+		}
+	}
+	return false
 }

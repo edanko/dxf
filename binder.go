@@ -1,6 +1,7 @@
 package dxf
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"sort"
@@ -57,7 +58,15 @@ func newDocumentBinder(d *drawing.Drawing, loader *lldxf.Loader, options *LoadOp
 }
 
 // FromReaderWithOptions parses a DXF document with explicit load options.
+// Binary DXF input (detected by signature) is routed to the binary parser.
 func FromReaderWithOptions(r io.Reader, options *LoadOptions) (*drawing.Drawing, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	if lldxf.IsBinaryDXF(data) {
+		return FromBinaryReaderWithOptions(bytes.NewReader(data), options)
+	}
 	if options == nil {
 		options = defaultLoadOptions()
 	}
@@ -66,7 +75,7 @@ func FromReaderWithOptions(r io.Reader, options *LoadOptions) (*drawing.Drawing,
 		return nil, err
 	}
 
-	tagger := lldxf.NewASCIITagger(r)
+	tagger := lldxf.NewASCIITagger(bytes.NewReader(data))
 	var allTags lldxf.Tags
 	for tagger.Next() {
 		tag := tagger.Tag()
@@ -110,8 +119,35 @@ func FromReaderWithOptions(r io.Reader, options *LoadOptions) (*drawing.Drawing,
 		}
 		report.Issues = append(report.Issues, err.Error())
 	}
+	if cp := d.Codepage(); cp != "" && !format.Profile(d.NormalizedVersion()).UTF8 {
+		redecodeStrings(loader, d, cp)
+	}
 	d.SetRecoveryReport(report)
 	return d, nil
+}
+
+// redecodeStrings re-decodes string tag contents that the ASCII tagger read
+// as raw bytes, using the document's declared codepage. It runs after the
+// header is bound so $DWGCODEPAGE is known, and renames loaded layers, styles,
+// line types, and blocks whose names contain codepage bytes.
+func redecodeStrings(loader *lldxf.Loader, d *drawing.Drawing, codepage string) {
+	for _, tags := range loader.GetSections() {
+		for _, tag := range tags {
+			v, ok := tag.Value().(string)
+			if !ok || v == "" {
+				continue
+			}
+			t, ok := tag.(*lldxf.DXFTag)
+			if !ok {
+				continue
+			}
+			decoded := lldxf.DecodeCodepageBytes([]byte(v), codepage)
+			if decoded != v {
+				t.SetValue(decoded)
+			}
+		}
+	}
+	d.RenameNamesForCodepage(codepage)
 }
 
 // FromBinaryReaderWithOptions parses a binary DXF document with explicit load options.
@@ -124,7 +160,11 @@ func FromBinaryReaderWithOptions(r io.Reader, options *LoadOptions) (*drawing.Dr
 		return nil, err
 	}
 
-	tagger := lldxf.NewBinaryTagger(r)
+	data, rerr := io.ReadAll(r)
+	if rerr != nil {
+		return nil, fmt.Errorf("failed to read binary DXF: %w", rerr)
+	}
+	tagger, codepage := newEncodingBinaryTaggerFromBytes(data)
 	var allTags lldxf.Tags
 	for tagger.Next() {
 		tag := tagger.Tag()
@@ -161,6 +201,9 @@ func FromBinaryReaderWithOptions(r io.Reader, options *LoadOptions) (*drawing.Dr
 
 	binder := newDocumentBinder(d, loader, options)
 	binder.report = report
+	if codepage != "" && d.Codepage() == "" {
+		d.SetCodepage(codepage)
+	}
 	if err := binder.bind(); err != nil {
 		if !options.Recover {
 			return nil, fmt.Errorf("failed to build drawing: %w", err)
@@ -169,6 +212,63 @@ func FromBinaryReaderWithOptions(r io.Reader, options *LoadOptions) (*drawing.Dr
 	}
 	d.SetRecoveryReport(report)
 	return d, nil
+}
+
+// newEncodingBinaryTagger creates a binary tagger whose string decoding is
+// selected from the file's $ACADVER and $DWGCODEPAGE declarations. It returns
+// the tagger and the codepage it was configured with.
+func newEncodingBinaryTaggerFromBytes(data []byte) (*lldxf.BinaryTagger, string) {
+	version, codepage := scanBinaryHeaderBytes(data)
+	utf8 := format.Profile(version).UTF8
+	if !utf8 && codepage == "" {
+		codepage = "ANSI_1252"
+	}
+	bt := lldxf.NewBinaryTaggerFromBytes(data)
+	bt.SetBinaryEncoding(codepage, utf8)
+	return bt, codepage
+}
+
+// scanBinaryHeader decodes the leading tags of a binary DXF stream and
+// returns the declared $ACADVER and $DWGCODEPAGE values.
+func scanBinaryHeaderBytes(data []byte) (version, codepage string) {
+	bt := lldxf.NewBinaryTaggerFromBytes(data)
+	for i := 0; i < 64 && bt.Next(); i++ {
+		tag := bt.Tag()
+		name := strings.ToUpper(tagStringValue(tag))
+		if name == "$ACADVER" {
+			if bt.Next() {
+				version = tagStringValue(bt.Tag())
+			}
+			break
+		}
+	}
+	bt2 := lldxf.NewBinaryTaggerFromBytes(data)
+	for i := 0; i < 128 && bt2.Next(); i++ {
+		tag := bt2.Tag()
+		if strings.ToUpper(tagStringValue(tag)) == "$DWGCODEPAGE" {
+			if bt2.Next() {
+				codepage = tagStringValue(bt2.Tag())
+			}
+			break
+		}
+	}
+	return version, codepage
+}
+
+// ioTaggerReader lets the binary tagger stop after a bounded number of tags:
+// it reports EOF once the budget is exhausted.
+type ioTaggerReader struct {
+	data []byte
+	pos  int
+}
+
+func (r *ioTaggerReader) Read(p []byte) (int, error) {
+	if r.pos >= len(r.data) {
+		return 0, io.EOF
+	}
+	n := copy(p, r.data[r.pos:])
+	r.pos += n
+	return n, nil
 }
 
 func (b *documentBinder) bind() error {
@@ -206,6 +306,12 @@ func (b *documentBinder) bindHeader() {
 	}
 	h := header.ParseTyped(tags)
 	b.d.SetHeader(h)
+	b.d.SetSourceVersion(h.SourceVersion)
+	b.d.SetNormalizedVersion(h.NormalizedVersion)
+	if h.Codepage != "" {
+		b.d.SetCodepage(h.Codepage)
+	}
+	b.d.SetConversion(h.Conversion)
 }
 
 func (b *documentBinder) bindClasses() {
@@ -224,6 +330,82 @@ func (b *documentBinder) bindTables() {
 	b.d.SetTables(table.ParseTables(tags))
 }
 
+// readBlock parses one BLOCK...ENDBLK record starting at *i, consuming nested
+// blocks recursively, and advances *i past the ENDBLK terminator.
+func (b *documentBinder) readBlock(tags lldxf.Tags, i *int) *block.Block {
+	blockTags := lldxf.Tags{tags[*i]}
+	*i++
+	for *i < len(tags) && tags[*i].Code() != 0 {
+		blockTags = append(blockTags, tags[*i])
+		*i++
+	}
+	blk := b.parseBlockHeader(blockTags)
+	var endTags lldxf.Tags
+	rawStream := lldxf.Tags{}
+	rawStream = append(rawStream, blockTags...)
+	for *i < len(tags) {
+		if isDXFTag(tags[*i], 0, "ENDBLK") {
+			endTags = append(endTags, tags[*i])
+			*i++
+			for *i < len(tags) && tags[*i].Code() != 0 {
+				endTags = append(endTags, tags[*i])
+				*i++
+			}
+			blk.SetEndHandleString(endTags.GetHandle())
+			rawStream = append(rawStream, endTags...)
+			break
+		}
+		if isDXFTag(tags[*i], 0, "SECTION") || isDXFTag(tags[*i], 0, "ENDSEC") {
+			break
+		}
+		if isDXFTag(tags[*i], 0, "BLOCK") {
+			start := *i
+			nested := b.readBlock(tags, i)
+			if nested != nil {
+				blk.AddEntity(nested)
+				rawStream = append(rawStream, tags[start:*i]...)
+			}
+			continue
+		}
+		if tags[*i].Code() == 0 {
+			start := *i
+			entityTags := lldxf.Tags{tags[*i]}
+			*i++
+			for *i < len(tags) && tags[*i].Code() != 0 {
+				entityTags = append(entityTags, tags[*i])
+				*i++
+			}
+			e := b.buildEntity(entityTags)
+			if e == nil {
+				rawStream = append(rawStream, tags[start:*i]...)
+				continue // Unbuildable record: raw tags retained in stream.
+			}
+			blk.AddEntity(asBlockEntity(e))
+			if len(entityTags) == *i-start {
+				rawStream = append(rawStream, tags[start:*i]...)
+			} else {
+				rawStream = append(rawStream, entityTags...)
+			}
+			continue
+		}
+		*i++
+	}
+	blk.SetRawTags(toBlockTagPairs(rawStream))
+	return blk
+}
+
+func pairToTag(code int, value string) lldxf.Tag {
+	return lldxf.NewDXFTag(lldxf.GroupCode(code), value)
+}
+
+func toBlockTagPairs(tags lldxf.Tags) []block.TagPair {
+	out := make([]block.TagPair, 0, len(tags))
+	for _, t := range tags {
+		out = append(out, block.TagPair{Code: int(t.Code()), Value: tagStringValue(t)})
+	}
+	return out
+}
+
 func (b *documentBinder) bindBlocks() {
 	tags := b.loader.GetSection(lldxf.SectionBlocks)
 	if len(tags) == 0 {
@@ -236,44 +418,30 @@ func (b *documentBinder) bindBlocks() {
 			i++
 			continue
 		}
-		blockTags := lldxf.Tags{tags[i]}
-		i++
-		for i < len(tags) && tags[i].Code() != 0 {
-			blockTags = append(blockTags, tags[i])
-			i++
-		}
-		blk := b.parseBlockHeader(blockTags)
-		for i < len(tags) {
-			if isDXFTag(tags[i], 0, "ENDBLK") {
-				endTags := lldxf.Tags{tags[i]}
-				i++
-				for i < len(tags) && tags[i].Code() != 0 {
-					endTags = append(endTags, tags[i])
-					i++
-				}
-				blk.SetEndHandleString(endTags.GetHandle())
-				break
-			}
-			if tags[i].Code() == 0 {
-				// Entity inside the block.
-				entityTags := lldxf.Tags{tags[i]}
-				i++
-				for i < len(tags) && tags[i].Code() != 0 {
-					entityTags = append(entityTags, tags[i])
-					i++
-				}
-				e := b.buildEntity(entityTags)
-				if e != nil {
-					blk.AddEntity(e)
-				}
-				continue
-			}
-			i++
-		}
-		blocks = append(blocks, blk)
+		blocks = append(blocks, b.readBlock(tags, &i))
 	}
 	b.d.SetBlocks(blocks)
 }
+
+// asBlockEntity adapts an entity.Entity to block.BlockEntity. All library
+// entities, including GenericEntity, satisfy the interface directly; external
+// implementations that do not are wrapped with a minimal adapter.
+func asBlockEntity(e entity.Entity) block.BlockEntity {
+	if be, ok := e.(block.BlockEntity); ok {
+		return be
+	}
+	return &blockEntityAdapter{Entity: e}
+}
+
+// blockEntityAdapter supplies the raw-tag methods for entities that lack them.
+type blockEntityAdapter struct {
+	entity.Entity
+	raw []block.TagPair
+}
+
+func (a *blockEntityAdapter) RawTags() []block.TagPair { return a.raw }
+
+func (a *blockEntityAdapter) SetRawTags(tags []block.TagPair) { a.raw = tags }
 
 func (b *documentBinder) parseBlockHeader(tags lldxf.Tags) *block.Block {
 	name := tagValueString(tags, 2)

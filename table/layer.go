@@ -76,6 +76,9 @@ func (l *Layer) Name() string {
 	return l.name
 }
 
+// SetName sets the layer name.
+func (l *Layer) SetName(name string) { l.name = name }
+
 // SetLineWidth sets line width.
 // As DXF has limitation in line width,
 // it returns the actual value set to Layer.
@@ -104,6 +107,9 @@ func (l *Layer) SetLineWidth(w int) int {
 	l.lineWidth = minkey
 	return minkey
 }
+
+// LineWidth returns the layer line width code (negative values are defaults).
+func (l *Layer) LineWidth() int { return l.lineWidth }
 
 // SetPlotStyle sets plot style by a handle.
 func (l *Layer) SetPlotStyle(ps handle.Handler) {

@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"unicode/utf16"
 	"unsafe"
 )
 
@@ -25,6 +24,7 @@ type BinaryLoader struct {
 	pos      int
 	version  string
 	encoding string
+	utf8     bool
 }
 
 // NewBinaryLoader creates a new binary DXF loader
@@ -94,6 +94,10 @@ func (bl *BinaryLoader) detectVersion() error {
 				}
 			}
 		}
+	}
+
+	if bl.encoding == "utf8" {
+		bl.utf8 = true
 	}
 
 	bl.pos = 22 // Reset position after detection
@@ -271,32 +275,33 @@ func (bl *BinaryLoader) Next() (*BinaryTag, error) {
 	}, nil
 }
 
-// readString reads a null-terminated UTF-16LE string
+// readString reads a null-terminated string: single-byte characters decoded
+// as UTF-8 (R2007+) or the declared codepage, matching the binary writer.
 func (bl *BinaryLoader) readString() (string, error) {
 	if bl.pos >= len(bl.data) {
 		return "", fmt.Errorf("unexpected end of file reading string")
 	}
 
-	// Read UTF-16 characters until null terminator
-	var utf16Data []uint16
+	var raw []byte
 	for {
-		if bl.pos+2 > len(bl.data) {
+		if bl.pos >= len(bl.data) {
 			return "", fmt.Errorf("unexpected end of file in string")
 		}
 
-		char := binary.LittleEndian.Uint16(bl.data[bl.pos : bl.pos+2])
-		bl.pos += 2
+		b := bl.data[bl.pos]
+		bl.pos++
 
-		if char == 0 {
+		if b == 0 {
 			break
 		}
 
-		utf16Data = append(utf16Data, char)
+		raw = append(raw, b)
 	}
 
-	// Convert UTF-16 to Go string
-	runes := utf16.Decode(utf16Data)
-	return string(runes), nil
+	if bl.utf8 {
+		return string(raw), nil
+	}
+	return DecodeCodepageBytes(raw, bl.encoding), nil
 }
 
 // readFloat reads a 64-bit double precision float
@@ -344,15 +349,16 @@ func (bl *BinaryLoader) readBoolean() (bool, error) {
 	return val != 0, nil
 }
 
-// readBinaryData reads binary data for codes 310-319
+// readBinaryData reads binary data for codes 310-319: a one-byte length
+// followed by the raw bytes, matching AutoCAD Binary DXF.
 func (bl *BinaryLoader) readBinaryData() ([]byte, error) {
-	if bl.pos+4 > len(bl.data) {
+	if bl.pos+1 > len(bl.data) {
 		return nil, fmt.Errorf("unexpected end of file reading binary data length")
 	}
 
-	// Read length as int32
-	length := int(binary.LittleEndian.Uint32(bl.data[bl.pos : bl.pos+4]))
-	bl.pos += 4
+	// Read length as a single byte
+	length := int(bl.data[bl.pos])
+	bl.pos++
 
 	if bl.pos+length > len(bl.data) {
 		return nil, fmt.Errorf("unexpected end of file reading binary data")

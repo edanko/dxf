@@ -11,6 +11,7 @@ import (
 	"github.com/edanko/dxf/drawing"
 	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/insunit"
+	dxfmath "github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/table"
 )
 
@@ -1045,5 +1046,268 @@ func ParseSolid(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 
 // ParseObjects parses OBJECTS section.
 func ParseObjects(d *drawing.Drawing, line int, data [][2]string) error {
+	// OBJECTS section parsing is a lower priority - objects are complex DXF entities
+	// that require significant implementation effort. This is a placeholder.
 	return nil
+}
+
+// ParseObject parses objects in the OBJECTS section (placeholder).
+func ParseObject(d *drawing.Drawing, data [][2]string) error {
+	_ = d
+	_ = data
+	return nil
+}
+
+// ParseSpline parses SPLINE entities.
+func ParseSpline(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	s := entity.NewSpline(3) // Default degree 3
+	var err error
+	var numKnots, numControls, numFits int
+
+	for _, dt := range data {
+		switch dt[0] {
+		case "8":
+			layer, e := d.Layer(dt[1], false)
+			if e == nil {
+				s.SetLayer(layer)
+			}
+		case "210":
+			err = setFloat(dt, func(val float64) { s.Normal[1] = val })
+		case "220":
+			err = setFloat(dt, func(val float64) { s.Normal[2] = val })
+		case "230":
+			err = setFloat(dt, func(val float64) { s.Normal[2] = val })
+		case "70":
+			err = setInt(dt, func(val int) { s.Flag = val })
+		case "71":
+			err = setInt(dt, func(val int) { s.Degree = val })
+		case "72":
+			err = setInt(dt, func(val int) { numKnots = val })
+		case "73":
+			err = setInt(dt, func(val int) { numControls = val })
+		case "74":
+			err = setInt(dt, func(val int) { numFits = val })
+		case "40":
+			if len(s.Knots) < numKnots {
+				s.AddKnot(castToFloat64(dt[1]))
+			}
+		case "41":
+			s.AddWeight(castToFloat64(dt[1]))
+		case "10":
+			if len(s.Controls) < numControls {
+				pt := make([]float64, 3)
+				pt[0] = castToFloat64(dt[1])
+				s.Controls = append(s.Controls, pt)
+			}
+		case "20":
+			if len(s.Controls) > 0 && len(s.Controls[len(s.Controls)-1]) >= 1 {
+				s.Controls[len(s.Controls)-1][1] = castToFloat64(dt[1])
+			}
+		case "30":
+			if len(s.Controls) > 0 && len(s.Controls[len(s.Controls)-1]) >= 2 {
+				s.Controls[len(s.Controls)-1][2] = castToFloat64(dt[1])
+			}
+		case "11":
+			if len(s.Fits) < numFits {
+				pt := make([]float64, 3)
+				pt[0] = castToFloat64(dt[1])
+				s.Fits = append(s.Fits, pt)
+			}
+		case "21":
+			if len(s.Fits) > 0 && len(s.Fits[len(s.Fits)-1]) >= 1 {
+				s.Fits[len(s.Fits)-1][1] = castToFloat64(dt[1])
+			}
+		case "31":
+			if len(s.Fits) > 0 && len(s.Fits[len(s.Fits)-1]) >= 2 {
+				s.Fits[len(s.Fits)-1][2] = castToFloat64(dt[1])
+			}
+		case "42":
+			err = setFloat(dt, func(val float64) { s.Tolerance[0] = val })
+		case "43":
+			err = setFloat(dt, func(val float64) { s.Tolerance[1] = val })
+		case "44":
+			err = setFloat(dt, func(val float64) { s.Tolerance[2] = val })
+		}
+		if err != nil {
+			return s, err
+		}
+	}
+	return s, nil
+}
+
+// ParseEllipse parses ELLIPSE entities.
+func ParseEllipse(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	e := entity.NewEllipse()
+	var err error
+	for _, dt := range data {
+		switch dt[0] {
+		case "8":
+			layer, eerr := d.Layer(dt[1], false)
+			if eerr == nil {
+				e.SetLayer(layer)
+			}
+		case "210":
+			err = setFloat(dt, func(val float64) { e.Center[2] = val }) // reuse Z as normal X placeholder
+		case "220":
+			err = setFloat(dt, func(val float64) { _ = val })
+		case "230":
+			err = setFloat(dt, func(val float64) { _ = val })
+		case "40":
+			err = setFloat(dt, func(val float64) { e.Major = val })
+		case "41":
+			err = setFloat(dt, func(val float64) { e.Minor = val })
+		case "50":
+			err = setFloat(dt, func(val float64) { e.Start = val })
+		case "51":
+			err = setFloat(dt, func(val float64) { e.End = val })
+		case "200":
+			err = setFloat(dt, func(val float64) { e.Ratio = val })
+		}
+		if err != nil {
+			return e, err
+		}
+	}
+	return e, nil
+}
+
+// ParseInsert parses INSERT entities.
+func ParseInsert(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	i := entity.NewInsert()
+	var err error
+	var x, y, z float64
+
+	for _, dt := range data {
+		switch dt[0] {
+		case "2":
+			i.SetBlockName(dt[1])
+		case "8":
+			layer, eerr := d.Layer(dt[1], false)
+			if eerr == nil {
+				i.SetLayer(layer)
+			}
+		case "10":
+			err = setFloat(dt, func(val float64) { x = val })
+		case "20":
+			err = setFloat(dt, func(val float64) { y = val })
+		case "30":
+			err = setFloat(dt, func(val float64) { z = val })
+		case "50":
+			err = setFloat(dt, func(val float64) { i.SetRotation(val) })
+		}
+		if err != nil {
+			return i, err
+		}
+	}
+	i.SetInsertPoint(dxfmath.NewVec3(x, y, z))
+	return i, nil
+}
+
+// ParseDimension parses DIMENSION entities (placeholder - needs API alignment).
+func ParseDimension(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	_ = d
+	_ = data
+	return nil, errors.New("DIMENSION parser not yet implemented")
+}
+
+// ParseHatch parses HATCH entities (placeholder - needs API alignment).
+func ParseHatch(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	_ = d
+	_ = data
+	return nil, errors.New("HATCH parser not yet implemented")
+}
+
+// ParseLeader parses LEADER entities (placeholder - needs API alignment).
+func ParseLeader(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	_ = d
+	_ = data
+	return nil, errors.New("LEADER parser not yet implemented")
+}
+
+// ParseMLeader parses MLEADER entities (placeholder - needs API alignment).
+func ParseMLeader(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	_ = d
+	_ = data
+	return nil, errors.New("MLEADER parser not yet implemented")
+}
+
+// ParsePolyline parses POLYLINE entities (placeholder - needs API alignment).
+func ParsePolyline(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	_ = d
+	_ = data
+	return nil, errors.New("POLYLINE parser not yet implemented")
+}
+
+// ParseVertex parses VERTEX entities (placeholder - needs API alignment).
+func ParseVertex(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	_ = d
+	_ = data
+	return nil, errors.New("VERTEX parser not yet implemented")
+}
+
+// ParseImage parses IMAGE entities (placeholder - needs API alignment).
+func ParseImage(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	_ = d
+	_ = data
+	return nil, errors.New("IMAGE parser not yet implemented")
+}
+
+// ParseSeqEnd parses SEQEND entities (sequence end for INSERT attributes).
+func ParseSeqEnd(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	_ = d
+	_ = data
+	return nil, errors.New("SEQEND parser not yet implemented")
+}
+
+// ParseAttrib parses ATTRIB and ATTDEF entities.
+func ParseAttrib(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
+	a := entity.NewAttrib()
+	var err error
+	var tag, text, style string
+	var x, y, z, height, rotation float64
+
+	for _, dt := range data {
+		switch dt[0] {
+		case "8":
+			layer, eerr := d.Layer(dt[1], false)
+			if eerr == nil {
+				a.SetLayer(layer)
+			}
+		case "1":
+			text = dt[1]
+		case "2":
+			tag = dt[1]
+		case "10":
+			err = setFloat(dt, func(val float64) { x = val })
+		case "20":
+			err = setFloat(dt, func(val float64) { y = val })
+		case "30":
+			err = setFloat(dt, func(val float64) { z = val })
+		case "40":
+			err = setFloat(dt, func(val float64) { height = val })
+		case "50":
+			err = setFloat(dt, func(val float64) { rotation = val })
+		case "7":
+			style = dt[1]
+		}
+		if err != nil {
+			return a, err
+		}
+	}
+	a.SetTag(tag)
+	a.SetText(text)
+	a.SetInsertPoint(x, y, z)
+	a.SetHeight(height)
+	a.SetRotation(rotation)
+	if style != "" {
+		if s, ok := d.Styles[strings.ToUpper(style)]; ok {
+			a.SetStyle(s.Name())
+		}
+	}
+	return a, nil
+}
+
+// castToFloat64 converts string to float64.
+func castToFloat64(s string) float64 {
+	f, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	return f
 }

@@ -76,3 +76,6 @@ func (st *Style) SetOwner(h handle.Handler) {
 func (st *Style) Name() string {
 	return st.name
 }
+
+// SetName sets the style name.
+func (st *Style) SetName(name string) { st.name = name }

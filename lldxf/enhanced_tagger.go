@@ -1,6 +1,7 @@
 package lldxf
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -115,16 +116,56 @@ func isPrimaryPointCode(code GroupCode) bool {
 		(code >= 330 && code <= 339)
 }
 
-// BinaryTagger implements Tagger for binary DXF files
+// BinaryTagger implements Tagger for binary DXF files.
+// Strings are decoded per the DXF release: UTF-8 for R2007+ (AC1021 and
+// later) and the declared codepage for earlier versions.
 type BinaryTagger struct {
-	reader io.Reader
-	tag    Tag
-	err    error
+	reader   io.Reader
+	pending  []byte
+	tag      Tag
+	err      error
+	codepage string
+	utf8     bool
 }
 
-// NewBinaryTagger creates a new binary DXF tagger
+// NewBinaryTagger creates a new binary DXF tagger. It defaults to UTF-8
+// strings, matching R2007+ output; use NewBinaryTaggerWithOptions to select
+// the source release and codepage.
 func NewBinaryTagger(r io.Reader) Tagger {
-	return &BinaryTagger{reader: r}
+	bt := &BinaryTagger{reader: r, utf8: true}
+	bt.skipSignature()
+	return bt
+}
+
+// skipSignature consumes the 22-byte AutoCAD Binary DXF signature when present,
+// so tag reading starts at the first group code. Seekable readers are rewound
+// when the prefix is not the signature; non-seekable streams must be provided
+// without the signature (use NewBinaryTaggerFromBytes for in-memory files).
+func (bt *BinaryTagger) skipSignature() {
+	if bt.reader == nil {
+		return
+	}
+	buf := make([]byte, len(BinaryDXFSignature))
+	n, _ := io.ReadFull(bt.reader, buf)
+	if n == 0 {
+		return
+	}
+	if n == len(BinaryDXFSignature) && string(buf) == BinaryDXFSignature {
+		return
+	}
+	if sr, ok := bt.reader.(io.Seeker); ok {
+		if _, err := sr.Seek(int64(-n), io.SeekCurrent); err == nil {
+			return
+		}
+	}
+	bt.pending = buf[:n]
+}
+
+// SetBinaryEncoding selects string decoding for the tagger: utf8 decodes
+// strings as UTF-8, otherwise bytes are decoded using codepage.
+func (bt *BinaryTagger) SetBinaryEncoding(codepage string, utf8 bool) {
+	bt.codepage = codepage
+	bt.utf8 = utf8
 }
 
 // Next advances to the next binary tag
@@ -132,10 +173,15 @@ func (bt *BinaryTagger) Next() bool {
 	if bt.err != nil {
 		return false
 	}
+	reader := io.Reader(bt.reader)
+	if len(bt.pending) > 0 {
+		reader = io.MultiReader(bytes.NewReader(bt.pending), bt.reader)
+		bt.pending = nil
+	}
 
 	// Read group code (2 bytes, little-endian)
 	var code int16
-	if err := binary.Read(bt.reader, binary.LittleEndian, &code); err != nil {
+	if err := binary.Read(reader, binary.LittleEndian, &code); err != nil {
 		if err == io.EOF {
 			return false
 		}
@@ -149,7 +195,7 @@ func (bt *BinaryTagger) Next() bool {
 	switch {
 	case isInt16Code(GroupCode(code)):
 		var val int16
-		if err := binary.Read(bt.reader, binary.LittleEndian, &val); err != nil {
+		if err := binary.Read(reader, binary.LittleEndian, &val); err != nil {
 			bt.err = fmt.Errorf("failed to read int16 value: %w", err)
 			return false
 		}
@@ -157,7 +203,7 @@ func (bt *BinaryTagger) Next() bool {
 
 	case isInt32Code(GroupCode(code)):
 		var val int32
-		if err := binary.Read(bt.reader, binary.LittleEndian, &val); err != nil {
+		if err := binary.Read(reader, binary.LittleEndian, &val); err != nil {
 			bt.err = fmt.Errorf("failed to read int32 value: %w", err)
 			return false
 		}
@@ -165,61 +211,150 @@ func (bt *BinaryTagger) Next() bool {
 
 	case isInt64Code(GroupCode(code)):
 		var val int64
-		if err := binary.Read(bt.reader, binary.LittleEndian, &val); err != nil {
+		if err := binary.Read(reader, binary.LittleEndian, &val); err != nil {
 			bt.err = fmt.Errorf("failed to read int64 value: %w", err)
+			return false
+		}
+		value = val
+
+	case IsBinaryBoolCode(GroupCode(code)):
+		var val int16
+		if err := binary.Read(reader, binary.LittleEndian, &val); err != nil {
+			bt.err = fmt.Errorf("failed to read bool value: %w", err)
 			return false
 		}
 		value = val
 
 	case isFloatCode(GroupCode(code)):
 		var val float64
-		if err := binary.Read(bt.reader, binary.LittleEndian, &val); err != nil {
+		if err := binary.Read(reader, binary.LittleEndian, &val); err != nil {
 			bt.err = fmt.Errorf("failed to read float64 value: %w", err)
 			return false
 		}
 		value = val
 
 	case isBinaryDataCode(GroupCode(code)):
-		// Read byte length first
-		var byteLength int32
-		if err := binary.Read(bt.reader, binary.LittleEndian, &byteLength); err != nil {
+		// Read byte length (single byte, per AutoCAD Binary DXF)
+		var byteLength byte
+		if err := binary.Read(reader, binary.LittleEndian, &byteLength); err != nil {
 			bt.err = fmt.Errorf("failed to read binary data length: %w", err)
 			return false
 		}
 
 		// Read binary data
 		data := make([]byte, byteLength)
-		if _, err := io.ReadFull(bt.reader, data); err != nil {
+		if _, err := io.ReadFull(reader, data); err != nil {
 			bt.err = fmt.Errorf("failed to read binary data: %w", err)
 			return false
 		}
 		value = data
 
 	default:
-		// String value - read null-terminated string
-		var builder strings.Builder
+		// String value - read null-terminated bytes and decode per release.
+		var raw []byte
 		for {
 			var b byte
-			if err := binary.Read(bt.reader, binary.LittleEndian, &b); err != nil {
+			if err := binary.Read(reader, binary.LittleEndian, &b); err != nil {
 				bt.err = fmt.Errorf("failed to read string byte: %w", err)
 				return false
 			}
 			if b == 0 {
 				break
 			}
-			builder.WriteByte(b)
+			raw = append(raw, b)
 
 			// Prevent infinite loops
-			if builder.Len() > 2048 {
+			if len(raw) > 2048 {
 				bt.err = fmt.Errorf("string value too long")
 				return false
 			}
 		}
-		value = builder.String()
+		if bt.utf8 {
+			value = string(raw)
+		} else {
+			value = DecodeCodepageBytes(raw, bt.codepage)
+		}
 	}
 
 	bt.tag = NewDXFTag(GroupCode(code), value)
 	return true
+}
+
+// NewBinaryTaggerFromBytes creates a binary tagger over an in-memory file. The
+// 22-byte signature is skipped when present, so tag reading starts at the first
+// group code; streams without a signature are tagged from byte zero.
+func NewBinaryTaggerFromBytes(data []byte) *BinaryTagger {
+	src := &bytesSource{data: data}
+	bt := &BinaryTagger{reader: src, utf8: true}
+	if bytes.HasPrefix(data, []byte(BinaryDXFSignature)) {
+		src.pos = len(BinaryDXFSignature)
+	}
+	return bt
+}
+
+// bytesSource is a forward-only byte reader with an explicit position.
+type bytesSource struct {
+	data []byte
+	pos  int
+}
+
+func (s *bytesSource) Read(p []byte) (int, error) {
+	if s.pos >= len(s.data) {
+		return 0, io.EOF
+	}
+	n := copy(p, s.data[s.pos:])
+	s.pos += n
+	return n, nil
+}
+
+// ScanBinaryMarkers walks the binary DXF byte stream and returns every code-0
+// tag value in order. It is a structural validation helper for round-trip
+// tests: it sizes values with BinaryKindFor exactly like the writer.
+func ScanBinaryMarkers(data []byte) ([]string, error) {
+	sig := "AutoCAD Binary DXF\r\n\x1a\x00"
+	if !bytes.HasPrefix(data, []byte(sig)) {
+		return nil, fmt.Errorf("missing binary DXF signature")
+	}
+	pos := len(sig)
+	var out []string
+	for pos+2 <= len(data) {
+		code := int(int16(binary.LittleEndian.Uint16(data[pos : pos+2])))
+		pos += 2
+		if code == 0 && pos < len(data) && data[pos] == 0 {
+			return nil, fmt.Errorf("stream desynced at byte %d (code-0 with empty string value)", pos)
+		}
+		switch BinaryKindFor(GroupCode(code)) {
+		case BinaryString:
+			end := bytes.IndexByte(data[pos:], 0)
+			if end < 0 {
+				return out, fmt.Errorf("unterminated string at code %d", code)
+			}
+			if code == 0 {
+				out = append(out, string(data[pos:pos+end]))
+			}
+			pos += end + 1
+		case BinaryFloat:
+			pos += 8
+		case BinaryInt32:
+			pos += 4
+		case BinaryInt64:
+			pos += 8
+		case BinaryInt16:
+			pos += 2
+		case BinaryRaw:
+			if pos >= len(data) {
+				return out, fmt.Errorf("truncated binary data length")
+			}
+			n := int(data[pos])
+			pos += 1 + n
+		default:
+			return out, fmt.Errorf("unknown value kind for code %d", code)
+		}
+		if pos > len(data) {
+			return out, fmt.Errorf("stream overruns past end of file")
+		}
+	}
+	return out, nil
 }
 
 // Tag returns the current tag
@@ -399,6 +534,12 @@ func LoadTagsRobust(r io.Reader, options *TaggerOptions) (Tags, error) {
 	}
 
 	return tags, nil
+}
+
+// IsBinaryDXF reports whether data begins with the AutoCAD Binary DXF signature.
+func IsBinaryDXF(data []byte) bool {
+	sig := []byte("AutoCAD Binary DXF\r\n\x1a\x00")
+	return len(data) >= len(sig) && bytes.Equal(data[:len(sig)], sig)
 }
 
 // DetectDXFFormat detects whether a file is ASCII or binary DXF

@@ -77,6 +77,9 @@ func (lt *LineType) Name() string {
 	return lt.name
 }
 
+// SetName sets the line type name.
+func (lt *LineType) SetName(name string) { lt.name = name }
+
 // TotalLength returns total pattern length (code 40).
 func (lt *LineType) TotalLength() float64 {
 	sum := 0.0

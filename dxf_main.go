@@ -1323,6 +1323,9 @@ func (g *GenericEntity) IsEntity() bool { return true }
 func (g *GenericEntity) Format(f format.Formatter) {
 	f.WriteString(0, g.typeName)
 	for _, tag := range g.tags {
+		if tag.Code == 0 {
+			continue
+		}
 		f.WriteString(tag.Code, tag.Value)
 	}
 }
@@ -1343,12 +1346,48 @@ func (g *GenericEntity) Handle() string {
 	return ""
 }
 func (g *GenericEntity) SetHandle(hg *handle.HandleGenerator) {}
-func (g *GenericEntity) DXFType() string                      { return g.typeName }
-func (g *GenericEntity) GetAttributes() map[string]interface{} {
-	return map[string]interface{}{"type": g.typeName}
-}
-func (g *GenericEntity) LoadAttributes(attribs map[string]interface{}) error { return nil }
 
+// RawTags returns the retained group codes.
+func (g *GenericEntity) RawTags() []TagPair { return g.tags }
+
+// SetRawTags replaces the retained group codes.
+func (g *GenericEntity) SetRawTags(tags []TagPair) { g.tags = tags }
+
+// SetHandleString sets an explicit handle, preserving handles loaded from a file.
+func (g *GenericEntity) SetHandleString(h string) {
+	for i, tag := range g.tags {
+		if tag.Code == 5 {
+			g.tags[i].Value = h
+			return
+		}
+	}
+	g.tags = append([]TagPair{{Code: 5, Value: h}}, g.tags...)
+}
+
+// DXFType returns the retained type name.
+func (g *GenericEntity) DXFType() string { return g.typeName }
+
+// GetAttributes returns the retained group codes as attributes.
+func (g *GenericEntity) GetAttributes() map[string]interface{} {
+	attrs := make(map[string]interface{}, len(g.tags))
+	for _, tag := range g.tags {
+		attrs[fmt.Sprintf("%d", tag.Code)] = tag.Value
+	}
+	return attrs
+}
+
+// LoadAttributes replaces the retained group codes.
+func (g *GenericEntity) LoadAttributes(attribs map[string]interface{}) error {
+	g.tags = make([]TagPair, 0, len(attribs))
+	for k, v := range attribs {
+		var code int
+		if _, err := fmt.Sscanf(k, "%d", &code); err != nil {
+			continue
+		}
+		g.tags = append(g.tags, TagPair{Code: code, Value: fmt.Sprintf("%v", v)})
+	}
+	return nil
+}
 func loadGeneric(tags lldxf.Tags) entity.Entity {
 	dxfType, _ := tags.GetFirstValue(0)
 	if dxfType == nil {

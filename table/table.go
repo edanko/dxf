@@ -43,6 +43,12 @@ func (t *Table) Format(f format.Formatter) {
 	f.WriteString(0, "ENDTAB")
 }
 
+// SetEntries replaces the symbol table records and updates the declared size.
+func (t *Table) SetEntries(entries []SymbolTable) {
+	t.tables = entries
+	t.size = len(entries)
+}
+
 // Handle returns a handle value of TABLE.
 func (t *Table) Handle() string {
 	return t.handle
