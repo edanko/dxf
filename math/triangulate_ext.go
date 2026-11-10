@@ -101,6 +101,12 @@ func DiagnoseTriangulation(vertices []Point2D, indices []int) []TriangulationIss
 	}
 
 	polygonArea := math.Abs(signedPointArea(vertices))
+	if len(indices) > 0 {
+		// The region covered by a mesh is the signed area of its boundary:
+		// for a polygon with holes this subtracts the hole boundaries even
+		// though the vertex slice does not record which rings are holes.
+		polygonArea = math.Abs(triangulationBoundaryArea(vertices, indices))
+	}
 	triAreaSum := 0.0
 	for t := 0; t*3+2 < len(indices); t++ {
 		idx := [3]int{indices[t*3], indices[t*3+1], indices[t*3+2]}
@@ -184,10 +190,18 @@ func TriangulatePolygonSafe(exterior []Point2D, holes [][]Point2D) ([]int, error
 	}
 	issues := DiagnoseTriangulation(vertices, indices)
 	for _, issue := range issues {
-		if issue.Kind != IssueAreaMismatch {
-			return indices, fmt.Errorf("math: triangulation %s at triangle %d %v",
-				issue.Kind, issue.Triangle, issue.Vertices)
-		}
+		return indices, fmt.Errorf("math: triangulation %s at triangle %d %v",
+			issue.Kind, issue.Triangle, issue.Vertices)
+	}
+	expectedArea := math.Abs(signedPointArea(cleanExterior))
+	for _, hole := range cleanHoles {
+		expectedArea -= math.Abs(signedPointArea(hole))
+	}
+	if expectedArea < 0 {
+		expectedArea = 0
+	}
+	if got := triangulationArea(vertices, indices); math.Abs(got-expectedArea) > areaTolerance(expectedArea) {
+		return indices, fmt.Errorf("math: triangulation area %g does not match polygon area %g", got, expectedArea)
 	}
 	return indices, nil
 }
@@ -217,6 +231,33 @@ func signedPointArea(vertices []Point2D) float64 {
 	for i := range vertices {
 		j := (i + 1) % len(vertices)
 		area += vertices[i].X*vertices[j].Y - vertices[j].X*vertices[i].Y
+	}
+	return area / 2
+}
+
+// triangulationBoundaryArea returns the signed area enclosed by the edges
+// that occur in exactly one direction in the mesh. Interior edges appear in
+// both directions and cancel; the remaining boundary carries the outer ring
+// counter-clockwise and any hole rings clockwise.
+func triangulationBoundaryArea(vertices []Point2D, indices []int) float64 {
+	type edge struct{ a, b int }
+	counts := make(map[edge]int)
+	edges := make([]edge, 0, len(indices))
+	for t := 0; t*3+2 < len(indices); t++ {
+		for k := range 3 {
+			e := edge{a: indices[t*3+k], b: indices[t*3+(k+1)%3]}
+			if _, ok := counts[e]; !ok {
+				edges = append(edges, e)
+			}
+			counts[e]++
+		}
+	}
+	var area float64
+	for _, e := range edges {
+		if counts[e] != 1 || counts[edge{a: e.b, b: e.a}] != 0 {
+			continue
+		}
+		area += vertices[e.a].X*vertices[e.b].Y - vertices[e.b].X*vertices[e.a].Y
 	}
 	return area / 2
 }

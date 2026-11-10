@@ -2,6 +2,7 @@ package math
 
 import (
 	"math"
+	"sort"
 )
 
 // Point2D represents a 2D point for triangulation
@@ -116,13 +117,12 @@ func NewTriangulation() *Triangulation {
 // windings are normalised on the internal copies (input slices are not
 // modified). Degenerate inputs produce an empty result.
 //
-// Known limitation: because bridge endpoints must be existing vertices, a
-// hole floating centered inside the exterior (no exterior vertex shares the
-// hole's row) is merged through a diagonal needle that winds a small bay
-// outside the clipped ring, so the triangle area sum falls short of the
-// true region area. The shortfall is detectable: ValidateTriangulation
-// passes (triangles never overlap) and DiagnoseTriangulation reports an
-// IssueAreaMismatch.
+// Hole bridges target visible exterior vertices, closest first. The
+// resulting triangle areas are checked against the exterior-minus-holes
+// area; when the closest bridge choice falls short (for example a centered
+// hole whose nearest exterior vertex produces a pinched merged ring), the
+// merge is retried with farther visible bridge targets until the area
+// matches or the deterministic candidate budget is exhausted.
 func Earcut(exterior []Point2D, holes [][]Point2D) []int {
 	if len(exterior) < 3 {
 		return []int{}
@@ -164,6 +164,7 @@ func Earcut(exterior []Point2D, holes [][]Point2D) []int {
 	if outer == nil {
 		return []int{}
 	}
+	exteriorPoly := ringPoints(outer)
 
 	// Original hole polygons for visibility checks and ear-clipping guards.
 	holePolys := make([][]Point2D, 0, len(holes))
@@ -175,18 +176,157 @@ func Earcut(exterior []Point2D, holes [][]Point2D) []int {
 		holePolys = append(holePolys, poly)
 	}
 
-	// Merge every hole into the (growing) outer ring through a bridge:
-	// the exterior is counter-clockwise, the holes clockwise (normalised
-	// above), so the merged needle ring bounds the region on its left.
+	// Expected region area: exterior minus holes (the hole windings were
+	// normalised on the internal index rings above).
+	expectedArea := math.Abs(ringArea(vertices, exteriorRing)) / 2
 	for i := 1; i < len(rings); i++ {
-		ring := ringList(vertices, rings[i])
-		if ring == nil {
-			continue
-		}
-		outer = bridgeHoleIntoRing(outer, ring, holePolys)
+		expectedArea -= math.Abs(ringArea(vertices, rings[i])) / 2
+	}
+	if expectedArea < 0 {
+		expectedArea = 0
 	}
 
-	return earClip(outer, holePolys)
+	if len(rings) == 1 {
+		return earClip(outer, holePolys)
+	}
+
+	// Candidate bridge targets per hole: visible exterior vertices ordered
+	// by distance from the hole's leftmost vertex (deterministic ties).
+	candidates := make([][]Point2D, len(rings)-1)
+	for i := 1; i < len(rings); i++ {
+		holeRing := ringList(vertices, rings[i])
+		if holeRing == nil {
+			continue
+		}
+		candidates[i-1] = bridgeCandidates(holeRing, exteriorPoly, holePolys)
+	}
+
+	attempts := 1
+	for _, list := range candidates {
+		if len(list) == 0 {
+			continue
+		}
+		attempts *= len(list)
+		if attempts > maxBridgeAttempts {
+			attempts = maxBridgeAttempts
+			break
+		}
+	}
+
+	var best []int
+	bestDiff := math.Inf(1)
+	for attempt := 0; attempt < attempts; attempt++ {
+		ranks := bridgeRanks(attempt, candidates)
+		outer = ringList(vertices, exteriorRing)
+		ok := true
+		for i := 1; i < len(rings); i++ {
+			holeRing := ringList(vertices, rings[i])
+			if holeRing == nil {
+				continue
+			}
+			holeNode := leftmostNode(holeRing)
+			var target *Node
+			if len(candidates[i-1]) > 0 {
+				target = findNodeByPoint(outer, candidates[i-1][ranks[i-1]])
+			}
+			if target == nil {
+				target = findBridgeTarget(outer, holeNode, holePolys)
+			}
+			if target == nil {
+				ok = false
+				break
+			}
+			outer = splitPolygon(target, holeNode)
+		}
+		if !ok {
+			continue
+		}
+		triangles := earClip(outer, holePolys)
+		diff := math.Abs(triangulationArea(vertices, triangles) - expectedArea)
+		if diff <= areaTolerance(expectedArea) {
+			return triangles
+		}
+		if len(best) == 0 || diff < bestDiff {
+			best = triangles
+			bestDiff = diff
+		}
+	}
+	return best
+}
+
+// maxBridgeAttempts bounds the deterministic bridge-target search when
+// several holes each have many visible exterior vertices.
+const maxBridgeAttempts = 64
+
+// bridgeCandidates returns the visible exterior vertices for a hole's
+// leftmost node, ordered by distance (then X, then Y for deterministic
+// ties). The closest candidate is tried first; farther candidates are
+// fallbacks when the merged ring fails the area check.
+func bridgeCandidates(hole *Node, exteriorPoly []Point2D, holePolys [][]Point2D) []Point2D {
+	start := leftmostNode(hole).Point
+	candidates := make([]Point2D, 0, len(exteriorPoly))
+	for _, p := range exteriorPoly {
+		if p == start || !visible(start, p, exteriorPoly, holePolys) {
+			continue
+		}
+		candidates = append(candidates, p)
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		di := dist2(start, candidates[i])
+		dj := dist2(start, candidates[j])
+		if di != dj {
+			return di < dj
+		}
+		if candidates[i].X != candidates[j].X {
+			return candidates[i].X < candidates[j].X
+		}
+		return candidates[i].Y < candidates[j].Y
+	})
+	return candidates
+}
+
+// bridgeRanks decodes an attempt counter as mixed-radix candidate ranks,
+// one rank per hole.
+func bridgeRanks(attempt int, candidates [][]Point2D) []int {
+	ranks := make([]int, len(candidates))
+	for i, list := range candidates {
+		if len(list) == 0 {
+			continue
+		}
+		ranks[i] = attempt % len(list)
+		attempt /= len(list)
+	}
+	return ranks
+}
+
+// findNodeByPoint returns the first ring node at p in traversal order.
+func findNodeByPoint(head *Node, p Point2D) *Node {
+	if head == nil {
+		return nil
+	}
+	for cur := head; ; cur = cur.Next {
+		if cur.Point == p {
+			return cur
+		}
+		if cur.Next == head {
+			return nil
+		}
+	}
+}
+
+// triangulationArea returns the sum of absolute triangle areas.
+func triangulationArea(vertices []Point2D, indices []int) float64 {
+	total := 0.0
+	for i := 0; i+2 < len(indices); i += 3 {
+		total += math.Abs(Area(vertices[indices[i]], vertices[indices[i+1]], vertices[indices[i+2]])) / 2
+	}
+	return total
+}
+
+// areaTolerance is the documented tolerance for comparing a triangulated
+// area with the polygon-with-holes area.
+func areaTolerance(area float64) float64 {
+	return math.Max(DefaultTolerance, area*1e-6)
 }
 
 // ringArea returns the doubled signed area of an index ring (positive for
@@ -503,8 +643,10 @@ func pointInPolygonOnBoundary(p Point2D, poly []Point2D) bool {
 }
 
 // splitPolygon splices nodes a and b of one circular list into a single
-// list traversed a→b→b2→…→a2→a (the mapbox splitPolygon with duplicated
-// bridge nodes).
+// list traversed a→b→…→bPrev→b2→a2→aNext→…→a (the mapbox splitPolygon with
+// duplicated bridge nodes). The copies b2 and a2 reproduce b and a so the
+// connector b2→a2 is the reverse of the bridge a→b and the bridge is a
+// zero-width needle instead of a real notch between bPrev and a.
 func splitPolygon(a, b *Node) *Node {
 	a2 := NewNode(a.Index, a.Point)
 	b2 := NewNode(b.Index, b.Point)
@@ -514,14 +656,14 @@ func splitPolygon(a, b *Node) *Node {
 	a.Next = b
 	b.Prev = a
 
-	a2.Next = b2
-	b2.Prev = a2
+	a2.Next = aNext
+	aNext.Prev = a2
 
-	b2.Next = aNext
-	aNext.Prev = b2
+	b2.Next = a2
+	a2.Prev = b2
 
-	bPrev.Next = a2
-	a2.Prev = bPrev
+	bPrev.Next = b2
+	b2.Prev = bPrev
 
 	return a
 }

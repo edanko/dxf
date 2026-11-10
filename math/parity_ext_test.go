@@ -121,18 +121,74 @@ func TestTriangulatePolygonWithHole(t *testing.T) {
 		t.Errorf("mesh contains overlapping triangles")
 	}
 	area := sumTriangleArea(vertices, indices)
-	// Known limitation: the needle-bridge merge winds a small bay outside
-	// the clipped ring when the hole floats centered inside the exterior
-	// (no exterior vertex shares the hole's row), so the triangle area sum
-	// can fall a few percent short of 96. The shortfall is NOT silent:
-	// DiagnoseTriangulation reports exactly one IssueAreaMismatch.
-	if area < 88 || area > 96+1e-9 {
-		t.Errorf("triangle area sum %v outside [88,96]", area)
+	// The centered 2x2 hole has no exterior vertex on its row; the bridge
+	// must still be a zero-width needle so the triangle area sum equals the
+	// full 10x10 minus 2x2 region.
+	if math.Abs(area-96) > 1e-9 {
+		t.Errorf("triangle area sum %v, want 96", area)
 	}
-	for _, issue := range DiagnoseTriangulation(vertices, indices) {
-		if issue.Kind != IssueAreaMismatch {
-			t.Errorf("unexpected diagnostic on valid mesh: %v", issue)
+	if issues := DiagnoseTriangulation(vertices, indices); len(issues) != 0 {
+		t.Errorf("unexpected diagnostics on valid mesh: %v", issues)
+	}
+}
+
+func TestTriangulateCenteredHoleNoExteriorBay(t *testing.T) {
+	// Regression: a hole with no exterior vertex on its row used to be
+	// bridged through a diagonal notch, leaving a bay outside the region and
+	// a triangle area shortfall. Every triangle centroid must stay inside the
+	// outer ring and outside the hole, and the areas must add up exactly.
+	exterior := []Point2D{{0, 0}, {10, 0}, {10, 10}, {0, 10}}
+	hole := []Point2D{{4, 4}, {6, 4}, {6, 6}, {4, 6}}
+	indices, err := TriangulatePolygonSafe(exterior, [][]Point2D{hole})
+	if err != nil {
+		t.Fatalf("TriangulatePolygonSafe: %v", err)
+	}
+	vertices := append(append([]Point2D{}, exterior...), hole...)
+	if !ValidateTriangulation(vertices, indices) {
+		t.Fatalf("mesh contains overlapping triangles")
+	}
+	if got := sumTriangleArea(vertices, indices); math.Abs(got-96) > 1e-9 {
+		t.Errorf("triangle area sum %v, want 96 (outer 100 minus hole 4)", got)
+	}
+	shape := NewShape(
+		[]Vec2{{0, 0}, {10, 0}, {10, 10}, {0, 10}},
+		[]Vec2{{4, 4}, {6, 4}, {6, 6}, {4, 6}},
+	)
+	for tri := 0; tri < len(indices)/3; tri++ {
+		a := vertices[indices[tri*3]]
+		b := vertices[indices[tri*3+1]]
+		c := vertices[indices[tri*3+2]]
+		centroid := Vec2{(a.X + b.X + c.X) / 3, (a.Y + b.Y + c.Y) / 3}
+		if !shape.Contains(centroid) {
+			t.Errorf("triangle %d centroid %v outside outer boundary or inside hole", tri, centroid)
 		}
+	}
+}
+
+func TestTriangulateDisjointHolesAreaParity(t *testing.T) {
+	// Multiple holes exercise the deterministic bridge-target search: both
+	// holes are bridged without losing any region area.
+	exterior := []Point2D{{0, 0}, {20, 0}, {20, 10}, {0, 10}}
+	holes := [][]Point2D{
+		{{2, 2}, {4, 2}, {4, 4}, {2, 4}},
+		{{14, 5}, {17, 5}, {17, 8}, {14, 8}},
+	}
+	indices, err := TriangulatePolygonSafe(exterior, holes)
+	if err != nil {
+		t.Fatalf("TriangulatePolygonSafe: %v", err)
+	}
+	vertices := append([]Point2D{}, exterior...)
+	for _, hole := range holes {
+		vertices = append(vertices, hole...)
+	}
+	if !ValidateTriangulation(vertices, indices) {
+		t.Fatalf("mesh contains overlapping triangles")
+	}
+	if got := sumTriangleArea(vertices, indices); math.Abs(got-187) > 1e-9 {
+		t.Errorf("triangle area sum %v, want 187 (outer 200 minus holes 13)", got)
+	}
+	if issues := DiagnoseTriangulation(vertices, indices); len(issues) != 0 {
+		t.Errorf("unexpected diagnostics on valid mesh: %v", issues)
 	}
 }
 
