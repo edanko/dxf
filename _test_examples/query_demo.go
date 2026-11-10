@@ -159,7 +159,7 @@ func main() {
 
 	// Test 11: Map operation
 	fmt.Println("\n11. Map entity handles:")
-	handles := q.Map(func(ent entity.Entity) interface{} {
+	handles := q.Map(func(ent entity.Entity) any {
 		return ent.Handle()
 	})
 	fmt.Printf("  Entity handles: %v...\n", handles[:min(3, len(handles))])

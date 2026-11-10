@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/entity"
 	dxfmath "github.com/edanko/dxf/math"
 )
@@ -147,7 +146,7 @@ func (s *EntitySelector) LayerIn(layerNames ...string) *EntityQuery {
 // Color selects entities by color index
 func (s *EntitySelector) Color(colorIndex int) *EntityQuery {
 	return s.query.Filter(func(ent entity.Entity) bool {
-		if colorable, ok := ent.(interface{ Color() color.ColorNumber }); ok {
+		if colorable, ok := ent.(entity.ColorReader); ok {
 			return int(colorable.Color()) == colorIndex
 		}
 		return false
@@ -157,7 +156,7 @@ func (s *EntitySelector) Color(colorIndex int) *EntityQuery {
 // RGB selects entities by RGB color (for entities with RGB support)
 func (s *EntitySelector) RGB(r, g, b uint8) *EntityQuery {
 	return s.query.Filter(func(ent entity.Entity) bool {
-		if rgbEntity, ok := ent.(interface{ RGB() (uint8, uint8, uint8) }); ok {
+		if rgbEntity, ok := ent.(entity.RGBReader); ok {
 			er, eg, eb := rgbEntity.RGB()
 			return er == r && eg == g && eb == b
 		}
@@ -511,7 +510,7 @@ func getLayerName(ent entity.Entity) string {
 }
 
 func getEntityColor(ent entity.Entity) int {
-	if colorable, ok := ent.(interface{ Color() color.ColorNumber }); ok {
+	if colorable, ok := ent.(entity.ColorReader); ok {
 		return int(colorable.Color())
 	}
 	return 0

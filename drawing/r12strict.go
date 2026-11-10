@@ -138,10 +138,10 @@ func isR12Entity(t string) bool { return r12EntityTypes[strings.ToUpper(t)] }
 
 // dropR12EntityFields records true-color and transparency fields R12 cannot store.
 func dropR12EntityFields(e entity.Entity, dropped *[]string) {
-	if g, ok := e.(interface{ ColorRGB() int }); ok && g.ColorRGB() != 0 {
+	if g, ok := e.(entity.ColorRGBReader); ok && g.ColorRGB() != 0 {
 		*dropped = append(*dropped, "true color on "+e.DXFType())
 	}
-	if g, ok := e.(interface{ Transparency() float64 }); ok && g.Transparency() != 0 {
+	if g, ok := e.(entity.TransparencyReader); ok && g.Transparency() != 0 {
 		*dropped = append(*dropped, "transparency on "+e.DXFType())
 	}
 	dropRawTagsCodes(rawAdapter{e}, e.DXFType(), dropped)
@@ -152,7 +152,7 @@ func dropR12EntityFields(e entity.Entity, dropped *[]string) {
 type rawAdapter struct{ e entity.Entity }
 
 func (a rawAdapter) RawTags() []block.TagPair {
-	r, ok := a.e.(interface{ RawTags() []entity.TagPair })
+	r, ok := a.e.(entity.RawTagReader)
 	if !ok {
 		return nil
 	}
@@ -164,7 +164,7 @@ func (a rawAdapter) RawTags() []block.TagPair {
 }
 
 func (a rawAdapter) SetRawTags(tags []block.TagPair) {
-	s, ok := a.e.(interface{ SetRawTags([]entity.TagPair) })
+	s, ok := a.e.(entity.RawTagWriter)
 	if !ok {
 		return
 	}

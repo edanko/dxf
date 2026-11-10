@@ -133,7 +133,7 @@ func loadEntity(dxfType string, tags lldxf.Tags) (entity.Entity, error) {
 	// names so re-saved documents keep the DXF record spelling.
 	switch strings.ToUpper(dxfType) {
 	case "EXTRUDED_SURFACE", "LOFTED_SURFACE", "REVOLVED_SURFACE", "SWEPT_SURFACE":
-		if setter, ok := e.(interface{ SetRecordTypeName(string) }); ok {
+		if setter, ok := e.(entity.RecordTypeNamer); ok {
 			setter.SetRecordTypeName(strings.ToUpper(dxfType))
 		}
 	}
@@ -142,7 +142,7 @@ func loadEntity(dxfType string, tags lldxf.Tags) (entity.Entity, error) {
 	up := strings.ToUpper(dxfType)
 
 	if up == "ARC_DIMENSION" || up == "LARGE_RADIAL_DIMENSION" || up == "MPOLYGON" {
-		if setter, ok := e.(interface{ SetRecordTypeName(string) }); ok {
+		if setter, ok := e.(entity.RecordTypeNamer); ok {
 			setter.SetRecordTypeName(up)
 		}
 	}
@@ -2593,37 +2593,37 @@ func loadCommonAttribs(e entity.Entity, tags lldxf.Tags) {
 			}
 		case 6:
 			if v, ok := tag.Value().(string); ok {
-				if setter, ok := e.(interface{ SetLinetype(string) }); ok {
+				if setter, ok := e.(entity.LinetypeSetter); ok {
 					setter.SetLinetype(v)
 				}
 			}
 		case 39:
 			if v, ok := tagFloat(tag); ok {
-				if setter, ok := e.(interface{ SetThickness(float64) }); ok {
+				if setter, ok := e.(entity.ThicknessSetter); ok {
 					setter.SetThickness(v)
 				}
 			}
 		case 60:
 			if v, err := strconv.Atoi(fmtTagValue(tag.Value())); err == nil && v != 0 {
-				if setter, ok := e.(interface{ SetInvisible(bool) }); ok {
+				if setter, ok := e.(entity.InvisibleSetter); ok {
 					setter.SetInvisible(true)
 				}
 			}
 		case 370:
 			if v, ok := tagInt(tag); ok {
-				if setter, ok := e.(interface{ SetLineWeight(int) }); ok {
+				if setter, ok := e.(entity.LineWeightSetter); ok {
 					setter.SetLineWeight(v)
 				}
 			}
 		case 420:
 			if v, ok := tagInt(tag); ok {
-				if setter, ok := e.(interface{ SetColorRGB(int) }); ok {
+				if setter, ok := e.(entity.ColorRGBSetter); ok {
 					setter.SetColorRGB(v)
 				}
 			}
 		case 440:
 			if v, ok := tagInt(tag); ok {
-				if setter, ok := e.(interface{ SetTransparency(float64) }); ok {
+				if setter, ok := e.(entity.TransparencySetter); ok {
 					setter.SetTransparency(float64(v) / 100.0)
 				}
 			}

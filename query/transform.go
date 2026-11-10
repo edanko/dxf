@@ -19,7 +19,7 @@ type Transformer interface {
 func Apply(m dxfmath.Matrix44, ents ...entity.Entity) []error {
 	var errs []error
 	for _, e := range ents {
-		if u, ok := e.(interface{ Unwrap() entity.Entity }); ok {
+		if u, ok := e.(entity.Unwrapper); ok {
 			e = u.Unwrap()
 		}
 		t, ok := e.(Transformer)

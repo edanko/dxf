@@ -25,7 +25,7 @@ func MakeUpright(e Entity) bool {
 		t.Rotation = r
 		t.AttachmentPoint = mirroredAttachment(t.AttachmentPoint)
 		return true
-	case interface{ GetRotation() float64; SetRotation(float64) }:
+	case RotationReaderSetter:
 		r, flip := uprightAngle(t.GetRotation())
 		if !flip {
 			return false

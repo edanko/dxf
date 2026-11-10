@@ -1,7 +1,7 @@
 # ezdxf Feature Parity Roadmap (Go `dxf`)
 
-Status: research baseline, living document.
-Last updated: 2026-11-09.
+Status: implementation complete for roadmap changes 1–13; remaining gaps are tracked as follow-up OpenSpec changes.
+Last updated: 2026-11-10.
 
 This document is the durable entry point for continuing the "Go `dxf` should match
 Python `ezdxf`" effort across sessions and agents. Read this first, then read the
@@ -74,28 +74,28 @@ openspec instructions <artifact> --change "<name>" --json
 
 | Package | Role | Baseline assessment |
 |---|---|---|
-| root (`dxf_main.go`, `binder.go`) | public entry points, ASCII/binary load, document binding, entity dispatch | `FromReader`/`FromBinaryReader` bind all six core sections through `documentBinder`; `parser.go` legacy helpers remain unused |
+| root (`dxf_main.go`, `binder.go`) | public entry points, ASCII/binary load, document binding, entity dispatch | `FromReader`/`FromBinaryReader` bind all six core sections through `documentBinder`; legacy `parser.go` helpers removed |
 | `lldxf` | tagger, tags, encoding, loader, validator, binary tagger | section grouping, comments per section, section order, recovery issues |
-| `format` | ASCII and binary formatter | ASCII works; binary write exists but coverage is partial |
+| `format` | ASCII and binary formatter | `DONE` — complete binary writer (all sections, EOF, per-code sizing) |
 | `drawing` | `addons/drawing` | `DONE` — `addons/drawing.RenderSVG`/`Render` over the core `render` backends (`TestRenderSVG`) |
 | `header` | header variables | typed core variables plus `Extra` retention for every other `$...` |
 | `table` | APPID, BLOCK_RECORD, DIMSTYLE, LAYER, LTYPE, STYLE, UCS, VIEW, VIEWPORT | all entries parsed; unknown entry types retained as `RawSymbolTable` |
 | `block` | block definitions | names, handles, layer names, contained entities |
-| `entity` | entity structs and `Format` methods | broad type inventory; raw-tag retention on known types; `GenericEntity` fallback |
-| `object` | OBJECTS section | dictionary, group, xrecord, placeholder parsed; everything else retained as `RawObject` |
+| `entity` | entity structs and `Format` methods | broad typed inventory (37 registered types) plus whole-record retention; `ACAD_TABLE` remains retained |
+| `object` | OBJECTS section | typed dictionaries, groups, xrecords, layouts, plot settings, styles, image/underlay definitions; unknown objects retained as `RawObject` |
 | `class` | CLASSES section | full class record fields |
-| `math` | vectors, matrices, bbox, Bezier, BSpline/NURBS, bulge, OCS/UCS, offset, earcut, delaunay, construct | substantial but not full ezdxf math surface |
-| `path` | path commands, converter, tools | line/arc/circle/ellipse/lwpolyline/polyline only; no spline/hatch/mtext conversion |
-| `render` | simple renderer, SVG/PDF backends, forms, arrows | only line/circle/arc/lwpolyline rendered; no fill/hatch/dimension/mtext/mesh |
-| `export` | SVG exporter | only line/circle/arc/lwpolyline/polyline/point |
-| `text2path` | `addons/text2path.py` | `DONE` — TTF glyph outlines (`text2path.TextToPathsTTF`) + `addons/text2path.ConvertEntity` |
-| `query` | entity query and parser | useful selector/expression subset |
-| `audit` | auditor, recovery, block cycles | partial; some placeholder loading |
+| `math` | vectors, matrices, bbox, Bezier, BSpline/NURBS, bulge, OCS/UCS, offset, earcut, delaunay, construct | substantial; missing Perlin/clustering/Shape/nesting/clipping portal |
+| `path` | path commands, converter, tools | converters for all supported entities; offset exists, nesting absent |
+| `render` | scene builder, SVG/PDF/raster backends, forms, arrows | `DONE` for core entity rendering; dimension/mesh/arrow completeness remains partial |
+| `export` | SVG exporter | legacy exporter subset; use `render`/`addons/drawing` for full output |
+| `text2path` | `addons/text2path.py` | `DONE` — TTF glyph outlines (`addons/text2path`) plus built-in vector fallback |
+| `query` | entity query and parser | expression language, selections, grouping, transforms, explode, traversal |
+| `audit` | auditor, recovery, block cycles | audit/fix/recover/r12strict implemented; duplicate-handle repair and cycle repair remain partial |
 | `spatial` | R-tree and entity spatial index | usable |
-| `layouts` | model/paper layouts and viewports | partial |
+| `layouts` | model/paper layouts and viewports | create/rename/delete/activate; block purge absent |
 | `xref` | xref manager and loader | `DONE` — attach/detach/bind/reload, relative paths + search paths, nested loading with cycle detection, BLOCK_RECORD xref flags (`xref_parity_e2e_test.go`) |
 | `factory` | entity factory/registry | usable |
-| `csg` | mesh boolean CSG | simplified/placeholder booleans |
+| `csg` | mesh boolean CSG | `DONE` — triangle-level booleans, primitives, volume (`csg/boolean_test.go`) |
 | `patterns` | hatch pattern definitions | lookup tables only |
 | `xdata`, `class`, `color`, `insunit`, `handle`, `geometry` | support packages | usable subsets |
 
@@ -132,7 +132,7 @@ must be verified before implementation starts.
 | R12 strict mode | `r12strict.py` | `DONE` — sanitizer drops non-R12 tables/entities/layers, true-color header variables, records conversion report (`TestR12Downgrade`, `drawing/r12strict.go`) |
 | Binary DXF read/write | `lldxf/tagger.py`, `tagwriter.py` | `DONE` — binary writer emits all sections + EOF with per-code int16/int32/int64/float/raw sizing; ASCII/binary tag streams are value-identical (`TestBinaryASCIIEquivalence`) |
 | Encoding/codepage handling | `lldxf/encoding.py`, `tools/codepage.py` | `DONE` — codepage-aware decode on load (ANSI_1252 etc.), UTF-8 for R2007+, codepage output for older targets (`TestCodepageDecoding`, `TestUTF8AndCodepageOutput`) |
-| File management (temp/backup/zip) | `filemanagement.py`, `tools/zipmanager.py` | `ABSENT` |
+| File management (temp/backup/zip) | `filemanagement.py`, `tools/zipmanager.py` | `PARTIAL` — atomic write + optional backup (`filemanagement`); ZIP manager `ABSENT` |
 
 ### 2. Entities
 
@@ -244,7 +244,7 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
 | Path commands and converter for all entities | `path/*` | `DONE` — converters for line/arc/circle/ellipse/spline/polylines (bulge-aware), HATCH, SOLID/3DFACE/TRACE, IMAGE/WIPEOUT frames, LEADER/MLEADER/MLINE, POINT, DIMENSION (block content), RAY/XLINE, TEXT/MTEXT outlines; arcs flattened to line segments (`TestRenderConformance`, `path/converter_ext_test.go`) |
-| Path tools: flatten, transform, offset, nesting | `path/tools.py`, `path/nesting.py` | `PARTIAL` — flatten + transform (now transforms commands, not only vertices, `TestPathTransformCommands`); offset/nesting `ABSENT` |
+| Path tools: flatten, transform, offset, nesting | `path/tools.py`, `path/nesting.py` | `PARTIAL` — flatten + transform (now transforms commands, not only vertices, `TestPathTransformCommands`); offset implemented (`Tools.Offset`); nesting `ABSENT` |
 | Drawing add-on / render pipeline | `addons/drawing/*`, `render/*` | `DONE` — `render.BuildScene` resolves styles (ByLayer/ByBlock, ACI/truecolor/alpha, lineweight, linetype scale), fits model extents (5% margin) or header extents, projects an active VIEWPORT, supports explicit extents and returns a fallback report (`TestViewportScene`, `TestSceneExtentsOverride`) |
 | SVG/PDF backends | `addons/drawing/backend.py`, `pymupdf.py` | `DONE` — unified `Renderer` interface (Begin/SetStyle/DrawPath/Clip/FillGradient/End) with registry; compact SVG path data, PDF content streams with xref tables (`TestSVGPathGeometryAndStyle`, `TestPDFStructure`) |
 | matplotlib/PyQt/PyMuPDF backends | `addons/drawing/*` | `N/A` in Go; provided native raster backend instead: PNG with supersampled anti-aliasing, background, clipping, dash patterns (`TestPNGRenderedViaRegistry`, `TestRasterStyleColorWidthDash`) |
@@ -299,7 +299,7 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 
 | Add-on | ezdxf reference | Go baseline |
 |---|---|---|
-| `drawing` | `addons/drawing` | `PARTIAL` (`render`, `export`) |
+| `drawing` | `addons/drawing` | `DONE` — native SVG/PDF/PNG backends via core `render`; plot styles remain partial |
 | `r12writer` | `addons/r12writer.py` | `DONE` — `addons/r12writer` incremental R12 writer (header/tables + entities, no full document; `TestR12WriterStreaming` 10k entities) |
 | `iterdxf` | `addons/iterdxf.py` | `DONE` — `addons/iterdxf` bounded-memory record iterator in file order (`TestIterDXFStreamingRecords`) |
 | `importer` | `addons/importer.py` | `DONE` — `addons/importer.ImportSVG` (line/rect/circle/polyline/path; `TestImportSVGElements`) |
@@ -307,7 +307,7 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 | `acadctb` | `addons/acadctb.py` | `PARTIAL` — `addons/acadctb` STB text parse + Apply (color/lineweight); binary CTB unsupported with descriptive error (`TestParseAndApply`) |
 | `pycsg` | `addons/pycsg.py` | `DONE` — real triangle-level booleans + Box/Sphere primitives + `csg.Volume` (`csg/boolean_test.go`) |
 | `MTextExplode` | `addons/mtextsurrogate` | `DONE` — `addons/mtxpl` Lines/Explode → positioned TEXT entities |
-| `text2path` | `addons/text2path.py` | `STUB` |
+| `text2path` | `addons/text2path.py` | `DONE` — `addons/text2path` TTF/OTF outlines via system fonts plus built-in vector fallback |
 | `geo` | `addons/geo.py` | `DONE` — `addons/geo.ExportGeoJSON` + `CRSFunc` transform |
 | `meshex` | `addons/meshex.py` | `DONE` — `addons/meshex.ExportOBJ` |
 | `openscad` | `addons/openscad.py` | `DONE` — `addons/meshex.ExportOpenSCAD` polyhedron source |
@@ -320,11 +320,11 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
-| `ezdxf` CLI (`info`, `audit`, `draw`, `browse`, `convert`, `strip`, `view`, `pp`) | `commands.py`, `__main__.py` | `ABSENT` |
-| App settings / config | `appsettings.py`, `_options.py` | `ABSENT` |
-| Comments | `comments.py` | `PARTIAL` |
-| Fonts, SHX/TTF, text metrics | `fonts/*`, `tools/text*.py` | `STUB` |
-| ISO hatch patterns / standards | `tools/_iso_pattern.py`, `standards.py` | `PARTIAL` |
+| `ezdxf` CLI (`info`, `audit`, `draw`, `browse`, `convert`, `strip`, `view`, `pp`) | `commands.py`, `__main__.py` | `DONE` — `cmd/dxf` provides info/audit/convert/draw/query/explode/fix/strip/header/layers/browse/version/completion, text+JSON, exit codes 0/1/2/3 (`cmd/dxf/main_test.go`, `docs/cli.md`) |
+| App settings / config | `appsettings.py`, `_options.py` | `DONE` — `appsettings` with defaults < file < `DXF_*` env precedence |
+| Comments | `comments.py` | `DONE` — preserve per section and strip via `comments.StripComments` |
+| Fonts, SHX/TTF, text metrics | `fonts/*`, `tools/text*.py` | `PARTIAL` — TTF/OTF outlines via system fonts; SHX absent; text metrics minimal |
+| ISO hatch patterns / standards | `tools/_iso_pattern.py`, `standards.py` | `PARTIAL` — built-in ANSI31–38 patterns; ISO library and standards checks absent |
 | Revcloud | `revcloud.py` | `DONE` — `query.RevCloudRectangle`/`RevCloudArcs` (closed bulged LWPOLYLINE, configurable arc chord and bulge) plus `Space.AddRevCloud`/`Drawing.AddRevCloud`; revcloud tests in `query/parity_test.go` and `TestQuerySelectionsAndTransformsE2E` |
 | Zoom/extents helpers | `zoom.py` | `DONE` — `drawing.FitExtentsToViewport` and `Drawing.FitView`/`FitLayoutView`; `TestQuerySelectionsAndTransformsE2E` |
 | Analyze/difftags/debug tools | `tools/analyze.py`, `difftags.py` | `ABSENT` |
@@ -361,6 +361,20 @@ assume the earlier ones.
 | 12 | `cli-tooling-parity` | CLI commands, appsettings/options, filemanagement/zip, fonts/text metrics, revcloud, zoom, analysis tools, standards | 1–11 |
 | 13 | `color-enum-units-parity` | ACI/true color/transparency, enums, units/insunits, lineweights, linetype patterns, ISO patterns | — |
 
+### Follow-up parity changes
+
+These changes cover remaining gaps found after the first thirteen changes were
+implemented. `library-refactor` is complete; the rest are not yet applied.
+
+| # | Change name | Scope | Depends on |
+|---|---|---|---|
+| 14 | `entity-object-completion-parity` | ACAD_TABLE typed content, collection objects, POLYFACE/POLYMESH vertices, MESHVERTEXCACHE, ACIS SAT/SAB metadata, objects-as-entities | 3, 4 |
+| 15 | `math-shape-clipping-parity` | Perlin noise, clustering, Shape container, portal clipping, triangulation hole bridge, path nesting | 6, 7 |
+| 16 | `render-plot-font-parity` | full DIMENSION renderer, mesh/polyface faces, arrow heads, STB/binary CTB plot styles, SHX/TTF text metrics, ISO hatch patterns | 7, 11 |
+| 17 | `addons-remaining-parity` | browser/acisbrowser extraction, DWG via CommandRunner, r12export, xqt, dimlines, genetic algorithm, Menger sponge, Sierpinski pyramid, mixins | 11 |
+| 18 | `dev-tools-parity` | `dxf analyze`, `difftags`, `debug`, `standards`, ZIP manager and CLI zip/unzip | 12 |
+| 19 | `library-refactor` | dead code, duplicate adapters, named interfaces, SOLID/DRY/YAGNI review | 1–13 |
+
 Rationale for ordering: I/O correctness and version support are prerequisites for
 trustworthy round-trip tests; entity/table/object modelling is the data substrate;
 the high-level API depends on it; math and rendering can proceed in parallel but
@@ -374,9 +388,24 @@ on complete data; add-ons and CLI depend on everything.
    (entities, attributes, tables, blocks, objects, unknown tags).
 2. **Golden tag tests.** For each entity, assert exact tag code/value pairs for
    representative instances, including version-specific tags.
-3. **Cross-check with ezdxf.** Generate expected tag dumps with the Python library
+3. **Cross-check with ezdxf.** Generate expected dumps with the Python library
    in a throwaway venv when semantics are unclear. Never add a runtime Python
-   dependency to the Go library.
+   dependency to the Go library. The executable harness is
+   `ezdxf_crosscheck_test.go` + `scripts/ezdxf_dump.py`:
+
+   ```sh
+   DXF_EZDXF_CROSSCHECK=1 \
+   DXF_EZDXF_PYTHON=/path/to/venv/bin/python \
+   go test -run TestEzdxfCrossCheck .
+   ```
+
+   It compares version, entity/block/subentity inventory, source TABLES entries,
+   and source OBJECTS records for every `testdata/*.dxf`. Table/object
+   expectations come from raw source records so ezdxf auto-created defaults
+   (layers, dictionaries, layouts) do not create false diffs. Set
+   `DXF_EZDXF_SOURCE=/home/egor/src/ezdxf` to use a local source checkout; the
+   harness creates a temporary venv with `uv` or `python3 -m venv` when
+   `DXF_EZDXF_PYTHON` is unset.
 4. **Behavioural tests.** Port ezdxf tests where practical, especially
    `tests/test_*.py` for math, path, query, audit, transform, xref, rendering.
 5. **Fuzzing.** Fuzz the tagger/loader/parser with truncated and malformed files;
@@ -385,19 +414,18 @@ on complete data; add-ons and CLI depend on everything.
 
 ## Known WIP and hazards
 
-- `parser.go` currently contains unused `Parse*` helpers with placeholder
-  implementations (`ParseObjects`, `ParseDimension`, `ParseHatch`, `ParseLeader`,
-  `ParseMLeader`, `ParsePolyline`, `ParseVertex`, `ParseImage`, `ParseSeqEnd`)
-  and incorrect normal-vector indices in `ParseSpline`/`ParseEllipse`. Do not
-  build on them; replace with the entity-model work in change 3.
-- `drawing.FromReader` only binds ENTITIES. HEADER/TABLES/BLOCKS/OBJECTS loaded
-  by `lldxf.Loader` are discarded.
 - `drawing.FromJSON` is a no-op.
-- `audit` has placeholder file loading and incomplete repair.
-- `csg` boolean operations are bounding-box approximations, not real CSG.
-- `text2path` glyphs are placeholders, not font-derived outlines.
-- `render`/`export` silently ignore unsupported entity types.
-- `spatial` comment admits placeholder bbox handling; verify before relying on it.
+- `ACAD_TABLE` remains a retained record; typed row/cell access is not wired
+  into the entity loader.
+- Math gaps: Perlin noise, clustering, `Shape` container, portal clipping,
+  path nesting, and the triangulation hole-bridge area shortfall.
+- Rendering gaps: full dimension block renderer, mesh rendering, arrow heads,
+  plot style tables (CTB/STB), SHX fonts, ISO hatch pattern library.
+- Audit gaps: duplicate handles are reported, not repaired; cycle repair is not
+  modeled.
+- Add-on/tool gaps: browser, acisbrowser, dwg, dimlines, r12export, xqt,
+  genetic_algorithm, menger_sponge, sierpinski_pyramid, mixins, standards,
+  analyze/difftags, ZIP manager.
 - The repository has a large untracked `.agents/`, `.dsh/`, `.zcode/` skill
   configuration. Treat as tooling, not library code.
 
@@ -411,5 +439,17 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-08 | change 1 `dxf-io-core-parity` | done | Two-phase load/bind: `documentBinder` binds HEADER/CLASSES/TABLES/BLOCKS/ENTITIES/OBJECTS; raw-tag retention; opaque sections; comments; recovery; writer section order and unique handles. All 51 fixtures round-trip. Remaining differences: unknown tags on known table entries/blocks/typed objects are partially dropped, comments emit at section start, binary writer unchanged until change 2. Tests: `dxf_io_core_test.go`, `corpus_roundtrip_test.go`, `fuzz_core_test.go`. |
 | 2026-11-09 | change 3 `entity-model-parity` | done | Loader registry covers every standard drawing entity with typed structs (37 registered types; `TestRegistryCompleteness`); MPOLYGON typed via hatch, dimension variants, MLEADER/MULTILEADER alias. Whole-record retention (`RetainedRecordType`) for ACAD_TABLE/ACAD_PROXY_ENTITY/OLE2FRAME/LIGHT/SUN/FIELD/third-party records; point-code tagger cast preserves unparseable strings so ACIS text payloads survive. Operations: Transform (matrix composition tests), BBox incl. INSERT content, Explode for INSERT/POLYLINE/HATCH/DIMENSION/LEADER/MLEADER. Tests: `geom_roundtrip_test.go`, `text_roundtrip_test.go`, `polyline_roundtrip_test.go`, `insert_roundtrip_test.go`, `hatch_roundtrip_test.go`, `mpolygon_roundtrip_test.go`, `leader_roundtrip_test.go`, `mline_roundtrip_test.go`, `dimension_roundtrip_test.go`, `explode_roundtrip_test.go`, `transform_compose_test.go`, `transform_more_test.go`, `bbox_insert_test.go`, `acis_roundtrip_test.go`, `surface_roundtrip_test.go`, `misc_roundtrip_test.go`, `registry_completeness_test.go`. ACIS bodies are retained, not parsed. |
 | 2026-11-09 | change 2 `dxf-version-encoding-parity` | done | Version profiles R12–R2018 (`format/version.go`); `$ACADVER` detect/normalize; target-version save with conversion report; R12 sanitizer incl. true-color header variables; codepage-aware load + UTF-8/codepage output; binary writer completed (all sections, EOF, signature, per-code int16/int32/int64 sizing, bool codes as int16 flags) — ASCII and binary tag streams now value-identical on `columns_R2018.dxf` (7734 tags). Fixed code-class lists in `lldxf/tags.go` (string codes 100–109, bool 290–299, int64 160–169) and the binary tagger read path. Tests: `version_encoding_test.go`. |
+| 2026-11-10 | change 4 `table-object-model-parity` | done | All nine tables typed with lookup/add/remove/rename and duplicate-name errors; dictionaries, groups, xrecords, layouts, plot settings, styles, image/underlay definitions, and remaining standard objects typed or retained; extension dictionaries/reactors preserved. |
+| 2026-11-10 | change 5 `geometry-math-parity` | done | Vectors/matrices, bbox, Bezier/BSpline/NURBS, bulge, OCS/UCS, offset, earcut/Delaunay, intersections, construct2d/3d. Remaining documented gaps: Perlin/clustering, Shape, portal clipping, triangulation hole bridge. |
+| 2026-11-10 | change 6 `graphics-factory-api-parity` | done | `Add<Type>` factory methods for every supported entity, block/insert/attrib linking, layouts, groups, selection/extents, transactions with rollback. |
+| 2026-11-10 | change 7 `path-render-parity` | done | Path converters for all supported entities; scene style resolution; SVG/PDF/raster backends; linetype/hatch/MTEXT/MLeader/MLine rendering. Dimension/mesh/arrow rendering remains partial. |
+| 2026-11-10 | change 8 `audit-recover-parity` | done | Pluggable audit checks and fixers, recovery mode, R12 strict checker, table/reference/dictionary/extents consistency. Duplicate-handle and cycle repair remain partial. |
+| 2026-11-10 | change 9 `query-transform-parity` | done | Query expressions, selections, grouping, transforms, explode/disassemble, upright text, draw order, block traversal, zoom/extents, revcloud. |
+| 2026-11-10 | change 10 `xref-image-underlay-parity` | done | XREF attach/detach/bind/reload, nested loading with cycle detection, images, PDF/DGN/DWF underlays, XCLIP. |
+| 2026-11-10 | change 11 `addons-parity` | done | r12writer, iterdxf, SVG importer, dxf2code, STB plot styles, CSG, MText explode, text2path, geo, mesh/OpenSCAD, ODA, HPGL2, xplayer, binpacking, tablepainter, gerber. Binary CTB and browser/acisbrowser/dwg/dimlines/r12export/xqt/genetic/menger/sierpinski/mixins remain absent. |
+| 2026-11-10 | change 12 `cli-tooling-parity` | done | `cmd/dxf` CLI with info/audit/convert/draw/query/explode/fix/strip/header/layers/browse/version/completion, text+JSON output, exit codes, config precedence, atomic writes/backups, shell completion, integration tests. `docs/cli.md` added. |
+| 2026-11-10 | change 13 `color-enum-units-parity` | done | Full ACI table/nearest lookup/transparency, typed enums, units/$INSUNITS conversion, lineweight validation. Linetype patterns and ISO hatch patterns remain partial. |
+| 2026-11-10 | ezdxf cross-check harness | done | `scripts/ezdxf_dump.py` + opt-in `TestEzdxfCrossCheck` compare version, entity/block/subentity inventory, source tables, and source objects across all 52 fixtures. Passing against ezdxf 1.4.6b0; `go test ./...` passes. |
+| 2026-11-10 | `library-refactor` | done | Removed dead `parser.go` and unused render helpers; consolidated block adapters in `internal/blockadapter`; replaced inline interface assertions with named interfaces across the public packages; `go test ./...` and the ezdxf cross-check still pass. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

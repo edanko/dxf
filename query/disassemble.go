@@ -28,7 +28,7 @@ func Disassemble(ents []entity.Entity, lookup BlockLookup) (*Disassembled, error
 
 func (d *Disassembled) walk(ents []entity.Entity, m dxfmath.Matrix44, path []string, lookup BlockLookup) {
 	for _, e := range ents {
-		if u, ok := e.(interface{ Unwrap() entity.Entity }); ok {
+		if u, ok := e.(entity.Unwrapper); ok {
 			e = u.Unwrap()
 		}
 		ins, ok := e.(*entity.Insert)
@@ -57,7 +57,7 @@ func (d *Disassembled) walk(ents []entity.Entity, m dxfmath.Matrix44, path []str
 }
 
 func (d *Disassembled) leaf(e entity.Entity, m dxfmath.Matrix44) {
-	if u, ok := e.(interface{ Unwrap() entity.Entity }); ok {
+	if u, ok := e.(entity.Unwrapper); ok {
 		e = u.Unwrap()
 	}
 	cp := e
@@ -66,7 +66,7 @@ func (d *Disassembled) leaf(e entity.Entity, m dxfmath.Matrix44) {
 			cp = c2
 		}
 	}
-	if s, ok := cp.(interface{ SetHandleString(string) }); ok {
+	if s, ok := cp.(entity.HandleStringSetter); ok {
 		s.SetHandleString("")
 	}
 	if m.IsIdentity(1e-12) {

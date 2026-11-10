@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/xdata"
 )
+
+type colorIndexReader interface {
+	Color() int
+}
 
 // EntityContext is the compiled view of one entity used by query predicates:
 // identity attributes, bounding box, INSERT attributes and xdata apps are
@@ -40,20 +43,20 @@ func ContextOf(e entity.Entity) *EntityContext {
 	}
 	c.Type = e.DXFType()
 	c.Handle = e.Handle()
-	if ln, ok := e.(interface{ LayerName() string }); ok {
+	if ln, ok := e.(entity.LayerNamer); ok {
 		c.Layer = ln.LayerName()
 	} else if l := e.Layer(); l != nil {
 		c.Layer = l.Name()
 	}
-	if lt, ok := e.(interface{ Linetype() string }); ok {
+	if lt, ok := e.(entity.LinetypeReader); ok {
 		c.Linetype = lt.Linetype()
 	}
 	if col, ok := colorValue(e); ok {
 		c.Color = col
 	}
-	if tx, ok := e.(interface{ Text() string }); ok {
+	if tx, ok := e.(entity.TextReader); ok {
 		c.Text = tx.Text()
-	} else if tx, ok := e.(interface{ Value() string }); ok {
+	} else if tx, ok := e.(entity.ValueReader); ok {
 		c.Text = tx.Value()
 	}
 	c.fillBBox(e)
@@ -61,10 +64,10 @@ func ContextOf(e entity.Entity) *EntityContext {
 }
 
 func colorValue(e entity.Entity) (int, bool) {
-	if cl, ok := e.(interface{ Color() color.ColorNumber }); ok {
+	if cl, ok := e.(entity.ColorReader); ok {
 		return int(cl.Color()), true
 	}
-	if cl, ok := e.(interface{ Color() int }); ok {
+	if cl, ok := e.(colorIndexReader); ok {
 		return cl.Color(), true
 	}
 	return 0, false
@@ -109,7 +112,7 @@ func safeBBox(e entity.Entity) (min, max []float64) {
 			min, max = nil, nil
 		}
 	}()
-	bb, ok := e.(interface{ BBox() ([]float64, []float64) })
+	bb, ok := e.(entity.Bounder)
 	if !ok {
 		return nil, nil
 	}
@@ -142,7 +145,7 @@ func (c *EntityContext) buildExtras() {
 			c.attrs[strings.ToUpper(a.GetTag())] = a.GetText()
 		}
 	}
-	if xd, ok := c.Entity.(interface{ GetXDataObject() *xdata.XData }); ok {
+	if xd, ok := c.Entity.(entity.XDataObjectReader); ok {
 		if x := xd.GetXDataObject(); x != nil && len(x.Apps) > 0 {
 			c.hasXD = true
 			for k, v := range x.Apps {

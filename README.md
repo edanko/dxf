@@ -57,6 +57,50 @@ func main() {
 $ go get github.com/edanko/dxf
 ```
 
+## Development
+
+### ezdxf cross-check
+
+The optional `TestEzdxfCrossCheck` harness compares the Go parser against
+Python `ezdxf` on every `testdata/*.dxf` fixture. It checks the DXF version,
+entity and block inventory (including sub-entities), source TABLES entries, and
+source OBJECTS records. Table and object expectations come from the raw DXF
+records, so ezdxf's automatically created defaults do not cause false diffs.
+
+Requirements:
+
+- Go toolchain
+- Python 3 with `ezdxf` installed (the reference version is `1.4.6b0`)
+- Optional: `uv` to create a temporary environment automatically
+
+Run the harness from the repository root:
+
+```sh
+DXF_EZDXF_CROSSCHECK=1 go test -run TestEzdxfCrossCheck .
+```
+
+If `ezdxf` is already installed in a Python environment, reuse it:
+
+```sh
+DXF_EZDXF_CROSSCHECK=1 \
+DXF_EZDXF_PYTHON=/path/to/venv/bin/python \
+go test -run TestEzdxfCrossCheck .
+```
+
+To test against a local ezdxf checkout, point `DXF_EZDXF_SOURCE` at it. The
+harness creates a throwaway virtual environment with `uv` or
+`python3 -m venv` when `DXF_EZDXF_PYTHON` is not set:
+
+```sh
+DXF_EZDXF_CROSSCHECK=1 \
+DXF_EZDXF_SOURCE=/home/egor/src/ezdxf \
+go test -run TestEzdxfCrossCheck .
+```
+
+The harness is opt-in and is not part of the normal `go test ./...` run, so the
+Go library has no runtime Python dependency. See
+[`docs/parity/README.md`](docs/parity/README.md) for the full parity roadmap.
+
 # License
 
 MIT

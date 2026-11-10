@@ -14,6 +14,7 @@ import (
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
 	"github.com/edanko/dxf/header"
+	"github.com/edanko/dxf/internal/blockadapter"
 	"github.com/edanko/dxf/lldxf"
 	"github.com/edanko/dxf/object"
 	"github.com/edanko/dxf/table"
@@ -389,7 +390,7 @@ func (b *documentBinder) readBlock(tags lldxf.Tags, i *int) *block.Block {
 				continue // Unbuildable record: raw tags retained in stream.
 			}
 			if owner := entityOwnerHandle(entityTags); owner != "" {
-				if setter, ok := e.(interface{ SetOwner(handle.Handler) }); ok {
+				if setter, ok := e.(entity.OwnerSetter); ok {
 					setter.SetOwner(handleRef{h: owner})
 					stripRawTag330(e)
 				}
@@ -441,24 +442,8 @@ func (b *documentBinder) bindBlocks() {
 // entities, including retained records, satisfy the interface directly; external
 // implementations that do not are wrapped with a minimal adapter.
 func asBlockEntity(e entity.Entity) block.BlockEntity {
-	if be, ok := e.(block.BlockEntity); ok {
-		return be
-	}
-	return &blockEntityAdapter{Entity: e}
+	return blockadapter.Adapt(e)
 }
-
-// blockEntityAdapter supplies the raw-tag methods for entities that lack them.
-type blockEntityAdapter struct {
-	entity.Entity
-	raw []block.TagPair
-}
-
-// Unwrap exposes the adapted entity for consumers that need the concrete type.
-func (a *blockEntityAdapter) Unwrap() entity.Entity { return a.Entity }
-
-func (a *blockEntityAdapter) RawTags() []block.TagPair { return a.raw }
-
-func (a *blockEntityAdapter) SetRawTags(tags []block.TagPair) { a.raw = tags }
 
 func (b *documentBinder) parseBlockHeader(tags lldxf.Tags) *block.Block {
 	name := tagValueString(tags, 2)
@@ -480,7 +465,7 @@ func (b *documentBinder) parseBlockHeader(tags lldxf.Tags) *block.Block {
 // wireXData attaches extended data (group codes 1001-1071) from the record
 // tags to entities that support it, so audit and round-trip see the apps.
 func wireXData(e entity.Entity, tags lldxf.Tags) {
-	setter, ok := e.(interface{ SetXDataObject(*xdata.XData) })
+	setter, ok := e.(entity.XDataObjectSetter)
 	if !ok {
 		return
 	}
@@ -526,7 +511,7 @@ func (b *documentBinder) bindEntities() {
 			continue
 		}
 		if owner := entityOwnerHandle(entityTags); owner != "" {
-			if setter, ok := e.(interface{ SetOwner(handle.Handler) }); ok {
+			if setter, ok := e.(entity.OwnerSetter); ok {
 				setter.SetOwner(handleRef{h: owner})
 				stripRawTag330(e)
 			}
@@ -540,7 +525,6 @@ func (b *documentBinder) bindEntities() {
 					if h := objects[i].GetHandle(); h != "" {
 						a.SetHandleString(h)
 					}
-					a.SetLayer(ins.Layer())
 					ins.AddAttribute(a)
 				}
 			}
@@ -609,10 +593,7 @@ func entityOwnerHandle(tags lldxf.Tags) string {
 // stripRawTag330 removes code-330 entries from rawTags on an entity so the
 // owner handle is not emitted twice (once by SetOwner, once by rawTags).
 func stripRawTag330(e entity.Entity) {
-	rt, ok := e.(interface {
-		RawTags() []entity.TagPair
-		SetRawTags([]entity.TagPair)
-	})
+	rt, ok := e.(entity.RawTagReadWriter)
 	if !ok {
 		return
 	}
@@ -677,7 +658,7 @@ func (b *documentBinder) buildEntity(tags lldxf.Tags) entity.Entity {
 		return nil
 	}
 	if h := tags.GetHandle(); h != "" {
-		if setter, ok := e.(interface{ SetHandleString(string) }); ok {
+		if setter, ok := e.(entity.HandleStringSetter); ok {
 			setter.SetHandleString(h)
 		}
 	}
@@ -736,11 +717,11 @@ func attachRawTags(e entity.Entity, tags lldxf.Tags) {
 	if e == nil {
 		return
 	}
-	setter, ok := e.(interface{ SetRawTags([]entity.TagPair) })
+	setter, ok := e.(entity.RawTagWriter)
 	if !ok {
 		return
 	}
-	if getter, ok := e.(interface{ RawTags() []entity.TagPair }); ok && len(getter.RawTags()) > 0 {
+	if getter, ok := e.(entity.RawTagReader); ok && len(getter.RawTags()) > 0 {
 		return // raw tags already derived; keep them append-only
 	}
 	f := format.NewASCII()
@@ -858,7 +839,7 @@ func tagStringValue(tag lldxf.Tag) string {
 // entity: the raw value is preserved and the issue is recorded on the binder
 // recovery report.
 func (b *documentBinder) validateEntityColor(e entity.Entity) {
-	c, ok := e.(interface{ Color() color.ColorNumber })
+	c, ok := e.(entity.ColorReader)
 	if !ok {
 		return
 	}

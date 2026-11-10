@@ -18,7 +18,7 @@ import (
 // existing entity are not rolled back, matching ezdxf transaction scope
 // over add/remove).
 func copyEntity(e entity.Entity) entity.Entity {
-	if c, ok := e.(interface{ Copy() entity.Entity }); ok {
+	if c, ok := e.(entity.Copier); ok {
 		return c.Copy()
 	}
 	return e

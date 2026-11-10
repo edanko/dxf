@@ -269,7 +269,7 @@ func (e *SVGExporter) writePoint(sb *strings.Builder, p *entity.Point, offsetX, 
 }
 
 func (e *SVGExporter) getColor(ent entity.Entity) string {
-	if c, ok := ent.(interface{ Color() color.ColorNumber }); ok {
+	if c, ok := ent.(entity.ColorReader); ok {
 		n := c.Color()
 		if n >= 1 && n <= 249 {
 			rgb := color.IndexColor(uint8(n))

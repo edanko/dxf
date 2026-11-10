@@ -793,7 +793,7 @@ func getEntityProperty(ent entity.Entity, propName string) any {
 			return col
 		}
 	case "linetype":
-		if l, ok := ent.(interface{ Linetype() string }); ok {
+		if l, ok := ent.(entity.LinetypeReader); ok {
 			return l.Linetype()
 		}
 	}

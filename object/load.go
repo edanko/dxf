@@ -9,6 +9,10 @@ import (
 	"github.com/edanko/dxf/lldxf"
 )
 
+type dxfTypeReader interface {
+	DXFType() string
+}
+
 // fixedHandle is a handle.Handler with a value loaded from a DXF file.
 type fixedHandle string
 
@@ -518,7 +522,7 @@ func TypeName(o Object) string {
 	case *AcDbDictionaryWDFLT:
 		return "ACDBDICTIONARYWDFLT"
 	default:
-		if t, ok := o.(interface{ DXFType() string }); ok {
+		if t, ok := o.(dxfTypeReader); ok {
 			return t.DXFType()
 		}
 		return fmt.Sprintf("%T", o)

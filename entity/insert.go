@@ -418,6 +418,16 @@ func (i *Insert) GetAttribute(tag string) *Attrib {
 	return nil
 }
 
+// Subentities returns the attribute records that follow the INSERT in the DXF
+// stream. SEQEND is structural and is not included.
+func (i *Insert) Subentities() []Entity {
+	subs := make([]Entity, 0, len(i.attributes))
+	for _, attrib := range i.attributes {
+		subs = append(subs, attrib)
+	}
+	return subs
+}
+
 // GetAllAttributes returns all attached attributes
 func (i *Insert) GetAllAttributes() []*Attrib {
 	return i.attributes
@@ -573,7 +583,7 @@ func (i *Insert) Explode() ([]Entity, error) {
 		if !ok {
 			continue
 		}
-		if w, ok := ent.(interface{ Unwrap() Entity }); ok {
+		if w, ok := ent.(Unwrapper); ok {
 			ent = w.Unwrap()
 		}
 		cp, ok := ent.(Copier)

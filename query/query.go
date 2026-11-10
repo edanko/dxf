@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/math"
 )
@@ -73,7 +72,7 @@ func getEntityType(ent entity.Entity) string {
 	case *entity.Insert:
 		return "INSERT"
 	case *entity.MLeader:
-		return "MLEADER"
+		return "MULTILEADER"
 	case *entity.MLine:
 		return "MLINE"
 	// Leader and Xline have different type signatures - skip for now
@@ -402,7 +401,7 @@ func getEntityAttribute(ent entity.Entity, attrName string) string {
 		return ent.Handle()
 	case "color":
 		// Need to access color differently since SetColor expects ColorNumber
-		if colorable, ok := ent.(interface{ Color() color.ColorNumber }); ok {
+		if colorable, ok := ent.(entity.ColorReader); ok {
 			return fmt.Sprintf("%d", colorable.Color())
 		}
 	}

@@ -260,7 +260,7 @@ type MLeader struct {
 // NewMLeader creates a new MULTILEADER entity
 func NewMLeader() *MLeader {
 	return &MLeader{
-		entity:             NewEntity(MLEADER),
+		entity:             NewEntity(MULTILEADER),
 		Version:            2, // Latest MLEADER version
 		StyleHandle:        "",
 		AnnotationScale:    1.0,

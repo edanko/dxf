@@ -13,6 +13,7 @@ import (
 	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/internal/blockadapter"
 	dxfmath "github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/table"
 )
@@ -352,25 +353,8 @@ func newEntityByType(dxfType string, a map[string]any) (entity.Entity, error) {
 // blockEntityAdapter adapts an entity.Entity to block.BlockEntity. Library
 // entities that satisfy the interface directly are passed through; the rest
 // are wrapped with the raw-tag methods (mirroring the loader adapter).
-type blockEntityAdapter struct {
-	entity.Entity
-	raw []block.TagPair
-}
-
-// Unwrap exposes the adapted entity for consumers that need the concrete type.
-func (a *blockEntityAdapter) Unwrap() entity.Entity { return a.Entity }
-
-// RawTags returns the retained group codes.
-func (a *blockEntityAdapter) RawTags() []block.TagPair { return a.raw }
-
-// SetRawTags stores retained group codes.
-func (a *blockEntityAdapter) SetRawTags(tags []block.TagPair) { a.raw = tags }
-
 func asBlockEntity(e entity.Entity) block.BlockEntity {
-	if be, ok := e.(block.BlockEntity); ok {
-		return be
-	}
-	return &blockEntityAdapter{Entity: e}
+	return blockadapter.Adapt(e)
 }
 
 // assignLayout records the layout an entity belongs to.
@@ -422,18 +406,18 @@ func (d *Drawing) assignOwners() {
 	for _, b := range d.blocksSection {
 		for _, be := range b.Entities() {
 			var target entity.Entity
-			if u, ok := be.(interface{ Unwrap() entity.Entity }); ok {
+			if u, ok := be.(entity.Unwrapper); ok {
 				target = u.Unwrap()
 			} else if ent, ok := be.(entity.Entity); ok {
 				target = ent
 			} else {
 				continue
 			}
-			if sh, ok := target.(interface{ SetHandle(*handle.HandleGenerator) }); ok && target.Handle() == "" {
+			if sh, ok := target.(entity.HandleGeneratorSetter); ok && target.Handle() == "" {
 				sh.SetHandle(d.handleGenarator)
 			}
 			if h, ok := d.blockRecordHandle(b.Name); ok {
-				if setter, ok := target.(interface{ SetOwner(handle.Handler) }); ok {
+				if setter, ok := target.(entity.OwnerSetter); ok {
 					setter.SetOwner(ownerRef{h})
 				}
 			}

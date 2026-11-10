@@ -21,6 +21,7 @@ import (
 	"github.com/edanko/dxf/audit"
 	"github.com/edanko/dxf/comments"
 	"github.com/edanko/dxf/drawing"
+	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/filemanagement"
 	"github.com/edanko/dxf/query"
 	"github.com/edanko/dxf/render"
@@ -439,7 +440,7 @@ func cmdExplode(args []string) error {
 		return dataError("create document: %v", err)
 	}
 	for _, e := range query.ExplodeAll(d.Entities()) {
-		if s, ok := e.(interface{ SetHandleString(string) }); ok {
+		if s, ok := e.(entity.HandleStringSetter); ok {
 			s.SetHandleString("")
 		}
 		if err := nd.AddEntity(e); err != nil {

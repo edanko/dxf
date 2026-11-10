@@ -22,6 +22,14 @@ import (
 	"github.com/edanko/dxf/xref"
 )
 
+type codepageSetter interface {
+	SetCodepage(string)
+}
+
+type versionSetter interface {
+	SetVersion(string)
+}
+
 // Drawing contains DXF drawing data.
 type Drawing struct {
 	fileName     string
@@ -322,7 +330,7 @@ func (d *Drawing) WriteBinaryTo(w io.Writer) (n int64, err error) {
 	}
 
 	binaryFormatter := format.NewBinary(target)
-	if cpd, ok := any(binaryFormatter).(interface{ SetCodepage(string) }); ok {
+	if cpd, ok := any(binaryFormatter).(codepageSetter); ok {
 		if format.Profile(target).UTF8 {
 			cpd.SetCodepage("")
 		} else if d.codepage != "" {
@@ -1187,10 +1195,10 @@ func (d *Drawing) WriteTo(w io.Writer) (n int64, err error) {
 		f = format.NewASCII()
 		d.formatter = f
 	}
-	if sv, ok := f.(interface{ SetVersion(string) }); ok {
+	if sv, ok := f.(versionSetter); ok {
 		sv.SetVersion(target)
 	}
-	if cpd, ok := f.(interface{ SetCodepage(string) }); ok {
+	if cpd, ok := f.(codepageSetter); ok {
 		if format.Profile(target).UTF8 {
 			cpd.SetCodepage("")
 		} else if d.codepage != "" {

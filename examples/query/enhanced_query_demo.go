@@ -98,7 +98,7 @@ func main() {
 
 	// Custom attribute filtering
 	blueGeometry := selector.Layer("Geometry").Filter(func(ent entity.Entity) bool {
-		if colorable, ok := ent.(interface{ Color() color.ColorNumber }); ok {
+		if colorable, ok := ent.(entity.ColorReader); ok {
 			return int(colorable.Color()) == int(color.Blue)
 		}
 		return false

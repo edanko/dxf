@@ -11,6 +11,14 @@ import (
 	"github.com/edanko/dxf/table"
 )
 
+type ownerSetter interface {
+	SetOwner(handle.Handler)
+}
+
+type layerNameSetter interface {
+	SetLayerName(string)
+}
+
 // Options controls audit execution.
 type Options struct {
 	// Fix applies safe fixers to the document and re-audits.
@@ -48,7 +56,7 @@ func fixInvalidOwner(ctx *Context, issue Issue) bool {
 		if !ok {
 			return false
 		}
-		e, ok := obj.(interface{ SetOwner(handle.Handler) })
+		e, ok := obj.(ownerSetter)
 		if !ok {
 			return false
 		}
@@ -124,7 +132,7 @@ func fixMissingLayer(ctx *Context, issue Issue) bool {
 	if layers := ctx.EntryNames("LAYER"); !layers["0"] {
 		return false // fix order guarantees layer 0 exists first
 	}
-	e, ok := obj.(interface{ SetLayerName(string) })
+	e, ok := obj.(layerNameSetter)
 	if !ok {
 		return false
 	}

@@ -18,7 +18,7 @@ func TraverseBlockRefs(ents []entity.Entity, lookup BlockLookup, visit func(dept
 	var walk func(list []entity.Entity, depth int, path []string)
 	walk = func(list []entity.Entity, depth int, path []string) {
 		for _, e := range list {
-			if u, ok := e.(interface{ Unwrap() entity.Entity }); ok {
+			if u, ok := e.(entity.Unwrapper); ok {
 				e = u.Unwrap()
 			}
 			ins, ok := e.(*entity.Insert)

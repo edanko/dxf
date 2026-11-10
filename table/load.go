@@ -10,6 +10,14 @@ import (
 	"github.com/edanko/dxf/lldxf"
 )
 
+type ownerHandleSetter interface {
+	SetOwnerHandle(string)
+}
+
+type tagRetainer interface {
+	RetainTags(lldxf.Tags)
+}
+
 // point2First returns the first pair of codes base/base+1 (repeats dropped).
 func point2First(tags lldxf.Tags, base int) []float64 {
 	return []float64{tagFloatByCodeFirst(tags, base), tagFloatByCodeFirst(tags, base+1)}
@@ -169,9 +177,6 @@ func ParseTableEntry(tableName string, tags lldxf.Tags) SymbolTable {
 		typeName = strings.ToUpper(tags.DXFType())
 	}
 	name := tagStringByCode(tags, 2)
-	if name == "" {
-		name = typeName
-	}
 	var st SymbolTable
 
 	switch typeName {
@@ -361,11 +366,11 @@ func ParseTableEntry(tableName string, tags lldxf.Tags) SymbolTable {
 		}
 	}
 	if oh := tagStringByCode(tags, 330); oh != "" {
-		if ownerSetter, ok := st.(interface{ SetOwnerHandle(string) }); ok {
+		if ownerSetter, ok := st.(ownerHandleSetter); ok {
 			ownerSetter.SetOwnerHandle(oh)
 		}
 	}
-	if retainer, ok := st.(interface{ RetainTags(lldxf.Tags) }); ok {
+	if retainer, ok := st.(tagRetainer); ok {
 		retainer.RetainTags(tags)
 	}
 	return st

@@ -14,6 +14,22 @@ import (
 	"github.com/edanko/dxf/table"
 )
 
+type stringOwner interface {
+	Owner() string
+}
+
+type dxfTypeReader interface {
+	DXFType() string
+}
+
+type objectNameReader interface {
+	Name() string
+}
+
+type handleReader interface {
+	Handle() string
+}
+
 // Context carries the document under audit plus a document-wide handle map
 // built once per run (duplicates and dangling references are detected against
 // it in a single pass).
@@ -190,7 +206,7 @@ func (c *Context) AllEntities() []any {
 			// Adapters (raw-tag wrappers) hide the entity method set; audit
 			// the unwrapped model so owner/layer/bbox checks see it.
 			e := any(be)
-			if u, ok := be.(interface{ Unwrap() entity.Entity }); ok {
+			if u, ok := be.(entity.Unwrapper); ok {
 				e = u.Unwrap()
 			}
 			if done[e] {
@@ -219,7 +235,7 @@ func (c *Context) ContainingBlock(entityHandle string) *block.Block {
 // EntryOwner returns the owner handler of a table entry (nil when the entry
 // does not track ownership).
 func EntryOwner(e table.SymbolTable) handle.Handler {
-	if o, ok := e.(interface{ Owner() handle.Handler }); ok {
+	if o, ok := e.(entity.OwnerGetter); ok {
 		return o.Owner()
 	}
 	return nil
@@ -227,7 +243,7 @@ func EntryOwner(e table.SymbolTable) handle.Handler {
 
 // EntityOwner returns the owner handler of an entity.
 func EntityOwner(e any) handle.Handler {
-	if o, ok := e.(interface{ Owner() handle.Handler }); ok {
+	if o, ok := e.(entity.OwnerGetter); ok {
 		return o.Owner()
 	}
 	return nil
@@ -235,7 +251,7 @@ func EntityOwner(e any) handle.Handler {
 
 // ObjectOwnerHandle returns the owner handle recorded on an object.
 func ObjectOwnerHandle(o any) string {
-	if s, ok := o.(interface{ Owner() string }); ok {
+	if s, ok := o.(stringOwner); ok {
 		return s.Owner()
 	}
 	return ""
@@ -244,7 +260,7 @@ func ObjectOwnerHandle(o any) string {
 // ObjectReactors returns parsed reactor links of an object, nil when the
 // object model does not track them.
 func ObjectReactors(o any) []string {
-	if r, ok := o.(interface{ ReactorHandles() []string }); ok {
+	if r, ok := o.(entity.ReactorReader); ok {
 		return r.ReactorHandles()
 	}
 	return nil
@@ -256,15 +272,15 @@ func Describe(obj any) string {
 		return "<nil>"
 	}
 	typeStr := ""
-	if d, ok := obj.(interface{ DXFType() string }); ok {
+	if d, ok := obj.(dxfTypeReader); ok {
 		typeStr = d.DXFType()
 	}
 	nameStr := ""
-	if n, ok := obj.(interface{ Name() string }); ok {
+	if n, ok := obj.(objectNameReader); ok {
 		nameStr = n.Name()
 	}
 	hStr := ""
-	if h, ok := obj.(interface{ Handle() string }); ok {
+	if h, ok := obj.(handleReader); ok {
 		hStr = h.Handle()
 	}
 	if typeStr == "" {
@@ -352,7 +368,7 @@ func entityHook(dxfType string) (EntityHook, bool) {
 
 // EntityHandle returns the handle of an entity of any model.
 func EntityHandle(e any) string {
-	if h, ok := e.(interface{ Handle() string }); ok {
+	if h, ok := e.(handleReader); ok {
 		return h.Handle()
 	}
 	return ""
@@ -360,7 +376,7 @@ func EntityHandle(e any) string {
 
 // EntityType returns the DXF type of an entity of any model.
 func EntityType(e any) string {
-	if t, ok := e.(interface{ DXFType() string }); ok {
+	if t, ok := e.(dxfTypeReader); ok {
 		return t.DXFType()
 	}
 	return ""

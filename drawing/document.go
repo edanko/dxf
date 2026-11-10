@@ -180,7 +180,7 @@ func (d *Drawing) SetEntityLayer(e entity.Entity, name string) {
 		e.SetLayer(l)
 		return
 	}
-	if setter, ok := e.(interface{ SetLayerName(string) }); ok {
+	if setter, ok := e.(entity.LayerNameSetter); ok {
 		setter.SetLayerName(name)
 	}
 }

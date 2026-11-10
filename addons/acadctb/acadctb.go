@@ -86,12 +86,12 @@ func (t *PlotStyleTable) Apply(styleName string, e entity.Entity) error {
 		return fmt.Errorf("acadctb: plot style %q not found", styleName)
 	}
 	if s.Color > 0 {
-		if c, ok := e.(interface{ SetColor(color.ColorNumber) }); ok {
+		if c, ok := e.(entity.ColorSetter); ok {
 			c.SetColor(color.ColorNumber(s.Color))
 		}
 	}
 	if s.Lineweight != 0 {
-		if lw, ok := e.(interface{ SetLineWeight(int) }); ok {
+		if lw, ok := e.(entity.LineWeightSetter); ok {
 			lw.SetLineWeight(s.Lineweight)
 		}
 	}

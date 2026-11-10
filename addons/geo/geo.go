@@ -55,7 +55,7 @@ func ExportGeoJSON(d *drawing.Drawing, opts *Options) ([]byte, error) {
 	feats := []Feature{}
 	for _, e := range d.Entities() {
 		layer := ""
-		if ln, ok := e.(interface{ LayerName() string }); ok {
+		if ln, ok := e.(entity.LayerNamer); ok {
 			layer = ln.LayerName()
 		}
 		if len(layerFilter) > 0 && !layerFilter[layer] {

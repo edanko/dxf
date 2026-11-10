@@ -399,7 +399,7 @@ func v2f(v []float64) [2]float64 {
 // color/lineweight/linetype/transparency, true color, and ACI 7 against
 // the background. ok is false when the entity must not be drawn.
 func resolveStyle(e entity.Entity, bg color.RGBA) (Style, bool) {
-	if inv, ok := e.(interface{ Invisible() bool }); ok && inv.Invisible() {
+	if inv, ok := e.(entity.InvisibleReader); ok && inv.Invisible() {
 		return Style{}, false
 	}
 	layer := e.Layer()
@@ -418,7 +418,7 @@ func resolveStyle(e entity.Entity, bg color.RGBA) (Style, bool) {
 
 	// Stroke color: true color (code 420) wins, then ACI with ByLayer.
 	var rgb [3]uint8
-	if tc, ok := e.(interface{ ColorRGB() int }); ok && tc.ColorRGB() > 0 {
+	if tc, ok := e.(entity.ColorRGBReader); ok && tc.ColorRGB() > 0 {
 		v := tc.ColorRGB()
 		rgb = [3]uint8{uint8(v >> 16), uint8(v >> 8), uint8(v)}
 	} else {
@@ -447,14 +447,14 @@ func resolveStyle(e entity.Entity, bg color.RGBA) (Style, bool) {
 	_ = rgb
 
 	alpha := uint8(255)
-	if tr, ok := e.(interface{ Transparency() float64 }); ok && tr.Transparency() > 0 {
+	if tr, ok := e.(entity.TransparencyReader); ok && tr.Transparency() > 0 {
 		alpha = uint8((1 - tr.Transparency()) * 255)
 	} else if layer != nil && layer.Transparency() >= 0 {
 		alpha = uint8((1 - float64(layer.Transparency())/100) * 255)
 	}
 
 	lw := 25 // default 0.25 mm
-	if v, ok := e.(interface{ LineWeight() int }); ok && v.LineWeight() >= 0 {
+	if v, ok := e.(entity.LineWeightReader); ok && v.LineWeight() >= 0 {
 		lw = v.LineWeight()
 	} else if layer != nil && layer.LineWidth() >= 0 {
 		lw = layer.LineWidth()
@@ -481,7 +481,7 @@ func aci7OnBackground(bg color.RGBA) [3]uint8 {
 // model units (scaled later by the fit transform).
 func dashPattern(e entity.Entity, layer *table.Layer, ltscale float64) []float64 {
 	name := ""
-	if lt, ok := e.(interface{ Linetype() string }); ok {
+	if lt, ok := e.(entity.LinetypeReader); ok {
 		name = lt.Linetype()
 	}
 	var lt *table.LineType

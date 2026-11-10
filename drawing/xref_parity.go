@@ -241,11 +241,11 @@ func copyForBlock(e entity.Entity, owner string) entity.Entity {
 	if cp == nil {
 		return nil
 	}
-	if s, ok := cp.(interface{ SetHandleString(string) }); ok {
+	if s, ok := cp.(entity.HandleStringSetter); ok {
 		s.SetHandleString("")
 	}
 	if owner != "" {
-		if s, ok := cp.(interface{ SetOwner(handle.Handler) }); ok {
+		if s, ok := cp.(entity.OwnerSetter); ok {
 			s.SetOwner(ownerHandle(owner))
 		}
 	}

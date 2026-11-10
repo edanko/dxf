@@ -9,6 +9,10 @@ import (
 	"github.com/edanko/dxf/handle"
 )
 
+type nameSetter interface {
+	SetName(string)
+}
+
 // Table represents each TABLE.
 type Table struct {
 	name   string // 2
@@ -133,7 +137,7 @@ func (t *Table) Rename(oldName, newName string) error {
 	if err != nil {
 		return fmt.Errorf("%w: %s in %s", ErrEntryNotFound, oldName, t.name)
 	}
-	rn, ok := e.(interface{ SetName(string) })
+	rn, ok := e.(nameSetter)
 	if !ok {
 		return fmt.Errorf("entry %s does not support rename", oldName)
 	}

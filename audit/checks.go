@@ -12,6 +12,18 @@ import (
 	"github.com/edanko/dxf/object"
 )
 
+type blockRecordHandleReader interface {
+	BlockRecordHandle() string
+}
+
+type rawTagReader interface {
+	RawTags() lldxf.Tags
+}
+
+type auditable interface {
+	Audit(*Context) []Issue
+}
+
 // Issue codes reported by the built-in checks.
 const (
 	CodeDuplicateHandle           = "DUPLICATE_HANDLE"
@@ -205,7 +217,7 @@ func checkTableIntegrity(ctx *Context) []Issue {
 // rawTagsOf returns the retained raw tag stream of an entity, nil when the
 // entity model does not keep raw tags (e.g. entities created by the API).
 func rawTagsOf(e any) []entity.TagPair {
-	if r, ok := e.(interface{ RawTags() []entity.TagPair }); ok {
+	if r, ok := e.(entity.RawTagReader); ok {
 		return r.RawTags()
 	}
 	return nil
@@ -255,7 +267,7 @@ func checkReferences(ctx *Context) []Issue {
 	styleTypes := map[string]bool{"TEXT": true, "MTEXT": true, "ATTRIB": true, "ATTDEF": true, "SHAPE": true}
 	for _, e := range ctx.AllEntities() {
 		h := EntityHandle(e)
-		if ln, ok := e.(interface{ LayerName() string }); ok {
+		if ln, ok := e.(entity.LayerNamer); ok {
 			name := ln.LayerName()
 			if name != "" && !layers[name] {
 				out = append(out, Issue{
@@ -264,7 +276,7 @@ func checkReferences(ctx *Context) []Issue {
 				})
 			}
 		}
-		if lt, ok := e.(interface{ Linetype() string }); ok {
+		if lt, ok := e.(entity.LinetypeReader); ok {
 			name := lt.Linetype()
 			if name != "" && !strings.EqualFold(name, "ByLayer") && !strings.EqualFold(name, "ByBlock") && !linetypes[name] {
 				out = append(out, Issue{
@@ -289,7 +301,7 @@ func checkReferences(ctx *Context) []Issue {
 		if strings.EqualFold(EntityType(e), "INSERT") {
 			names := []string{}
 			seenName := map[string]bool{}
-			if b, ok := e.(interface{ BlockName() string }); ok {
+			if b, ok := e.(entity.BlockNameReader); ok {
 				if n := b.BlockName(); n != "" && !seenName[n] {
 					seenName[n] = true
 					names = append(names, n)
@@ -313,7 +325,7 @@ func checkReferences(ctx *Context) []Issue {
 		if strings.EqualFold(EntityType(e), "DIMENSION") {
 			names := []string{}
 			seenName := map[string]bool{}
-			if s, ok := e.(interface{ GetStyle() string }); ok {
+			if s, ok := e.(entity.StyleReader); ok {
 				if n := s.GetStyle(); n != "" && !seenName[n] {
 					seenName[n] = true
 					names = append(names, n)
@@ -343,7 +355,7 @@ func checkReferences(ctx *Context) []Issue {
 func checkLayouts(ctx *Context) []Issue {
 	var out []Issue
 	for _, o := range ctx.Doc.Objects() {
-		br, ok := o.(interface{ BlockRecordHandle() string })
+		br, ok := o.(blockRecordHandleReader)
 		if !ok {
 			continue
 		}
@@ -367,7 +379,7 @@ func checkXData(ctx *Context) []Issue {
 	var out []Issue
 	appids := ctx.EntryNames("APPID")
 	for _, e := range ctx.AllEntities() {
-		x, ok := e.(interface{ XDataAppIDs() []string })
+		x, ok := e.(entity.XDataAppIDReader)
 		if !ok {
 			continue
 		}
@@ -401,7 +413,7 @@ func checkReactors(ctx *Context) []Issue {
 		}
 	}
 	for _, en := range ctx.Entries() {
-		r, ok := en.(interface{ ReactorHandles() []string })
+		r, ok := en.(entity.ReactorReader)
 		if !ok {
 			continue
 		}
@@ -451,7 +463,7 @@ func checkExtensionDictionaries(ctx *Context) []Issue {
 		}
 	}
 	for _, en := range ctx.Entries() {
-		x, ok := en.(interface{ ExtDictHandle() string })
+		x, ok := en.(entity.ExtDictReader)
 		if !ok {
 			continue
 		}
@@ -491,12 +503,12 @@ func checkDictionaries(ctx *Context) []Issue {
 		}
 		// Raw objects (ACDBDICTIONARYW and friends) carry (3 key, 350 handle)
 		// pairs in their retained tags.
-		rt, ok := o.(interface{ RawTags() lldxf.Tags })
+		rt, ok := o.(rawTagReader)
 		if !ok {
 			continue
 		}
 		kind := ""
-		if dt, ok := o.(interface{ DXFType() string }); ok {
+		if dt, ok := o.(dxfTypeReader); ok {
 			kind = strings.ToUpper(dt.DXFType())
 		}
 		if !strings.Contains(kind, "DICTIONARY") {
@@ -525,7 +537,7 @@ func checkDictionaries(ctx *Context) []Issue {
 }
 
 // safeBBox calls BBox, recovering from panics in exotic entity models.
-func safeBBox(bb interface{ BBox() ([]float64, []float64) }) (min, max []float64) {
+func safeBBox(bb entity.Bounder) (min, max []float64) {
 	defer func() {
 		if r := recover(); r != nil {
 			min, max = nil, nil
@@ -575,7 +587,7 @@ func checkExtents(ctx *Context) []Issue {
 		})
 	}
 	for _, e := range ctx.AllEntities() {
-		bb, ok := e.(interface{ BBox() ([]float64, []float64) })
+		bb, ok := e.(entity.Bounder)
 		if !ok {
 			continue
 		}
@@ -599,7 +611,7 @@ func checkEntityInvariants(ctx *Context) []Issue {
 		if fn, ok := entityHook(EntityType(e)); ok {
 			found = append(found, fn(e, ctx)...)
 		}
-		if a, ok := e.(interface{ Audit(*Context) []Issue }); ok {
+		if a, ok := e.(auditable); ok {
 			found = append(found, a.Audit(ctx)...)
 		}
 		for _, is := range found {

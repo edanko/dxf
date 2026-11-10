@@ -61,22 +61,24 @@ func (h *Header) Format(f format.Formatter) {
 	h.FormatAt(f, "")
 }
 
-// FormatAt writes the HEADER section declaring the requested target version
-// when it is supported; otherwise the header's own $ACADVER.
+type valueWriter interface {
+	WriteValue(int, any)
+}
+
 // writeVariableTag emits a raw header variable tag with its native type: binary
 // formatters must receive ints and floats as numbers (int16/int32 sizing per
 // group code), while ASCII output formats every value textually.
 func writeVariableTag(f format.Formatter, tag lldxf.Tag) {
 	code := int(tag.Code())
-	if bf, ok := f.(interface {
-		WriteValue(int, any)
-	}); ok {
+	if bf, ok := f.(valueWriter); ok {
 		bf.WriteValue(code, tag.Value())
 		return
 	}
 	f.WriteString(code, tagString(tag))
 }
 
+// FormatAt writes the HEADER section declaring the requested target version
+// when it is supported; otherwise the header's own $ACADVER.
 func (h *Header) FormatAt(f format.Formatter, target string) {
 	f.WriteString(0, "SECTION")
 	f.WriteString(2, "HEADER")

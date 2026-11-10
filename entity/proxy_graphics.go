@@ -53,7 +53,7 @@ func ExtractProxyGraphics(e Entity) ([]Entity, error) {
 		if err != nil {
 			return nil, fmt.Errorf("proxy graphics: record %s: %w", typeName, err)
 		}
-		if s, ok := ent.(interface{ SetHandleString(string) }); ok {
+		if s, ok := ent.(HandleStringSetter); ok {
 			s.SetHandleString("")
 		}
 		out = append(out, ent)
