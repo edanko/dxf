@@ -2,6 +2,7 @@ package path
 
 import (
 	"math"
+	"slices"
 
 	dxfmath "github.com/edanko/dxf/math"
 )
@@ -416,8 +417,8 @@ func (t *Tools) Reverse() *Path {
 	lastEnd := t.EndPoint()
 	newPath.MoveTo(lastEnd.X(), lastEnd.Y())
 
-	for i := len(t.path.commands) - 1; i >= 0; i-- {
-		switch c := t.path.commands[i].(type) {
+	for _, v := range slices.Backward(t.path.commands) {
+		switch c := v.(type) {
 		case *PathMoveTo:
 			// Skip - we already did MoveTo
 		case *PathLineTo:
@@ -540,7 +541,7 @@ func (t *Tools) offsetClosedPath(distance float64) *Path {
 		return nil
 	}
 
-	for i := 0; i < len(points); i++ {
+	for i := range points {
 		p0 := points[(i-1+len(points))%len(points)]
 		p1 := points[i]
 		p2 := points[(i+1)%len(points)]
@@ -589,7 +590,7 @@ func (t *Tools) offsetOpenPath(distance float64) *Path {
 	}
 
 	// Offset first segment
-	for i := 0; i < len(points); i++ {
+	for i := range points {
 		p := points[i]
 
 		dx := 0.0

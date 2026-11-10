@@ -173,7 +173,7 @@ func (fg *FormGenerator) NGon(sides int, radius float64, close ...bool) []dxfmat
 
 	angle := 2.0 * math.Pi / float64(sides)
 
-	for i := 0; i < sides; i++ {
+	for i := range sides {
 		theta := float64(i) * angle
 		x := radius * math.Cos(theta)
 		y := radius * math.Sin(theta)
@@ -223,7 +223,7 @@ func (fg *FormGenerator) Helix(radius, height, turns float64, pointsPerTurn int)
 	totalPoints := int(turns) * pointsPerTurn
 	vertices := make([]dxfmath.Vec3, totalPoints)
 
-	for i := 0; i < totalPoints; i++ {
+	for i := range totalPoints {
 		t := float64(i) / float64(pointsPerTurn)
 		angle := 2.0 * math.Pi * t
 		y := height * t / turns
@@ -288,7 +288,7 @@ func (fg *FormGenerator) Extrude(vertices []dxfmath.Vec3, depth float64) [][]dxf
 	// Create side faces
 	sideFaces := make([][]dxfmath.Vec3, len(vertices))
 
-	for i := 0; i < len(vertices); i++ {
+	for i := range vertices {
 		next := (i + 1) % len(vertices)
 
 		// Side face (quad)
@@ -549,7 +549,7 @@ func (fg *FormGenerator) Gear(outerRadius, innerRadius, toothHeight float64, tee
 	vertices[vertexIndex] = dxfmath.NewVec3(innerRadius, 0, 0)
 	vertexIndex++
 
-	for i := 0; i < teeth; i++ {
+	for i := range teeth {
 		baseAngle := float64(i) * angleStep
 
 		// Tooth base (inner radius)
@@ -610,7 +610,7 @@ func (fg *FormGenerator) Sweep(profile []dxfmath.Vec3, path []dxfmath.Vec3) [][]
 	// Generate side faces
 	for i := 0; i < len(path)-1; i++ {
 		next := (i + 1)
-		for j := 0; j < len(profile); j++ {
+		for j := range profile {
 			nextJ := (j + 1) % len(profile)
 
 			// Quad face
@@ -794,7 +794,7 @@ func (fg *FormGenerator) RotationForm(profile []dxfmath.Vec3, angle, segments in
 
 	// Generate faces between consecutive profiles
 	for i := 0; i < segments; i++ {
-		for j := 0; j < len(profile); j++ {
+		for j := range profile {
 			nextJ := (j + 1) % len(profile)
 
 			// Quad face
@@ -847,7 +847,7 @@ func (fg *FormGenerator) ExtrudeTwistScale(profile []dxfmath.Vec3, height float6
 
 	// Generate side faces
 	for i := 0; i < segments; i++ {
-		for j := 0; j < len(profile); j++ {
+		for j := range profile {
 			nextJ := (j + 1) % len(profile)
 
 			// Quad face
@@ -881,7 +881,7 @@ func (fg *FormGenerator) FromProfilesLinear(profiles [][]dxfmath.Vec3, close boo
 			continue // Skip if profiles have different vertex counts
 		}
 
-		for j := 0; j < len(profile1); j++ {
+		for j := range profile1 {
 			nextJ := (j + 1) % len(profile1)
 
 			// Quad face
@@ -900,7 +900,7 @@ func (fg *FormGenerator) FromProfilesLinear(profiles [][]dxfmath.Vec3, close boo
 		first := profiles[0]
 		last := profiles[len(profiles)-1]
 
-		for j := 0; j < len(first); j++ {
+		for j := range first {
 			nextJ := (j + 1) % len(first)
 
 			// Quad face to close the shape

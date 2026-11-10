@@ -166,7 +166,7 @@ func (m *Mesh) IsPointInside(point Vec3) bool {
 
 		// Check if point is on same side of all face edges
 		signs := make([]int, 3)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			var next Vec3
 			if i == 2 {
 				next = v0
@@ -265,7 +265,7 @@ func (m *Mesh) Smooth(iterations int, lambda float64) Mesh {
 	copy(result.Normals, m.Normals)
 
 	// Apply Laplacian smoothing
-	for iter := 0; iter < iterations; iter++ {
+	for range iterations {
 		newVertices := make([]Vec3, len(result.Vertices))
 		copy(newVertices, result.Vertices)
 

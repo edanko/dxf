@@ -50,7 +50,7 @@ func TestDifferenceNoInvertedFaces(t *testing.T) {
 	// exactly once in each direction (cavity faces point into the cavity).
 	edges := map[[2]int]int{}
 	for _, f := range d.Faces {
-		for i := 0; i < len(f); i++ {
+		for i := range f {
 			x, y := f[i], f[(i+1)%len(f)]
 			key := [2]int{x, y}
 			dir := 1

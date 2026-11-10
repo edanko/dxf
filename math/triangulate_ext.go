@@ -89,7 +89,7 @@ type TriangulationIssue struct {
 func DiagnoseTriangulation(vertices []Point2D, indices []int) []TriangulationIssue {
 	issues := make([]TriangulationIssue, 0)
 	if len(indices)%3 != 0 {
-		for i := 0; i < len(indices); i++ {
+		for i := range indices {
 			if indices[i] < 0 || indices[i] >= len(vertices) {
 				issues = append(issues, TriangulationIssue{
 					Kind:     IssueInvalidIndex,

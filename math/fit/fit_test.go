@@ -13,7 +13,7 @@ func nearlyEqual(a, b, tolerance float64) bool {
 
 func TestFitPolynomialLine(t *testing.T) {
 	points := make([]dxfmath.Vec2, 0, 5)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		x := float64(i)
 		points = append(points, dxfmath.Vec2{x, 2*x + 1})
 	}
@@ -136,7 +136,7 @@ func TestFitCircleLSQOnSampledCircle(t *testing.T) {
 	center := dxfmath.Vec2{1, -2}
 	const radius = 3
 	points := make([]dxfmath.Vec2, 0, 24)
-	for i := 0; i < 24; i++ {
+	for i := range 24 {
 		angle := 2 * math.Pi * float64(i) / 24
 		points = append(points, dxfmath.Vec2{center.X() + radius*math.Cos(angle), center.Y() + radius*math.Sin(angle)})
 	}

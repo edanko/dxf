@@ -104,7 +104,7 @@ func TestHandleManager(t *testing.T) {
 		var wg sync.WaitGroup
 		numGoroutines := 100
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()

@@ -680,7 +680,7 @@ func (m *MLeader) BBox() ([]float64, []float64) {
 	maxs := make([]float64, 3)
 
 	// Initialize with large/small values
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		mins[i] = 1e100
 		maxs[i] = -1e100
 	}
@@ -870,12 +870,4 @@ func (m *MLeader) String() string {
 
 	return fmt.Sprintf("MLeader{Type: %d, Content: %s, Lines: %d%s}",
 		m.ContextType, contentType, len(m.Lines), enhancedInfo)
-}
-
-// Helper function for string min
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

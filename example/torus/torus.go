@@ -19,7 +19,7 @@ func main() {
 	ndiv := 16
 	dtheta := 2.0 * math.Pi / float64(ndiv)
 	theta := 0.0
-	for i := 0; i < ndiv; i++ {
+	for range ndiv {
 		d.ChangeLayer("Toroidal")
 		d.Circle(0.0, 0.0, z+r1*math.Cos(theta), r2-r1*math.Sin(theta))
 		d.ChangeLayer("Poloidal")

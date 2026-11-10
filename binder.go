@@ -469,7 +469,7 @@ func (b *documentBinder) parseBlockHeader(tags lldxf.Tags) *block.Block {
 	if v, ok := tagValueInt(tags, 70); ok {
 		blk.Flag = v
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if v, ok := tagValueFloat(tags, 10+i*10); ok {
 			blk.Coord[i] = v
 		}
@@ -746,7 +746,7 @@ func attachRawTags(e entity.Entity, tags lldxf.Tags) {
 	f := format.NewASCII()
 	e.Format(f)
 	emitted := make(map[int]bool)
-	for _, line := range strings.Split(f.Output(), "\n") {
+	for line := range strings.SplitSeq(f.Output(), "\n") {
 		var code int
 		if _, err := fmt.Sscanf(strings.TrimSpace(line), "%d", &code); err == nil {
 			emitted[code] = true

@@ -146,8 +146,8 @@ func (t *Trace) DXFType() string {
 }
 
 // GetAttributes returns entity attributes as a map
-func (t *Trace) GetAttributes() map[string]interface{} {
-	attrs := make(map[string]interface{})
+func (t *Trace) GetAttributes() map[string]any {
+	attrs := make(map[string]any)
 
 	// Basic attributes
 	attrs["points"] = t.Points
@@ -165,7 +165,7 @@ func (t *Trace) GetAttributes() map[string]interface{} {
 }
 
 // LoadAttributes loads entity attributes from a map
-func (t *Trace) LoadAttributes(attrs map[string]interface{}) error {
+func (t *Trace) LoadAttributes(attrs map[string]any) error {
 	// Load points attribute
 	if points, ok := attrs["points"].([]float64); ok {
 		if len(points) >= 4 {

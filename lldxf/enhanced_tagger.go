@@ -190,7 +190,7 @@ func (bt *BinaryTagger) Next() bool {
 	}
 
 	// Read value based on group code
-	var value interface{}
+	var value any
 
 	switch {
 	case isInt16Code(GroupCode(code)):
@@ -585,12 +585,4 @@ func CreateTagger(r io.Reader, format string) Tagger {
 	default:
 		return NewASCIITagger(r) // Default to ASCII
 	}
-}
-
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

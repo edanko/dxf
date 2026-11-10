@@ -65,7 +65,7 @@ func clipPolygonByPlane(poly []dxfmath.Vec3, pl Plane, keepPositive bool) []dxfm
 		return nil
 	}
 	var out []dxfmath.Vec3
-	for i := 0; i < len(poly); i++ {
+	for i := range poly {
 		a := poly[i]
 		b := poly[(i+1)%len(poly)]
 		da := pl.DistanceToPoint(a)

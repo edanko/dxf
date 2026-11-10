@@ -171,7 +171,7 @@ func firstFloat(tags lldxf.Tags) (float64, bool) {
 
 func coords(tags lldxf.Tags, base, count int) []float64 {
 	result := make([]float64, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		for _, tag := range tags {
 			if int(tag.Code()) == base+i*10 {
 				f, _ := firstFloat(lldxf.Tags{tag})

@@ -298,7 +298,7 @@ func ColorIndex(cl []int) ColorNumber {
 	minval := 1000000
 	for i, c := range ColorRGB {
 		tmpval := 0
-		for j := 0; j < 3; j++ {
+		for j := range 3 {
 			tmpval += (cl[j] - int(c[j])) * (cl[j] - int(c[j]))
 		}
 		if tmpval < minval {

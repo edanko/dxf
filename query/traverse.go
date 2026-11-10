@@ -84,7 +84,7 @@ func RevCloudRectangle(minX, minY, maxX, maxY, arcLength, bulge float64) (*entit
 	var verts [][]float64
 	addSide := func(x0, y0, x1, y1 float64, n int) {
 		stepX, stepY := (x1-x0)/float64(n), (y1-y0)/float64(n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			verts = append(verts, []float64{x0 + stepX*float64(i), y0 + stepY*float64(i)})
 		}
 	}
@@ -112,7 +112,7 @@ func RevCloudArcs(minX, minY, maxX, maxY, arcLength, bulge float64) ([]RevCloudA
 	}
 	n := p.Num
 	arcs := make([]RevCloudArc, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		a := p.Vertices[i]
 		b := p.Vertices[(i+1)%n]
 		arcs = append(arcs, RevCloudArc{
@@ -125,10 +125,7 @@ func RevCloudArcs(minX, minY, maxX, maxY, arcLength, bulge float64) ([]RevCloudA
 }
 
 func arcsForSide(length, arcLength float64) int {
-	n := int(math.Round(length / arcLength))
-	if n < 1 {
-		n = 1
-	}
+	n := max(int(math.Round(length/arcLength)), 1)
 	return n
 }
 

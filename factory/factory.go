@@ -10,7 +10,7 @@ import (
 // Tag represents a DXF tag
 type Tag struct {
 	GroupCode int
-	Value     interface{}
+	Value     any
 }
 
 // Formatter interface for entity output
@@ -25,7 +25,7 @@ type Formatter interface {
 // EntityCreator interface for creating entities
 type EntityCreator interface {
 	New() entity.Entity
-	NewWithAttribs(attribs map[string]interface{}) entity.Entity
+	NewWithAttribs(attribs map[string]any) entity.Entity
 	LoadFromTags(tags []Tag) (entity.Entity, error)
 	DXFType() string
 }
@@ -52,7 +52,7 @@ func (f *Factory) Register(dxfType string, creator EntityCreator) {
 }
 
 // Create creates a new entity of the specified type with attributes
-func (f *Factory) Create(dxfType string, attribs map[string]interface{}) (entity.Entity, error) {
+func (f *Factory) Create(dxfType string, attribs map[string]any) (entity.Entity, error) {
 	creator, exists := f.entityTypes[strings.ToUpper(dxfType)]
 	if !exists {
 		if f.defaultType != nil {
@@ -113,7 +113,7 @@ func RegisterGlobal(dxfType string, creator EntityCreator) {
 }
 
 // CreateGlobal creates an entity using the default factory
-func CreateGlobal(dxfType string, attribs map[string]interface{}) (entity.Entity, error) {
+func CreateGlobal(dxfType string, attribs map[string]any) (entity.Entity, error) {
 	return DefaultFactory.Create(dxfType, attribs)
 }
 

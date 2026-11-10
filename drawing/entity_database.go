@@ -3,6 +3,7 @@ package drawing
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"sync"
 
@@ -312,9 +313,7 @@ func (db *EntityDatabase) Clone() *EntityDatabase {
 	}
 
 	// Copy entities (shallow copy - entities themselves are not cloned)
-	for handle, ent := range db.entities {
-		clone.entities[handle] = ent
-	}
+	maps.Copy(clone.entities, db.entities)
 
 	return clone
 }
@@ -333,9 +332,7 @@ func (db *EntityDatabase) Statistics() map[string]int {
 		typeCounts[entityType]++
 	}
 
-	for entityType, count := range typeCounts {
-		stats[entityType] = count
-	}
+	maps.Copy(stats, typeCounts)
 
 	return stats
 }

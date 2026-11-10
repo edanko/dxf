@@ -235,10 +235,7 @@ func ellipseToPath(ellipse *entity.Ellipse, options *Options) (*Path, error) {
 	}
 	span := endDeg - startDeg
 
-	segments := int(math.Ceil(span / 7.5))
-	if segments < 16 {
-		segments = 16
-	}
+	segments := max(int(math.Ceil(span/7.5)), 16)
 	if segments > 256 {
 		segments = 256
 	}

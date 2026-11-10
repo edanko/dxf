@@ -117,7 +117,7 @@ func (gf *GraphicsFactory) Spline(controlPoints ...float64) *entity.Spline {
 	pointCount := len(controlPoints) / 3
 	spline := entity.NewSpline(3)
 
-	for i := 0; i < pointCount; i++ {
+	for i := range pointCount {
 		x := controlPoints[i*3]
 		y := controlPoints[i*3+1]
 		z := controlPoints[i*3+2]
@@ -215,7 +215,7 @@ func (gf *GraphicsFactory) Insert(blockName string, x, y, z float64) *entity.Ins
 func (gf *GraphicsFactory) Polyline2D(closed bool, vertices ...float64) *entity.Polyline {
 	polyline := entity.NewPolyline()
 	vertexCount := len(vertices) / 2
-	for i := 0; i < vertexCount; i++ {
+	for i := range vertexCount {
 		x := vertices[i*2]
 		y := vertices[i*2+1]
 		polyline.AddVertex(x, y, 0)
@@ -231,7 +231,7 @@ func (gf *GraphicsFactory) Polyline2D(closed bool, vertices ...float64) *entity.
 func (gf *GraphicsFactory) Polyline3D(closed bool, vertices ...float64) *entity.Polyline {
 	polyline := entity.NewPolyline()
 	vertexCount := len(vertices) / 3
-	for i := 0; i < vertexCount; i++ {
+	for i := range vertexCount {
 		x := vertices[i*3]
 		y := vertices[i*3+1]
 		z := vertices[i*3+2]

@@ -306,11 +306,11 @@ func (db *ProfessionalEntityDB) ClearCache() error {
 }
 
 // GetCacheStats returns cache statistics
-func (db *ProfessionalEntityDB) GetCacheStats() map[string]interface{} {
+func (db *ProfessionalEntityDB) GetCacheStats() map[string]any {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"size":         len(db.cache),
 		"max_size":     db.cacheSize,
 		"usage":        float64(len(db.cache)) / float64(db.cacheSize),

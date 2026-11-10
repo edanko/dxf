@@ -16,7 +16,6 @@ func TestCorpusRoundTrip(t *testing.T) {
 		t.Fatal("no testdata fixtures")
 	}
 	for _, fn := range files {
-		fn := fn
 		t.Run(filepath.Base(fn), func(t *testing.T) {
 			data, err := os.ReadFile(fn)
 			if err != nil {

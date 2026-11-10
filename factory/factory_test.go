@@ -12,19 +12,19 @@ import (
 
 type mockEntity struct{}
 
-func (m *mockEntity) IsEntity() bool                                      { return true }
-func (m *mockEntity) Handle() string                                      { return "" }
-func (m *mockEntity) SetHandle(hg *handle.HandleGenerator)                {}
-func (m *mockEntity) DXFType() string                                     { return "" }
-func (m *mockEntity) GetAttributes() map[string]interface{}               { return nil }
-func (m *mockEntity) LoadAttributes(attribs map[string]interface{}) error { return nil }
-func (m *mockEntity) BBox() ([]float64, []float64)                        { return nil, nil }
-func (m *mockEntity) Layer() *table.Layer                                 { return nil }
-func (m *mockEntity) SetLayer(layer *table.Layer)                         {}
-func (m *mockEntity) Format(f format.Formatter)                           {}
-func (m *mockEntity) SetBlockRecord(blockRecord handle.Handler)           {}
-func (m *mockEntity) SetLtscale(ltscale float64)                          {}
-func (m *mockEntity) SetColor(c color.ColorNumber)                        {}
+func (m *mockEntity) IsEntity() bool                              { return true }
+func (m *mockEntity) Handle() string                              { return "" }
+func (m *mockEntity) SetHandle(hg *handle.HandleGenerator)        {}
+func (m *mockEntity) DXFType() string                             { return "" }
+func (m *mockEntity) GetAttributes() map[string]any               { return nil }
+func (m *mockEntity) LoadAttributes(attribs map[string]any) error { return nil }
+func (m *mockEntity) BBox() ([]float64, []float64)                { return nil, nil }
+func (m *mockEntity) Layer() *table.Layer                         { return nil }
+func (m *mockEntity) SetLayer(layer *table.Layer)                 {}
+func (m *mockEntity) Format(f format.Formatter)                   {}
+func (m *mockEntity) SetBlockRecord(blockRecord handle.Handler)   {}
+func (m *mockEntity) SetLtscale(ltscale float64)                  {}
+func (m *mockEntity) SetColor(c color.ColorNumber)                {}
 
 type mockCreator struct {
 	name string
@@ -34,7 +34,7 @@ func (m *mockCreator) New() entity.Entity {
 	return &mockEntity{}
 }
 
-func (m *mockCreator) NewWithAttribs(attribs map[string]interface{}) entity.Entity {
+func (m *mockCreator) NewWithAttribs(attribs map[string]any) entity.Entity {
 	return &mockEntity{}
 }
 

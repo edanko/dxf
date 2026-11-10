@@ -20,10 +20,10 @@ import (
 type Context struct {
 	Doc *drawing.Drawing
 
-	objs     map[string][]interface{}
+	objs     map[string][]any
 	entOwner map[string]*block.Block // entity handle -> containing block (for fixes)
 	blocks   []*block.Block
-	seen     map[interface{}]bool
+	seen     map[any]bool
 }
 
 // NewContext builds the handle map for the whole document: table entries,
@@ -31,9 +31,9 @@ type Context struct {
 func NewContext(doc *drawing.Drawing) *Context {
 	c := &Context{
 		Doc:      doc,
-		objs:     map[string][]interface{}{},
+		objs:     map[string][]any{},
 		entOwner: map[string]*block.Block{},
-		seen:     map[interface{}]bool{},
+		seen:     map[any]bool{},
 	}
 	if doc == nil {
 		return c
@@ -86,7 +86,7 @@ func NewContext(doc *drawing.Drawing) *Context {
 	return c
 }
 
-func add(c *Context, h string, obj interface{}) {
+func add(c *Context, h string, obj any) {
 	if h == "" {
 		return
 	}
@@ -94,7 +94,7 @@ func add(c *Context, h string, obj interface{}) {
 }
 
 // Resolve returns the single object registered for handle h.
-func (c *Context) Resolve(h string) (interface{}, bool) {
+func (c *Context) Resolve(h string) (any, bool) {
 	objs, ok := c.objs[h]
 	if !ok || len(objs) == 0 {
 		return nil, false
@@ -104,7 +104,7 @@ func (c *Context) Resolve(h string) (interface{}, bool) {
 
 // Objects returns every object registered under handle h (len > 1 means the
 // handle is duplicated).
-func (c *Context) Objects(h string) []interface{} {
+func (c *Context) Objects(h string) []any {
 	return c.objs[h]
 }
 
@@ -184,7 +184,7 @@ func (c *Context) ModelBlock() *block.Block {
 // are concrete entity models; access capabilities via structural assertions.
 func (c *Context) AllEntities() []any {
 	var out []any
-	done := map[interface{}]bool{}
+	done := map[any]bool{}
 	for _, b := range c.blocks {
 		for _, be := range b.Entities() {
 			// Adapters (raw-tag wrappers) hide the entity method set; audit
@@ -226,7 +226,7 @@ func EntryOwner(e table.SymbolTable) handle.Handler {
 }
 
 // EntityOwner returns the owner handler of an entity.
-func EntityOwner(e interface{}) handle.Handler {
+func EntityOwner(e any) handle.Handler {
 	if o, ok := e.(interface{ Owner() handle.Handler }); ok {
 		return o.Owner()
 	}
@@ -234,7 +234,7 @@ func EntityOwner(e interface{}) handle.Handler {
 }
 
 // ObjectOwnerHandle returns the owner handle recorded on an object.
-func ObjectOwnerHandle(o interface{}) string {
+func ObjectOwnerHandle(o any) string {
 	if s, ok := o.(interface{ Owner() string }); ok {
 		return s.Owner()
 	}
@@ -243,7 +243,7 @@ func ObjectOwnerHandle(o interface{}) string {
 
 // ObjectReactors returns parsed reactor links of an object, nil when the
 // object model does not track them.
-func ObjectReactors(o interface{}) []string {
+func ObjectReactors(o any) []string {
 	if r, ok := o.(interface{ ReactorHandles() []string }); ok {
 		return r.ReactorHandles()
 	}
@@ -251,7 +251,7 @@ func ObjectReactors(o interface{}) []string {
 }
 
 // Describe renders a short human-readable identity for an audited object.
-func Describe(obj interface{}) string {
+func Describe(obj any) string {
 	if obj == nil {
 		return "<nil>"
 	}
@@ -327,7 +327,7 @@ func checksSnapshot() []Check {
 }
 
 // EntityHook validates one entity of a given DXF type.
-type EntityHook func(e interface{}, ctx *Context) []Issue
+type EntityHook func(e any, ctx *Context) []Issue
 
 var (
 	hooksMu sync.RWMutex
@@ -351,7 +351,7 @@ func entityHook(dxfType string) (EntityHook, bool) {
 }
 
 // EntityHandle returns the handle of an entity of any model.
-func EntityHandle(e interface{}) string {
+func EntityHandle(e any) string {
 	if h, ok := e.(interface{ Handle() string }); ok {
 		return h.Handle()
 	}
@@ -359,7 +359,7 @@ func EntityHandle(e interface{}) string {
 }
 
 // EntityType returns the DXF type of an entity of any model.
-func EntityType(e interface{}) string {
+func EntityType(e any) string {
 	if t, ok := e.(interface{ DXFType() string }); ok {
 		return t.DXFType()
 	}

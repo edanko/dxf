@@ -3,6 +3,7 @@
 package query
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -64,12 +65,7 @@ func (s *Selection) Len() int { return len(s.handles) }
 
 // Has reports whether a handle is selected.
 func (s *Selection) Has(handle string) bool {
-	for _, h := range s.handles {
-		if h == handle {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s.handles, handle)
 }
 
 // Clone returns an independent copy.
@@ -170,7 +166,7 @@ func (s *Selection) Bounds(src EntitySource) (mn, mx math.Vec3, ok bool) {
 			lo, hi, first = c.Min, c.Max, false
 			continue
 		}
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			lo[i] = min(lo[i], c.Min[i])
 			hi[i] = max(hi[i], c.Max[i])
 		}

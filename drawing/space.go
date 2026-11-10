@@ -238,7 +238,7 @@ type blockEntity interface {
 // attribs dictionary. Coordinate keys are flat names ("x", "y", "z",
 // "x1".."z2", "center" via x/y/z, "radius", "text", "tag", "vertices" as
 // []float64).
-func (s *Space) AddGeneric(dxfType string, attribs map[string]interface{}, opts ...EntityOption) (entity.Entity, error) {
+func (s *Space) AddGeneric(dxfType string, attribs map[string]any, opts ...EntityOption) (entity.Entity, error) {
 	e, err := newEntityByType(dxfType, attribs)
 	if err != nil {
 		return nil, err
@@ -249,7 +249,7 @@ func (s *Space) AddGeneric(dxfType string, attribs map[string]interface{}, opts 
 	return e, nil
 }
 
-func attrFloat(attribs map[string]interface{}, key string) float64 {
+func attrFloat(attribs map[string]any, key string) float64 {
 	if v, ok := attribs[key].(float64); ok {
 		return v
 	}
@@ -259,14 +259,14 @@ func attrFloat(attribs map[string]interface{}, key string) float64 {
 	return 0
 }
 
-func attrFloats(attribs map[string]interface{}, key string) []float64 {
+func attrFloats(attribs map[string]any, key string) []float64 {
 	if v, ok := attribs[key].([]float64); ok {
 		return v
 	}
 	return nil
 }
 
-func attrString(attribs map[string]interface{}, key string) string {
+func attrString(attribs map[string]any, key string) string {
 	if v, ok := attribs[key].(string); ok {
 		return v
 	}
@@ -275,7 +275,7 @@ func attrString(attribs map[string]interface{}, key string) string {
 
 // newEntityByType builds a standard entity from flat attributes; it is the
 // generic counterpart of the typed Add<Type> helpers.
-func newEntityByType(dxfType string, a map[string]interface{}) (entity.Entity, error) {
+func newEntityByType(dxfType string, a map[string]any) (entity.Entity, error) {
 	switch strings.ToUpper(dxfType) {
 	case "POINT":
 		e := entity.NewPoint()

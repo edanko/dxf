@@ -53,7 +53,7 @@ func NewNURBSUniform(controlPoints []Vec3, weights []float64, degree int) *NURBS
 
 	// Create uniform knot vector
 	knots := make([]float64, m)
-	for i := 0; i < m; i++ {
+	for i := range m {
 		if i <= degree {
 			knots[i] = 0.0
 		} else if i >= n {
@@ -211,7 +211,7 @@ func (nurbs *NURBS) SamplePoints(numPoints int) []Vec3 {
 	tMin := nurbs.knots[nurbs.degree]
 	tMax := nurbs.knots[len(nurbs.controlPoints)]
 
-	for i := 0; i < numPoints; i++ {
+	for i := range numPoints {
 		t := tMin + float64(i)/(float64(numPoints-1))*(tMax-tMin)
 		points[i] = nurbs.Evaluate(t)
 	}
@@ -271,7 +271,7 @@ func CreateCircleNURBS(center Vec3, radius float64, startAngle, endAngle float64
 	controlPoints := make([]Vec3, numSegments)
 	weights := make([]float64, numSegments)
 
-	for i := 0; i < numSegments; i++ {
+	for i := range numSegments {
 		t := float64(i) / float64(numSegments-1)
 		angle := startAngle + t*angleSpan
 
@@ -293,7 +293,7 @@ func CreateCircleNURBS(center Vec3, radius float64, startAngle, endAngle float64
 	m := numSegments + degree + 1
 	knots := make([]float64, m)
 
-	for i := 0; i < m; i++ {
+	for i := range m {
 		if i <= degree {
 			knots[i] = 0.0
 		} else if i >= numSegments {

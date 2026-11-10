@@ -51,7 +51,7 @@ func TestBBoxFixturesCorpus(t *testing.T) {
 			if len(mins) < 2 || len(maxs) < 2 {
 				t.Fatalf("%s %s: malformed bbox", name, e.DXFType())
 			}
-			for k := 0; k < 2; k++ {
+			for k := range 2 {
 				if mins[k] > maxs[k] {
 					t.Errorf("%s %s: min > max (%v %v)", name, e.DXFType(), mins, maxs)
 				}

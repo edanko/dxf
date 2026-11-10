@@ -116,7 +116,7 @@ func TestCircleBBox(t *testing.T) {
 
 		mins, maxs := circle.BBox()
 
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			if mins[i] != 0 || maxs[i] != 0 {
 				t.Errorf("Expected zeros for nil center, got mins=%v, maxs=%v", mins, maxs)
 			}

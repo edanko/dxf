@@ -204,7 +204,7 @@ func checkTableIntegrity(ctx *Context) []Issue {
 
 // rawTagsOf returns the retained raw tag stream of an entity, nil when the
 // entity model does not keep raw tags (e.g. entities created by the API).
-func rawTagsOf(e interface{}) []entity.TagPair {
+func rawTagsOf(e any) []entity.TagPair {
 	if r, ok := e.(interface{ RawTags() []entity.TagPair }); ok {
 		return r.RawTags()
 	}
@@ -212,7 +212,7 @@ func rawTagsOf(e interface{}) []entity.TagPair {
 }
 
 // tagValues collects RawTags values with the given group code.
-func tagValues(e interface{}, code int) []string {
+func tagValues(e any, code int) []string {
 	var out []string
 	for _, t := range rawTagsOf(e) {
 		if t.Code == code {
@@ -224,7 +224,7 @@ func tagValues(e interface{}, code int) []string {
 
 // entityReactorHandles extracts reactor handles from the {ACAD_REACTORS
 // group embedded in an entity's raw tags.
-func entityReactorHandles(e interface{}) []string {
+func entityReactorHandles(e any) []string {
 	var out []string
 	inGroup := false
 	for _, t := range rawTagsOf(e) {
@@ -614,7 +614,7 @@ func checkEntityInvariants(ctx *Context) []Issue {
 
 // checkSpline verifies the spline knot count invariant:
 // len(Knots) == len(Controls) + Degree + 1 (ezdxf spline validation).
-func checkSpline(e interface{}, ctx *Context) []Issue {
+func checkSpline(e any, ctx *Context) []Issue {
 	s, ok := e.(*entity.Spline)
 	if !ok || len(s.Controls) == 0 || len(s.Knots) == 0 {
 		return nil

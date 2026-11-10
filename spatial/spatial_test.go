@@ -191,7 +191,7 @@ func TestBoundingBoxExtendMultiple(t *testing.T) {
 func TestRTreeMultipleInserts(t *testing.T) {
 	rt := NewRTree(nil)
 
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		box := NewBoundingBox(float64(i*10), float64(i*10), float64(i*10+5), float64(i*10+5))
 		rt.Insert(box, fmt.Sprintf("item%d", i))
 	}

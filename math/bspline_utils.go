@@ -69,7 +69,7 @@ func uniformParameterization(n int) []float64 {
 	}
 
 	params := make([]float64, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		params[i] = float64(i) / float64(n-1)
 	}
 
@@ -85,12 +85,12 @@ func knotsFromParameterization(params []float64, degree int) []float64 {
 	knots := make([]float64, numKnots)
 
 	// First m knots are 0.0
-	for i := 0; i < m; i++ {
+	for i := range m {
 		knots[i] = 0.0
 	}
 
 	// Internal knots from parameterization
-	for i := 0; i < n; i++ {
+	for i := range n {
 		knotIndex := m + i
 		if knotIndex < numKnots {
 			knots[knotIndex] = params[i]
@@ -117,7 +117,7 @@ func generateOpenUniformKnotVector(count, order int, normalize bool) []float64 {
 
 	knots := make([]float64, numKnots)
 
-	for i := 0; i < numKnots; i++ {
+	for i := range numKnots {
 		if i < m {
 			knots[i] = 0.0
 		} else if i >= n+m {
@@ -246,7 +246,7 @@ func generateExtendedKnotVector(knots []float64, order int, atStart bool) []floa
 
 	if atStart {
 		// Add knots at beginning
-		for i := 0; i < m; i++ {
+		for i := range m {
 			extended[i] = knots[0] - float64(m-i)
 		}
 		copy(extended[m:], knots)
@@ -254,7 +254,7 @@ func generateExtendedKnotVector(knots []float64, order int, atStart bool) []floa
 		// Add knots at end
 		copy(extended, knots)
 		last := knots[len(knots)-1]
-		for i := 0; i < m; i++ {
+		for i := range m {
 			extended[len(knots)+i] = last + float64(i+1)
 		}
 	}

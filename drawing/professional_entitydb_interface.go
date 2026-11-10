@@ -18,7 +18,7 @@ type EntityEntry struct {
 	CreatedAt  time.Time
 	ModifiedAt time.Time
 	Version    int
-	Tags       map[string]interface{} // Additional metadata
+	Tags       map[string]any // Additional metadata
 }
 
 // DatabaseSnapshot represents state of database at a point in time
@@ -266,5 +266,5 @@ type DatabaseInterface interface {
 
 	// Cache management
 	ClearCache() error
-	GetCacheStats() map[string]interface{}
+	GetCacheStats() map[string]any
 }

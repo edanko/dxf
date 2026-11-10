@@ -38,10 +38,10 @@ func (l *Line) Format(f format.Formatter) {
 	if l.thickness != 0 {
 		f.WriteFloat(39, l.thickness)
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10, l.Start[i])
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10+1, l.End[i])
 	}
 	l.entity.FormatBaseExtrusion(f)
@@ -50,7 +50,7 @@ func (l *Line) Format(f format.Formatter) {
 func (l *Line) BBox() ([]float64, []float64) {
 	mins := make([]float64, 3)
 	maxs := make([]float64, 3)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if l.Start[i] <= l.End[i] {
 			mins[i] = l.Start[i]
 			maxs[i] = l.End[i]
@@ -64,7 +64,7 @@ func (l *Line) BBox() ([]float64, []float64) {
 
 func (l *Line) Length() float64 {
 	sum := 0.0
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		sum += math.Pow(l.End[i]-l.Start[i], 2.0)
 	}
 	return math.Sqrt(sum)
@@ -79,7 +79,7 @@ func (l *Line) Direction(normalize bool) []float64 {
 			length = 1.0
 		}
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		vec[i] = l.End[i] - l.Start[i]
 		if normalize {
 			vec[i] /= length

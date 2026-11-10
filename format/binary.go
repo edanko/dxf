@@ -182,7 +182,7 @@ func (f *Binary) WriteSignature() error {
 }
 
 // WriteValue writes a tag value using the encoding for its group code.
-func (f *Binary) WriteValue(num int, val interface{}) {
+func (f *Binary) WriteValue(num int, val any) {
 	switch lldxf.BinaryKindFor(lldxf.GroupCode(num)) {
 	case lldxf.BinaryFloat:
 		f.WriteFloat(num, toFloat64(val))
@@ -209,7 +209,7 @@ func (f *Binary) WriteValue(num int, val interface{}) {
 	}
 }
 
-func toFloat64(v interface{}) float64 {
+func toFloat64(v any) float64 {
 	switch n := v.(type) {
 	case float64:
 		return n
@@ -231,7 +231,7 @@ func toFloat64(v interface{}) float64 {
 	return 0
 }
 
-func toInt(v interface{}) int {
+func toInt(v any) int {
 	switch n := v.(type) {
 	case int:
 		return n
@@ -251,7 +251,7 @@ func toInt(v interface{}) int {
 	return 0
 }
 
-func toString(v interface{}) string {
+func toString(v any) string {
 	if s, ok := v.(string); ok {
 		return s
 	}

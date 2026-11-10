@@ -91,7 +91,7 @@ func TestSVGExporterStructure(t *testing.T) {
 
 func TestSVGExporterType(t *testing.T) {
 	d, _ := drawing.New()
-	var exporter interface{} = NewSVGExporter(d)
+	var exporter any = NewSVGExporter(d)
 
 	if _, ok := exporter.(*SVGExporter); !ok {
 		t.Error("NewSVGExporter should return *SVGExporter")

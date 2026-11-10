@@ -3,6 +3,7 @@ package handle
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 )
 
@@ -64,8 +65,8 @@ func (hg *HandleGenerator) Observe(h string) {
 type HandleManager struct {
 	mu              sync.RWMutex
 	generator       *HandleGenerator
-	handleToObj     map[string]interface{}
-	objToHandle     map[interface{}]string
+	handleToObj     map[string]any
+	objToHandle     map[any]string
 	maxHandle       int
 	reservedHandles map[string]bool
 }
@@ -74,8 +75,8 @@ type HandleManager struct {
 func NewHandleManager() *HandleManager {
 	return &HandleManager{
 		generator:       NewHandleGenerator(),
-		handleToObj:     make(map[string]interface{}),
-		objToHandle:     make(map[interface{}]string),
+		handleToObj:     make(map[string]any),
+		objToHandle:     make(map[any]string),
 		maxHandle:       0,
 		reservedHandles: make(map[string]bool),
 	}
@@ -85,8 +86,8 @@ func NewHandleManager() *HandleManager {
 func NewHandleManagerWithSeed(seed int) *HandleManager {
 	hm := &HandleManager{
 		generator:       &HandleGenerator{handle: seed},
-		handleToObj:     make(map[string]interface{}),
-		objToHandle:     make(map[interface{}]string),
+		handleToObj:     make(map[string]any),
+		objToHandle:     make(map[any]string),
 		maxHandle:       seed - 1,
 		reservedHandles: make(map[string]bool),
 	}
@@ -95,7 +96,7 @@ func NewHandleManagerWithSeed(seed int) *HandleManager {
 
 // Register registers an object with the handle manager and assigns a handle if needed.
 // Returns the assigned handle.
-func (hm *HandleManager) Register(obj interface{}) string {
+func (hm *HandleManager) Register(obj any) string {
 	hm.mu.Lock()
 	defer hm.mu.Unlock()
 
@@ -119,7 +120,7 @@ func (hm *HandleManager) Register(obj interface{}) string {
 
 // RegisterWithHandle registers an object with a specific handle.
 // Returns an error if the handle is already in use.
-func (hm *HandleManager) RegisterWithHandle(obj interface{}, handle string) error {
+func (hm *HandleManager) RegisterWithHandle(obj any, handle string) error {
 	hm.mu.Lock()
 	defer hm.mu.Unlock()
 
@@ -159,21 +160,21 @@ func (hm *HandleManager) RegisterWithHandle(obj interface{}, handle string) erro
 }
 
 // GetObject returns the object associated with a handle, or nil if not found.
-func (hm *HandleManager) GetObject(handle string) interface{} {
+func (hm *HandleManager) GetObject(handle string) any {
 	hm.mu.RLock()
 	defer hm.mu.RUnlock()
 	return hm.handleToObj[handle]
 }
 
 // GetHandle returns the handle associated with an object, or empty string if not found.
-func (hm *HandleManager) GetHandle(obj interface{}) string {
+func (hm *HandleManager) GetHandle(obj any) string {
 	hm.mu.RLock()
 	defer hm.mu.RUnlock()
 	return hm.objToHandle[obj]
 }
 
 // Unregister removes an object from the handle manager.
-func (hm *HandleManager) Unregister(obj interface{}) bool {
+func (hm *HandleManager) Unregister(obj any) bool {
 	hm.mu.Lock()
 	defer hm.mu.Unlock()
 
@@ -266,8 +267,8 @@ func (hm *HandleManager) Clear() {
 	hm.mu.Lock()
 	defer hm.mu.Unlock()
 	hm.generator = NewHandleGenerator()
-	hm.handleToObj = make(map[string]interface{})
-	hm.objToHandle = make(map[interface{}]string)
+	hm.handleToObj = make(map[string]any)
+	hm.objToHandle = make(map[any]string)
 	hm.maxHandle = 0
 	hm.reservedHandles = make(map[string]bool)
 }
@@ -276,8 +277,8 @@ func (hm *HandleManager) Clear() {
 func (hm *HandleManager) ClearObjects() {
 	hm.mu.Lock()
 	defer hm.mu.Unlock()
-	hm.handleToObj = make(map[string]interface{})
-	hm.objToHandle = make(map[interface{}]string)
+	hm.handleToObj = make(map[string]any)
+	hm.objToHandle = make(map[any]string)
 }
 
 // Clone creates a copy of the handle manager with the same state.
@@ -288,22 +289,16 @@ func (hm *HandleManager) Clone() *HandleManager {
 
 	clone := &HandleManager{
 		generator:       &HandleGenerator{handle: hm.generator.handle},
-		handleToObj:     make(map[string]interface{}),
-		objToHandle:     make(map[interface{}]string),
+		handleToObj:     make(map[string]any),
+		objToHandle:     make(map[any]string),
 		maxHandle:       hm.maxHandle,
 		reservedHandles: make(map[string]bool),
 	}
 
 	// Copy mappings
-	for k, v := range hm.handleToObj {
-		clone.handleToObj[k] = v
-	}
-	for k, v := range hm.objToHandle {
-		clone.objToHandle[k] = v
-	}
-	for k, v := range hm.reservedHandles {
-		clone.reservedHandles[k] = v
-	}
+	maps.Copy(clone.handleToObj, hm.handleToObj)
+	maps.Copy(clone.objToHandle, hm.objToHandle)
+	maps.Copy(clone.reservedHandles, hm.reservedHandles)
 
 	return clone
 }
@@ -321,11 +316,11 @@ func (hm *HandleManager) Handles() []string {
 }
 
 // Objects returns a slice of all registered objects.
-func (hm *HandleManager) Objects() []interface{} {
+func (hm *HandleManager) Objects() []any {
 	hm.mu.RLock()
 	defer hm.mu.RUnlock()
 
-	objects := make([]interface{}, 0, len(hm.objToHandle))
+	objects := make([]any, 0, len(hm.objToHandle))
 	for obj := range hm.objToHandle {
 		objects = append(objects, obj)
 	}

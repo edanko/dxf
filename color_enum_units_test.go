@@ -76,7 +76,7 @@ func TestInvalidACIReportedAndPreserved(t *testing.T) {
 	if line == nil {
 		t.Fatal("LINE entity missing")
 	}
-	c, ok := interface{}(line).(interface{ Color() color.ColorNumber })
+	c, ok := any(line).(interface{ Color() color.ColorNumber })
 	if !ok {
 		t.Fatal("entity has no Color getter")
 	}

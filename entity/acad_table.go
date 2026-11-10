@@ -48,7 +48,7 @@ type TableCell struct {
 	GridWeight int           // Grid line weight
 	MergedCell *MergedCell   // Merged cell information
 	CellStyle  *CellStyle    // Cell style override
-	DataValue  interface{}   // Data value for binding
+	DataValue  any           // Data value for binding
 }
 
 // CellType represents the type of table cell
@@ -326,7 +326,7 @@ func (t *AcadTable) Format(f format.Formatter) {
 	f.WriteString(100, "AcDbTable")
 
 	// Insertion point
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat(10+i*10, t.InsertPoint[i])
 	}
 
@@ -425,19 +425,19 @@ func (t *AcadTable) Format(f format.Formatter) {
 
 	// 3D properties
 	if len(t.Extrusion) == 3 {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			f.WriteFloat(210+i, t.Extrusion[i])
 		}
 	}
 
 	if len(t.Normal) == 3 {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			f.WriteFloat(210+i, t.Normal[i])
 		}
 	}
 
 	if len(t.Scale) == 3 {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			f.WriteFloat(40+i, t.Scale[i])
 		}
 	}

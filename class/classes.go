@@ -120,6 +120,6 @@ func tagInt(tag lldxf.Tag) int {
 	}
 }
 
-func formatValue(v interface{}) string {
+func formatValue(v any) string {
 	return fmt.Sprintf("%v", v)
 }

@@ -83,7 +83,7 @@ func TestMatrixDecompositionRoundTrip(t *testing.T) {
 	rebuilt := Translation(d.Translation.X(), d.Translation.Y(), d.Translation.Z()).
 		Mul(d.Rotation).
 		Mul(Scale(d.Scale[0], d.Scale[1], d.Scale[2]))
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		if math.Abs(m[i]-rebuilt[i]) > 1e-9 {
 			t.Fatalf("rebuilt matrix differs at index %d: %v vs %v", i, rebuilt[i], m[i])
 		}

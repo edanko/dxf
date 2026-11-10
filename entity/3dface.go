@@ -34,8 +34,8 @@ func New3DFace() *ThreeDFace {
 func (f *ThreeDFace) Format(fm format.Formatter) {
 	f.entity.Format(fm)
 	fm.WriteString(100, "AcDbFace")
-	for i := 0; i < 4; i++ {
-		for j := 0; j < 3; j++ {
+	for i := range 4 {
+		for j := range 3 {
 			fm.WriteFloat((j+1)*10+i, f.Points[i][j])
 		}
 	}

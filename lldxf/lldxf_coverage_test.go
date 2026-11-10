@@ -201,7 +201,7 @@ func TestDXFBinaryTagClone(t *testing.T) {
 func TestTagTypeCastingFloats(t *testing.T) {
 	tests := []struct {
 		code  GroupCode
-		input interface{}
+		input any
 		want  float64
 	}{
 		{10, "1.5", 1.5},
@@ -229,7 +229,7 @@ func TestTagTypeCastingFloats(t *testing.T) {
 func TestTagTypeCastingInts(t *testing.T) {
 	tests := []struct {
 		code  GroupCode
-		input interface{}
+		input any
 		want  int16
 	}{
 		{70, "123", 123},

@@ -34,7 +34,7 @@ func NewArc(c *Circle) *Arc {
 func (a *Arc) Format(f format.Formatter) {
 	a.Circle.Format(f)
 	f.WriteString(100, "AcDbArc")
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		f.WriteFloat(50+i, a.Angle[i])
 	}
 }

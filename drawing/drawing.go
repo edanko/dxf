@@ -230,8 +230,8 @@ func (d *Drawing) SetActiveStyle(name string) error {
 }
 
 // GetDrawingStatistics returns comprehensive drawing statistics
-func (d *Drawing) GetDrawingStatistics() map[string]interface{} {
-	stats := make(map[string]interface{})
+func (d *Drawing) GetDrawingStatistics() map[string]any {
+	stats := make(map[string]any)
 
 	// Entity counts
 	if d.entityDatabase != nil {
@@ -255,7 +255,7 @@ func (d *Drawing) GetDrawingStatistics() map[string]interface{} {
 
 	// Header information
 	if d.headerSection != nil {
-		headerStats := make(map[string]interface{})
+		headerStats := make(map[string]any)
 		headerStats["Version"] = d.headerSection.Version
 		headerStats["InsUnit"] = d.headerSection.InsUnit
 		headerStats["ExtMin"] = d.headerSection.ExtMin
@@ -322,7 +322,7 @@ func (d *Drawing) WriteBinaryTo(w io.Writer) (n int64, err error) {
 	}
 
 	binaryFormatter := format.NewBinary(target)
-	if cpd, ok := interface{}(binaryFormatter).(interface{ SetCodepage(string) }); ok {
+	if cpd, ok := any(binaryFormatter).(interface{ SetCodepage(string) }); ok {
 		if format.Profile(target).UTF8 {
 			cpd.SetCodepage("")
 		} else if d.codepage != "" {
@@ -984,7 +984,7 @@ func (d *Drawing) Polyline(closed bool, vertices ...[]float64) (*entity.Polyline
 func (d *Drawing) LwPolyline(closed bool, vertices ...[]float64) (*entity.LwPolyline, error) {
 	size := len(vertices)
 	l := entity.NewLwPolyline(size)
-	for i := 0; i < size; i++ {
+	for i := range size {
 		l.Vertices[i] = vertices[i]
 	}
 	if closed {
@@ -1001,7 +1001,7 @@ func (d *Drawing) ThreeDFace(points [][]float64) (*entity.ThreeDFace, error) {
 	if len(points) < 3 {
 		return nil, errors.New("3DFace needs 3 or more points")
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.Points[i] = points[i]
 	}
 	if len(points) >= 4 {
@@ -1264,7 +1264,7 @@ func (d *Drawing) SetExt() {
 	maxs := []float64{-1e16, -1e16, -1e16}
 	for _, en := range d.Entities() {
 		tmpmins, tmpmaxs := en.BBox()
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			if tmpmins[i] < mins[i] {
 				mins[i] = tmpmins[i]
 			}
@@ -1274,7 +1274,7 @@ func (d *Drawing) SetExt() {
 		}
 	}
 	h := d.Header()
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		h.ExtMin[i] = mins[i]
 		h.ExtMax[i] = maxs[i]
 	}
@@ -1342,7 +1342,7 @@ func (d *Drawing) GetEntitiesInPolygon(polygon []struct{ X, Y float64 }) []entit
 }
 
 // GetSpatialIndex returns the spatial index for the drawing
-func (d *Drawing) GetSpatialIndex() interface{} {
+func (d *Drawing) GetSpatialIndex() any {
 	if d.entityDatabase == nil {
 		return nil
 	}
@@ -1350,7 +1350,7 @@ func (d *Drawing) GetSpatialIndex() interface{} {
 }
 
 // RebuildSpatialIndex rebuilds and returns the spatial index
-func (d *Drawing) RebuildSpatialIndex() interface{} {
+func (d *Drawing) RebuildSpatialIndex() any {
 	if d.entityDatabase == nil {
 		return nil
 	}

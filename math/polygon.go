@@ -1,5 +1,7 @@
 package math
 
+import "slices"
+
 import "math"
 
 // PolygonOrientation describes the winding direction of a polygon.
@@ -113,8 +115,8 @@ func ConvexHull2D(points []Vec2) []Vec2 {
 		lower = append(lower, point)
 	}
 	upper := make([]Vec2, 0, len(sorted))
-	for i := len(sorted) - 1; i >= 0; i-- {
-		point := sorted[i]
+	for _, point := range slices.Backward(sorted) {
+
 		for len(upper) >= 2 && crossVec2(upper[len(upper)-2], upper[len(upper)-1], point) <= 0 {
 			upper = upper[:len(upper)-1]
 		}

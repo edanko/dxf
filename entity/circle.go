@@ -38,7 +38,7 @@ func (c *Circle) Format(f format.Formatter) {
 	if c.thickness != 0 {
 		f.WriteFloat(39, c.thickness)
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10, c.Center[i])
 	}
 	f.WriteFloat(40, c.Radius)
@@ -123,12 +123,12 @@ func (c *Circle) BBox() ([]float64, []float64) {
 	cornerMins := []float64{math.MaxFloat64, math.MaxFloat64, math.MaxFloat64}
 	cornerMaxs := []float64{-math.MaxFloat64, -math.MaxFloat64, -math.MaxFloat64}
 
-	for i := 0; i < numSamples; i++ {
+	for i := range numSamples {
 		angle := float64(i) * 2 * math.Pi / float64(numSamples)
 		ocsPoint := ocsX.Mul(c.Radius * math.Cos(angle)).Add(ocsY.Mul(c.Radius * math.Sin(angle)))
 		wcsPoint := center.Add(ocsPoint)
 
-		for j := 0; j < 3; j++ {
+		for j := range 3 {
 			if wcsPoint[j] < cornerMins[j] {
 				cornerMins[j] = wcsPoint[j]
 			}

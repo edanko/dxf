@@ -74,10 +74,9 @@ func dictEmitCounts(tags lldxf.Tags) map[int]int {
 
 // wdfltEmitCounts matches DictionaryWithDefault.Format (flag + schema flag).
 func wdfltEmitCounts(tags lldxf.Tags) map[int]int {
-	n280 := countIntByCode(tags, 280)
-	if n280 > 2 {
-		n280 = 2 // Format emits at most the flag and the schema flag
-	}
+	n280 := min(countIntByCode(tags, 280),
+		// Format emits at most the flag and the schema flag
+		2)
 	nSoftW := 0
 	for _, tag := range tags {
 		if int(tag.Code()) == 350 {
@@ -89,10 +88,9 @@ func wdfltEmitCounts(tags lldxf.Tags) map[int]int {
 
 // dictVarEmitCounts matches DictionaryVar.Format (schema flag + value).
 func dictVarEmitCounts(tags lldxf.Tags) map[int]int {
-	n280 := countIntByCode(tags, 280)
-	if n280 > 1 {
-		n280 = 1 // Format emits the schema flag only
-	}
+	n280 := min(countIntByCode(tags, 280),
+		// Format emits the schema flag only
+		1)
 	return map[int]int{0: 1, 5: 1, 330: 1, 280: n280, 1: 1}
 }
 
@@ -543,7 +541,7 @@ func tagString(tag lldxf.Tag) string {
 // (310-319, 1004) carry hex payloads on the wire; if a byte slice reached the
 // model (e.g. from a binary DXF stream), it is re-encoded as uppercase hex so
 // repeated round trips neither grow nor corrupt the payload.
-func formatTagValue(code lldxf.GroupCode, v interface{}) string {
+func formatTagValue(code lldxf.GroupCode, v any) string {
 	return lldxf.FormatValue(lldxf.NewDXFTag(code, v))
 }
 

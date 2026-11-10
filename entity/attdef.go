@@ -304,7 +304,7 @@ func (a *Attdef) String() string {
 // Helper function to copy slice
 func copySlice(dst, src []float64) {
 	if len(dst) >= len(src) {
-		for i := 0; i < len(src); i++ {
+		for i := range src {
 			dst[i] = src[i]
 		}
 	}

@@ -350,7 +350,7 @@ func TestLoader(t *testing.T) {
 		xref.SetLoaded(true)
 
 		loadCalled := false
-		loadFunc := func(path string) (interface{}, error) {
+		loadFunc := func(path string) (any, error) {
 			loadCalled = true
 			return nil, nil
 		}
@@ -370,7 +370,7 @@ func TestLoader(t *testing.T) {
 		xref := NewXRef("/path/file.dwg", "block1", XRefTypeOverlay)
 
 		mockDrawing := &mockDrawing{name: "loaded"}
-		loadFunc := func(path string) (interface{}, error) {
+		loadFunc := func(path string) (any, error) {
 			return mockDrawing, nil
 		}
 
@@ -397,7 +397,7 @@ func TestLoader(t *testing.T) {
 		xref := NewXRef("/path/file.dwg", "block1", XRefTypeOverlay)
 
 		mockDrawing := &mockDrawing{name: "cached"}
-		loadFunc := func(path string) (interface{}, error) {
+		loadFunc := func(path string) (any, error) {
 			return mockDrawing, nil
 		}
 
@@ -421,10 +421,10 @@ func TestLoaderCacheEviction(t *testing.T) {
 		loader.SetMaxCacheSize(2)
 
 		// Load multiple xrefs
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			xref := NewXRef("/path/file"+string(rune('1'+i))+".dwg", "block"+string(rune('1'+i)), XRefTypeOverlay)
 			mockDrawing := &mockDrawing{name: "drawing" + string(rune('1'+i))}
-			loadFunc := func(path string) (interface{}, error) {
+			loadFunc := func(path string) (any, error) {
 				return mockDrawing, nil
 			}
 			loader.Load(xref, loadFunc)

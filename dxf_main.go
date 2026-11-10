@@ -711,10 +711,7 @@ func loadLwPolyline(tags lldxf.Tags) *entity.LwPolyline {
 		case 42:
 			if v, ok := tagFloat(tag); ok {
 				// A bulge belongs to the vertex that precedes it.
-				idx := len(vertices) - 1
-				if idx < 0 {
-					idx = 0
-				}
+				idx := max(len(vertices)-1, 0)
 				for len(bulges) <= idx {
 					bulges = append(bulges, 0)
 				}
@@ -2697,7 +2694,7 @@ func tagInt(tag lldxf.Tag) (int, bool) {
 // fmtTagValue renders a tag value as text for integer parsing. Binary and
 // enhanced readers store numeric codes as float64/int, so those forms must
 // parse too; only non-numeric values yield "".
-func fmtTagValue(v interface{}) string {
+func fmtTagValue(v any) string {
 	switch t := v.(type) {
 	case string:
 		return t

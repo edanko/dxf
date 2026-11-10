@@ -688,7 +688,7 @@ func Parse3DFace(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 		}
 	}
 	if fourth != 7 {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			t.Points[3][i] = t.Points[2][i]
 		}
 	}
@@ -717,7 +717,7 @@ func ParseLwPolyline(d *drawing.Drawing, data [][2]string) (entity.Entity, error
 				lw.Num = val
 				lw.Vertices = make([][]float64, val)
 				lw.Bulges = make([]float64, val)
-				for i := 0; i < val; i++ {
+				for i := range val {
 					lw.Vertices[i] = make([]float64, 2)
 				}
 			})
@@ -838,14 +838,14 @@ func ParseArc(d *drawing.Drawing, data [][2]string) (entity.Entity, error) {
 		}
 		if err != nil {
 			a := entity.NewArc(c)
-			for i := 0; i < 2; i++ {
+			for i := range 2 {
 				a.Angle[i] = angle[i]
 			}
 			return a, err
 		}
 	}
 	a := entity.NewArc(c)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		a.Angle[i] = angle[i]
 	}
 	return a, nil

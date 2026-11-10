@@ -27,7 +27,7 @@ func NewBSpline(controlPoints []Vec3, degree int) *BSpline {
 
 	// Create uniform knot vector
 	knots := make([]float64, m)
-	for i := 0; i < m; i++ {
+	for i := range m {
 		if i < order {
 			knots[i] = 0.0
 		} else if i >= n {
@@ -195,7 +195,7 @@ func (bs *BSpline) SamplePoints(numPoints int) []Vec3 {
 	}
 
 	points := make([]Vec3, numPoints)
-	for i := 0; i < numPoints; i++ {
+	for i := range numPoints {
 		t := float64(i) / float64(numPoints-1)
 		points[i] = bs.EvaluatePoint(t)
 	}

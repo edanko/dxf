@@ -2,6 +2,7 @@ package drawing
 
 import (
 	"errors"
+	"maps"
 
 	"github.com/edanko/dxf/entity"
 )
@@ -47,9 +48,7 @@ func (d *Drawing) BeginTransaction() (*DrawingTransaction, error) {
 	for _, e := range d.entitiesSection {
 		txn.snapshot = append(txn.snapshot, copyEntity(e))
 	}
-	for h, l := range d.entityLayout {
-		txn.snapshotLayout[h] = l
-	}
+	maps.Copy(txn.snapshotLayout, d.entityLayout)
 	d.transaction = txn
 	return txn, nil
 }
@@ -85,9 +84,7 @@ func (t *DrawingTransaction) Rollback() error {
 	}
 	t.drawing.entitiesSection = restored
 	t.drawing.entityLayout = make(map[string]string, len(t.snapshotLayout))
-	for h, l := range t.snapshotLayout {
-		t.drawing.entityLayout[h] = l
-	}
+	maps.Copy(t.drawing.entityLayout, t.snapshotLayout)
 	t.active = false
 	t.snapshot = nil
 	t.snapshotLayout = nil

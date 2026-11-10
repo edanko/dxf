@@ -35,7 +35,7 @@ func ExportAnimationSVG(d *drawing.Drawing, frames int, width, height float64, o
 	cx := (sc.ExtMinX + sc.ExtMaxX) / 2
 	cy := (sc.ExtMinY + sc.ExtMaxY) / 2
 	out := make([]string, 0, frames)
-	for i := 0; i < frames; i++ {
+	for i := range frames {
 		ang := 2 * math.Pi * float64(i) / float64(frames)
 		m := dxfmath.Translation(cx, cy, 0).
 			Mul(dxfmath.RotationZ(ang)).

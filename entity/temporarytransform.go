@@ -28,7 +28,7 @@ func (t *TemporaryTransform) IsEntity() bool {
 func (t *TemporaryTransform) Format(f format.Formatter) {
 	t.entity.Format(f)
 	f.WriteString(100, "AcDbTemporaryTransform")
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		f.WriteFloat(40+i, t.TransformationMatrix[i])
 	}
 	f.WriteInt(70, t.OperationType)

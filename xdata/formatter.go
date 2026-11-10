@@ -20,7 +20,7 @@ func NewFormatter() *Formatter {
 	}
 }
 
-func (f *Formatter) WriteTag(code int, value interface{}) {
+func (f *Formatter) WriteTag(code int, value any) {
 	if !ValidXDataGroupCodes[code] {
 		f.Errors = append(f.Errors, fmt.Errorf("invalid XDATA group code: %d", code))
 		return

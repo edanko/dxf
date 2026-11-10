@@ -148,7 +148,7 @@ func (es *ExtrudedSurface) Format(f format.Formatter) {
 	f.WriteFloat(30, es.SweepVector.Z())
 
 	// Write transformation matrix
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		f.WriteFloat(40+i, es.TransformationMatrix[i])
 	}
 
@@ -328,7 +328,7 @@ func (ls *LoftedSurface) Format(f format.Formatter) {
 	}
 
 	// Write transformation matrix
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		f.WriteFloat(40+i, ls.TransformationMatrix[i])
 	}
 
@@ -573,7 +573,7 @@ func (rs *RevolvedSurface) Format(f format.Formatter) {
 	f.WriteFloat(31, rs.AxisVector.Z())
 
 	// Write transformation matrix
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		f.WriteFloat(40+i, rs.TransformationMatrix[i])
 	}
 
@@ -736,7 +736,7 @@ func (ss *SweptSurface) Format(f format.Formatter) {
 	}
 
 	// Write transformation matrix
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		f.WriteFloat(40+i, ss.TransformationMatrix[i])
 	}
 

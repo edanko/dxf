@@ -66,7 +66,7 @@ type XRef struct {
 	pathType  PathType
 	loaded    bool
 	status    XRefStatus
-	drawing   interface{}
+	drawing   any
 	timeStamp time.Time
 	fileSize  int64
 }
@@ -174,11 +174,11 @@ func ResolveExternalPath(target, basePath string, searchPaths []string) (string,
 	return candidates[0], false
 }
 
-func (x *XRef) Drawing() interface{} {
+func (x *XRef) Drawing() any {
 	return x.drawing
 }
 
-func (x *XRef) SetDrawing(drawing interface{}) {
+func (x *XRef) SetDrawing(drawing any) {
 	x.drawing = drawing
 }
 
@@ -318,7 +318,7 @@ func XRefExists(filePath string) bool {
 type Loader struct {
 	basePath     string
 	searchPaths  []string
-	cache        map[string]interface{}
+	cache        map[string]any
 	cacheMu      sync.RWMutex
 	maxCacheSize int
 }
@@ -326,7 +326,7 @@ type Loader struct {
 func NewLoader(basePath string) *Loader {
 	return &Loader{
 		basePath:     basePath,
-		cache:        make(map[string]interface{}),
+		cache:        make(map[string]any),
 		maxCacheSize: 10,
 	}
 }
@@ -360,7 +360,7 @@ func (l *Loader) Resolve(x *XRef) (string, bool) {
 	return ResolveExternalPath(x.FilePath(), l.basePath, l.searchPaths)
 }
 
-func (l *Loader) Load(xref *XRef, loadFunc func(string) (interface{}, error)) error {
+func (l *Loader) Load(xref *XRef, loadFunc func(string) (any, error)) error {
 	if xref.loaded {
 		return nil
 	}
@@ -401,7 +401,7 @@ func (l *Loader) Load(xref *XRef, loadFunc func(string) (interface{}, error)) er
 	return nil
 }
 
-func (l *Loader) getCached(path string) (interface{}, bool) {
+func (l *Loader) getCached(path string) (any, bool) {
 	l.cacheMu.RLock()
 	defer l.cacheMu.RUnlock()
 	dwg, ok := l.cache[path]
@@ -434,14 +434,14 @@ func (l *Loader) evictOldest() {
 	}
 }
 
-func (l *Loader) GetCachedDrawing(path string) (interface{}, bool) {
+func (l *Loader) GetCachedDrawing(path string) (any, bool) {
 	return l.getCached(path)
 }
 
 func (l *Loader) ClearCache() {
 	l.cacheMu.Lock()
 	defer l.cacheMu.Unlock()
-	l.cache = make(map[string]interface{})
+	l.cache = make(map[string]any)
 }
 
 func (l *Loader) CacheSize() int {

@@ -16,6 +16,6 @@ type Entity interface {
 	DXFType() string
 	GetDocument() Document
 	SetDocument(Document)
-	GetAttributes() map[string]interface{}
-	LoadAttributes(attribs map[string]interface{}) error
+	GetAttributes() map[string]any
+	LoadAttributes(attribs map[string]any) error
 }

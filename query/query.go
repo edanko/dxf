@@ -114,8 +114,8 @@ func (q *EntityQuery) Select(entityNames ...string) *EntityQuery {
 		name = strings.ToUpper(name)
 		if name == "*" {
 			all = true
-		} else if strings.HasPrefix(name, "!") {
-			exclude[strings.TrimPrefix(name, "!")] = true
+		} else if after, ok := strings.CutPrefix(name, "!"); ok {
+			exclude[after] = true
 		} else {
 			nameSet[name] = true
 		}
@@ -220,8 +220,8 @@ func (q *EntityQuery) Each(fn func(entity.Entity)) {
 }
 
 // Map applies a transformation function to each entity and returns the results
-func (q *EntityQuery) Map(fn func(entity.Entity) interface{}) []interface{} {
-	result := make([]interface{}, len(q.entities))
+func (q *EntityQuery) Map(fn func(entity.Entity) any) []any {
+	result := make([]any, len(q.entities))
 	for i, ent := range q.entities {
 		result[i] = fn(ent)
 	}

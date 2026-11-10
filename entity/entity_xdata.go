@@ -26,7 +26,7 @@ func (e *entity) SetXData(appID string, tags []xdata.Tag) {
 	e.xdata.SetAppData(appID, tags)
 }
 
-func (e *entity) AddXDataTag(appID string, code int, value interface{}) error {
+func (e *entity) AddXDataTag(appID string, code int, value any) error {
 	if e.xdata == nil {
 		e.xdata = xdata.NewXData()
 	}

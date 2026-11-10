@@ -96,7 +96,7 @@ func TestFacadeAddEntityTypes(t *testing.T) {
 		t.Fatalf("AddUnderlay: %v", err)
 	}
 	// AddGeneric builds entities from a flat attribute map.
-	p, err := m.AddGeneric("POINT", map[string]interface{}{"x": 1.0, "y": 2.0, "z": 3.0})
+	p, err := m.AddGeneric("POINT", map[string]any{"x": 1.0, "y": 2.0, "z": 3.0})
 	if err != nil {
 		t.Fatalf("AddGeneric POINT: %v", err)
 	}

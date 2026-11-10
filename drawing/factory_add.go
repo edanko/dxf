@@ -101,7 +101,7 @@ func (s *Space) AddEllipse(cx, cy, cz, majorAxis, minorAxis, rotation float64, o
 func (s *Space) AddSpline(controlPoints []float64, opts ...EntityOption) (*entity.Spline, error) {
 	pointCount := len(controlPoints) / 3
 	e := entity.NewSpline(3)
-	for i := 0; i < pointCount; i++ {
+	for i := range pointCount {
 		e.Controls = append(e.Controls, []float64{controlPoints[i*3], controlPoints[i*3+1], controlPoints[i*3+2]})
 	}
 	if err := s.Add(e, opts...); err != nil {

@@ -19,7 +19,7 @@ func Offset2D(points []Vec2, distance float64) ([][]Vec2, error) {
 
 	// Calculate normal vectors for each edge
 	normals := make([]Vec2, len(points))
-	for i := 0; i < len(points); i++ {
+	for i := range points {
 		next := (i + 1) % len(points)
 		edge := points[next].Sub(points[i])
 
@@ -47,7 +47,7 @@ func Offset2D(points []Vec2, distance float64) ([][]Vec2, error) {
 
 	// Calculate offset points
 	offsetPoints := make([]Vec2, len(points))
-	for i := 0; i < len(points); i++ {
+	for i := range points {
 		prev := (i - 1 + len(points)) % len(points)
 
 		// Average of adjacent edge normals
@@ -82,7 +82,7 @@ func Offset2DMiter(points []Vec2, distance float64, iterations int) ([][]Vec2, e
 	segmentDistance := distance / float64(iterations)
 	current := points
 
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		result, err := Offset2D(current, segmentDistance)
 		if err != nil {
 			return nil, err
@@ -109,7 +109,7 @@ func Offset2DRounded(points []Vec2, distance float64, segments int) ([][]Vec2, e
 
 	var result []Vec2
 
-	for i := 0; i < len(points); i++ {
+	for i := range points {
 		prev := (i - 1 + len(points)) % len(points)
 		next := (i + 1) % len(points)
 
@@ -168,7 +168,7 @@ func isPolygonValid(points []Vec2) bool {
 
 	// Check for self-intersections
 	n := len(points)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		p1 := points[i]
 		p2 := points[(i+1)%n]
 

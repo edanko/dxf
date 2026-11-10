@@ -46,7 +46,7 @@ func runPathDemo() {
 	// (The full path system is implemented and ready for use)
 
 	// Create a basic rectangle with lines
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		x1, y1 := float64(i*5), float64(i*5)
 		x2, y2 := float64((i+1)*5), float64(i*5)
 

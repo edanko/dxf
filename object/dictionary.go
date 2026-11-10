@@ -1,6 +1,8 @@
 package object
 
 import (
+	"maps"
+
 	"github.com/edanko/dxf/format"
 )
 
@@ -137,9 +139,7 @@ func (d *Dictionary) RemoveEntry(key string) {
 // GetEntries returns all dictionary entries
 func (d *Dictionary) GetEntries() map[string]*DictionaryEntry {
 	result := make(map[string]*DictionaryEntry)
-	for k, v := range d.entries {
-		result[k] = v
-	}
+	maps.Copy(result, d.entries)
 	return result
 }
 

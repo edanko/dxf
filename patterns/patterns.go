@@ -1,6 +1,7 @@
 package patterns
 
 import (
+	"maps"
 	"math"
 )
 
@@ -129,9 +130,7 @@ func GetPatternsByCategory(category PatternCategory) map[string]PatternDefinitio
 // GetAllPatterns returns all predefined patterns
 func GetAllPatterns() map[string]PatternDefinition {
 	result := make(map[string]PatternDefinition)
-	for name, pattern := range PredefinedPatterns {
-		result[name] = pattern
-	}
+	maps.Copy(result, PredefinedPatterns)
 	return result
 }
 

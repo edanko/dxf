@@ -93,7 +93,7 @@ func pointInPolygon(point dxfmath.Vec2, polygon []dxfmath.Vec2) bool {
 	inside := false
 
 	j := n - 1
-	for i := 0; i < n; i++ {
+	for i := range n {
 		xi, yi := polygon[i].X(), polygon[i].Y()
 		xj, yj := polygon[j].X(), polygon[j].Y()
 
@@ -318,7 +318,7 @@ func (s *EntitySelector) TextRegex(pattern string) *EntityQuery {
 }
 
 // Attribute provides custom attribute filtering (Python ezdxf style)
-func (s *EntitySelector) Attribute(name string, value interface{}) *EntityQuery {
+func (s *EntitySelector) Attribute(name string, value any) *EntityQuery {
 	return s.query.Filter(func(ent entity.Entity) bool {
 		attrValue := getEntityAttribute(ent, name)
 		if attrValue == "" {

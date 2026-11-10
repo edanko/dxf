@@ -279,7 +279,7 @@ func CreateCircleWipeout(insertPoint dxfmath.Vec3, radius, scale float64, segmen
 
 	// Generate circle points
 	boundaryPoints := make([]ImageBoundaryPoint, segments)
-	for i := 0; i < segments; i++ {
+	for i := range segments {
 		angle := 2.0 * math.Pi * float64(i) / float64(segments)
 		x := radius * math.Cos(angle)
 		y := radius * math.Sin(angle)

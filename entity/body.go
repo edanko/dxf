@@ -209,7 +209,7 @@ type ACISEntity struct {
 	Type     ACISEntityType
 	ID       int
 	Parent   int
-	Data     interface{}
+	Data     any
 	Children []*ACISEntity
 }
 
@@ -490,7 +490,7 @@ func (b *Body) Format(f format.Formatter) {
 	// Write transformation matrix if present
 	if b.Transform != nil {
 		// Write 16 float values for 4x4 matrix
-		for i := 0; i < 16; i++ {
+		for i := range 16 {
 			f.WriteFloat(40+i, b.Transform.Matrix[i])
 		}
 	}

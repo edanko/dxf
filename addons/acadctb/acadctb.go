@@ -42,7 +42,7 @@ func ParsePlotStyleTable(data []byte) (*PlotStyleTable, error) {
 		return nil, fmt.Errorf("acadctb: binary CTB files are not supported; convert to STB text")
 	}
 	t := &PlotStyleTable{}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

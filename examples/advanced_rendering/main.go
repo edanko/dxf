@@ -116,7 +116,7 @@ func createWorkingArrows(d *drawing.Drawing, layer *table.Layer) {
 	d.AddEntity(dotArrow)
 
 	// 7. Multiple arrows in a line arrangement
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		smallArrow := entity.CreateStandardArrow(
 			dxfmath.NewVec3(50+float64(i)*5, 80, 0),
 			dxfmath.NewVec3(50+float64(i)*5+3, 80, 0),
@@ -128,7 +128,7 @@ func createWorkingArrows(d *drawing.Drawing, layer *table.Layer) {
 	}
 
 	// 8. Custom demonstration with varied sizes
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		customArrow := entity.NewArrow()
 		customArrow.SetType(entity.ArrowTypeBoxFilled)
 		customArrow.SetSize(2.0 + float64(i)*0.5)

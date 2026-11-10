@@ -608,7 +608,7 @@ func TestReportSerialization(t *testing.T) {
 		t.Errorf("String(): %s", rep)
 	}
 
-	for i := 0; i < MaxIssues+200; i++ {
+	for i := range MaxIssues + 200 {
 		rep.Addf(SeverityWarning, fmt.Sprintf("BULK_%d", i), "", "bulk %d", i)
 	}
 	if len(rep.Issues) != MaxIssues {
@@ -1038,11 +1038,11 @@ func TestStrictR12RejectsObjects(t *testing.T) {
 // ---- 3.2: recovery ----
 
 func TestRecoverTruncatedFile(t *testing.T) {
-	idx := strings.Index(baseDXF, "11\n10.0")
-	if idx < 0 {
+	before, _, ok := strings.Cut(baseDXF, "11\n10.0")
+	if !ok {
 		t.Fatal("marker")
 	}
-	truncated := baseDXF[:idx]
+	truncated := before
 	doc, rep, err := RecoverReader(strings.NewReader(truncated), nil)
 	if err != nil {
 		t.Fatalf("recover truncated: %v", err)

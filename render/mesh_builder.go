@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"maps"
 
 	dxfmath "github.com/edanko/dxf/math"
 )
@@ -47,7 +48,7 @@ func (mb *MeshBuilder) AddFace(vertexIndices []int) error {
 	mb.faces = append(mb.faces, face)
 
 	// Update edge statistics
-	for i := 0; i < len(vertexIndices); i++ {
+	for i := range vertexIndices {
 		v1 := vertexIndices[i]
 		v2 := vertexIndices[(i+1)%len(vertexIndices)]
 
@@ -292,9 +293,7 @@ func (mb *MeshBuilder) Clone() *MeshBuilder {
 
 	// Copy edges
 	clone.edges = make(map[[2]int]int)
-	for k, v := range mb.edges {
-		clone.edges[k] = v
-	}
+	maps.Copy(clone.edges, mb.edges)
 
 	return clone
 }

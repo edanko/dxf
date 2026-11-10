@@ -27,7 +27,7 @@ func (db *ProfessionalEntityDB) addEntityInternal(e entity.Entity) error {
 		CreatedAt:  time.Now(),
 		ModifiedAt: time.Now(),
 		Version:    0,
-		Tags:       make(map[string]interface{}),
+		Tags:       make(map[string]any),
 	}
 
 	db.entities[handle] = entry

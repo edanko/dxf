@@ -34,16 +34,16 @@ func (s *Solid) IsEntity() bool {
 func (s *Solid) Format(f format.Formatter) {
 	s.entity.Format(f)
 	f.WriteString(100, "AcDbTrace")
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10, s.FirstPoint[i])
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10+1, s.SecondPoint[i])
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10+2, s.ThirdPoint[i])
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10+3, s.FourthPoint[i])
 	}
 }
@@ -53,7 +53,7 @@ func (s *Solid) BBox() ([]float64, []float64) {
 	maxs := make([]float64, 3)
 	points := [][]float64{s.FirstPoint, s.SecondPoint, s.ThirdPoint, s.FourthPoint}
 	for _, p := range points {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			if p[i] < mins[i] {
 				mins[i] = p[i]
 			}

@@ -116,10 +116,7 @@ func splineToPath(spline *entity.Spline, options *Options) (*Path, error) {
 	if len(cps) < 2 {
 		return nil, fmt.Errorf("spline requires at least 2 control points, got %d", len(cps))
 	}
-	degree := spline.Degree
-	if degree > len(cps)-1 {
-		degree = len(cps) - 1
-	}
+	degree := min(spline.Degree, len(cps)-1)
 	if degree < 1 {
 		degree = 1
 	}

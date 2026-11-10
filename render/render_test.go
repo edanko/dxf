@@ -268,16 +268,16 @@ func TestPDFStructure(t *testing.T) {
 }
 
 func contentBetween(out, start, end string) string {
-	i := strings.Index(out, start)
-	if i < 0 {
+	_, after, ok := strings.Cut(out, start)
+	if !ok {
 		return ""
 	}
-	rest := out[i+len(start):]
-	j := strings.Index(rest, end)
-	if j < 0 {
+	rest := after
+	before0, _, ok0 := strings.Cut(rest, end)
+	if !ok0 {
 		return ""
 	}
-	return rest[:j]
+	return before0
 }
 
 func decodePNG(t *testing.T, buf *bytes.Buffer) (int, int, func(x, y int) (uint8, uint8, uint8)) {

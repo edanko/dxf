@@ -75,8 +75,8 @@ func tagValueText(tag lldxf.Tag) string {
 }
 
 // GetAttributes returns the retained group codes keyed by code string.
-func (r *RetainedRecordType) GetAttributes() map[string]interface{} {
-	attrs := make(map[string]interface{}, len(r.rawTags))
+func (r *RetainedRecordType) GetAttributes() map[string]any {
+	attrs := make(map[string]any, len(r.rawTags))
 	for _, tag := range r.rawTags {
 		attrs[fmt.Sprintf("%d", tag.Code)] = tag.Value
 	}
@@ -84,7 +84,7 @@ func (r *RetainedRecordType) GetAttributes() map[string]interface{} {
 }
 
 // LoadAttributes replaces the retained group codes.
-func (r *RetainedRecordType) LoadAttributes(attribs map[string]interface{}) error {
+func (r *RetainedRecordType) LoadAttributes(attribs map[string]any) error {
 	r.rawTags = make([]TagPair, 0, len(attribs))
 	for k, v := range attribs {
 		var code int

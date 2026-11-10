@@ -98,7 +98,7 @@ func (m *Matrix44) SetColumn(j int, col Vec4) {
 // Add adds another matrix
 func (m Matrix44) Add(other Matrix44) Matrix44 {
 	result := NewMatrix44()
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		result[i] = m[i] + other[i]
 	}
 	return result
@@ -107,7 +107,7 @@ func (m Matrix44) Add(other Matrix44) Matrix44 {
 // Sub subtracts another matrix
 func (m Matrix44) Sub(other Matrix44) Matrix44 {
 	result := NewMatrix44()
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		result[i] = m[i] - other[i]
 	}
 	return result
@@ -116,10 +116,10 @@ func (m Matrix44) Sub(other Matrix44) Matrix44 {
 // Mul multiplies by another matrix
 func (m Matrix44) Mul(other Matrix44) Matrix44 {
 	result := NewMatrix44()
-	for i := 0; i < 4; i++ {
-		for j := 0; j < 4; j++ {
+	for i := range 4 {
+		for j := range 4 {
 			sum := 0.0
-			for k := 0; k < 4; k++ {
+			for k := range 4 {
 				sum += m.Get(i, k) * other.Get(k, j)
 			}
 			result.Set(i, j, sum)
@@ -138,8 +138,8 @@ func (m Matrix44) MulVec(v Vec3) Vec3 {
 // MulVec4 multiplies a 4D vector
 func (m Matrix44) MulVec4(v Vec4) Vec4 {
 	result := Vec4{0, 0, 0, 0}
-	for i := 0; i < 4; i++ {
-		for j := 0; j < 4; j++ {
+	for i := range 4 {
+		for j := range 4 {
 			result[i] += m.Get(i, j) * v[j]
 		}
 	}
@@ -149,7 +149,7 @@ func (m Matrix44) MulVec4(v Vec4) Vec4 {
 // MulScalar multiplies by a scalar
 func (m Matrix44) MulScalar(scalar float64) Matrix44 {
 	result := NewMatrix44()
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		result[i] = m[i] * scalar
 	}
 	return result
@@ -158,8 +158,8 @@ func (m Matrix44) MulScalar(scalar float64) Matrix44 {
 // Transpose returns the transpose
 func (m Matrix44) Transpose() Matrix44 {
 	result := NewMatrix44()
-	for i := 0; i < 4; i++ {
-		for j := 0; j < 4; j++ {
+	for i := range 4 {
+		for j := range 4 {
 			result.Set(i, j, m.Get(j, i))
 		}
 	}
@@ -175,7 +175,7 @@ func (m Matrix44) Determinant() float64 {
 func (m Matrix44) determinant4x4() float64 {
 	// Compute 3x3 determinants recursively
 	var result float64
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		sign := 1.0
 		if i%2 == 1 {
 			sign = -1.0
@@ -194,11 +194,11 @@ func (m Matrix44) cofactor(row, col int) float64 {
 func (m Matrix44) minor(row, col int) [9]float64 {
 	var minor [9]float64
 	k := 0
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		if i == row {
 			continue
 		}
-		for j := 0; j < 4; j++ {
+		for j := range 4 {
 			if j == col {
 				continue
 			}
@@ -230,8 +230,8 @@ func (m Matrix44) Inverse() (Matrix44, bool) {
 
 func (m Matrix44) adjugate() Matrix44 {
 	result := NewMatrix44()
-	for i := 0; i < 4; i++ {
-		for j := 0; j < 4; j++ {
+	for i := range 4 {
+		for j := range 4 {
 			// Transpose position for adjugate
 			sign := 1.0
 			if (i+j)%2 == 1 {
@@ -262,7 +262,7 @@ func (m Matrix44) TransformVector(vector Vec3) Vec3 {
 
 // IsEqual checks if two matrices are approximately equal
 func (m Matrix44) IsEqual(other Matrix44, epsilon float64) bool {
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		if math.Abs(m[i]-other[i]) > epsilon {
 			return false
 		}

@@ -3,6 +3,7 @@ package header
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
@@ -68,7 +69,7 @@ func (h *Header) Format(f format.Formatter) {
 func writeVariableTag(f format.Formatter, tag lldxf.Tag) {
 	code := int(tag.Code())
 	if bf, ok := f.(interface {
-		WriteValue(int, interface{})
+		WriteValue(int, any)
 	}); ok {
 		bf.WriteValue(code, tag.Value())
 		return
@@ -93,7 +94,7 @@ func (h *Header) FormatAt(f format.Formatter, target string) {
 		f.WriteString(3, cp)
 	}
 	f.WriteString(9, "$INSBASE")
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10, h.InsBase[i])
 	}
 	f.WriteString(9, "$INSUNITS")
@@ -102,11 +103,11 @@ func (h *Header) FormatAt(f format.Formatter, target string) {
 	h.InsLUnit.Format(f)
 
 	f.WriteString(9, "$EXTMIN")
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10, h.ExtMin[i])
 	}
 	f.WriteString(9, "$EXTMAX")
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10, h.ExtMax[i])
 	}
 	f.WriteString(9, "$LTSCALE")
@@ -183,10 +184,8 @@ func (h *Header) noteConversionDrop(note string) {
 	if h.Conversion == nil {
 		h.Conversion = &ConversionReport{SourceVersion: h.SourceVersion, NormalizedVersion: h.TargetVersion}
 	}
-	for _, n := range h.Conversion.Dropped {
-		if n == note {
-			return
-		}
+	if slices.Contains(h.Conversion.Dropped, note) {
+		return
 	}
 	h.Conversion.Dropped = append(h.Conversion.Dropped, note)
 }

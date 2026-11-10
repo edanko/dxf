@@ -36,7 +36,7 @@ func TestFacadeHandleUniqueness(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := d.Model()
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		if _, err := m.AddPoint(float64(i), 0, 0); err != nil {
 			t.Fatalf("AddPoint %d: %v", i, err)
 		}

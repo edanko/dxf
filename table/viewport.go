@@ -66,28 +66,28 @@ func (v *Viewport) Format(f format.Formatter) {
 	f.WriteString(100, "AcDbViewportTableRecord")
 	f.WriteString(2, v.name)
 	f.WriteInt(70, v.flags)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		f.WriteFloat((i+1)*10, v.LowerLeft[i])
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		f.WriteFloat((i+1)*10+1, v.UpperRight[i])
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		f.WriteFloat((i+1)*10+2, v.ViewCenter[i])
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		f.WriteFloat((i+1)*10+3, v.SnapBase[i])
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		f.WriteFloat((i+1)*10+4, v.SnapSpacing[i])
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		f.WriteFloat((i+1)*10+5, v.GridSpacing[i])
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10+6, v.ViewDirection[i])
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10+7, v.ViewTarget[i])
 	}
 	f.WriteFloat(40, v.Height)

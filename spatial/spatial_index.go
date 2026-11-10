@@ -6,22 +6,22 @@ import (
 
 // SpatialIndex is a simple spatial index for fast entity queries
 type SpatialIndex struct {
-	entities  []interface{}
-	entityPos map[interface{}]Point2D
+	entities  []any
+	entityPos map[any]Point2D
 	bbox      *BoundingBox
 }
 
 // NewSpatialIndex creates a new spatial index
 func NewSpatialIndex() *SpatialIndex {
 	return &SpatialIndex{
-		entities:  make([]interface{}, 0),
-		entityPos: make(map[interface{}]Point2D),
+		entities:  make([]any, 0),
+		entityPos: make(map[any]Point2D),
 		bbox:      nil,
 	}
 }
 
 // Insert adds an entity to the spatial index
-func (si *SpatialIndex) Insert(entity interface{}, x, y float64) {
+func (si *SpatialIndex) Insert(entity any, x, y float64) {
 	// Create bounding box for entity (simplified as 1x1 square)
 	entityBBox := NewBoundingBox(x-0.5, y-0.5, x+0.5, y+0.5)
 
@@ -35,8 +35,8 @@ func (si *SpatialIndex) Insert(entity interface{}, x, y float64) {
 }
 
 // Query finds entities within the given bounding box
-func (si *SpatialIndex) Query(bbox *BoundingBox) []interface{} {
-	var results []interface{}
+func (si *SpatialIndex) Query(bbox *BoundingBox) []any {
+	var results []any
 
 	if si.bbox == nil || si.bbox.Intersects(bbox) {
 		for _, entity := range si.entities {
@@ -58,12 +58,12 @@ func (si *SpatialIndex) Query(bbox *BoundingBox) []interface{} {
 }
 
 // QueryNearest finds the nearest entity to a given point
-func (si *SpatialIndex) QueryNearest(x, y float64) (interface{}, float64) {
+func (si *SpatialIndex) QueryNearest(x, y float64) (any, float64) {
 	if len(si.entities) == 0 {
 		return nil, math.Inf(1)
 	}
 
-	var nearest interface{}
+	var nearest any
 	minDist := math.Inf(1)
 
 	for _, entity := range si.entities {
@@ -80,8 +80,8 @@ func (si *SpatialIndex) QueryNearest(x, y float64) (interface{}, float64) {
 }
 
 // QueryRange finds entities within a rectangular range
-func (si *SpatialIndex) QueryRange(minX, minY, maxX, maxY float64) []interface{} {
-	var results []interface{}
+func (si *SpatialIndex) QueryRange(minX, minY, maxX, maxY float64) []any {
+	var results []any
 	queryBBox := NewBoundingBox(minX, minY, maxX, maxY)
 
 	for _, entity := range si.entities {
@@ -130,12 +130,12 @@ type Point2D struct {
 
 // getEntityCenter extracts a center point from an entity
 // This is a placeholder - in real implementation, entities would have BBox() methods
-func getEntityCenter(entity interface{}) Point2D {
+func getEntityCenter(entity any) Point2D {
 	return Point2D{X: 0.0, Y: 0.0}
 }
 
 // getEntityPos returns the stored position for an entity
-func (si *SpatialIndex) getEntityPos(entity interface{}) Point2D {
+func (si *SpatialIndex) getEntityPos(entity any) Point2D {
 	if pos, ok := si.entityPos[entity]; ok {
 		return pos
 	}

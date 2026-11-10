@@ -58,7 +58,7 @@ func (f *FaceProxy) Format(fm format.Formatter) {
 	if f.MaterialHandle != "" {
 		fm.WriteString(347, f.MaterialHandle)
 	}
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		fm.WriteFloat(40+i, f.Transform[i])
 	}
 	fm.WriteFloat(10, f.ExtentsMin.X())

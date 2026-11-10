@@ -8,13 +8,13 @@ import (
 
 type EntitySpatialIndex struct {
 	rtree     *RTree
-	entityBox map[interface{}]*BoundingBox
+	entityBox map[any]*BoundingBox
 }
 
 func NewEntitySpatialIndex() *EntitySpatialIndex {
 	return &EntitySpatialIndex{
 		rtree:     NewRTree(nil),
-		entityBox: make(map[interface{}]*BoundingBox),
+		entityBox: make(map[any]*BoundingBox),
 	}
 }
 
@@ -79,14 +79,14 @@ func (esi *EntitySpatialIndex) Remove(ent entity.Entity) {
 
 func (esi *EntitySpatialIndex) Clear() {
 	esi.rtree.Clear()
-	esi.entityBox = make(map[interface{}]*BoundingBox)
+	esi.entityBox = make(map[any]*BoundingBox)
 }
 
 func (esi *EntitySpatialIndex) Count() int {
 	return len(esi.entityBox)
 }
 
-func (esi *EntitySpatialIndex) GetStats() map[string]interface{} {
+func (esi *EntitySpatialIndex) GetStats() map[string]any {
 	return esi.rtree.GetStats()
 }
 

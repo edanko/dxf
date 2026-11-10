@@ -2,6 +2,7 @@ package drawing
 
 import (
 	"fmt"
+	"slices"
 )
 
 // BeginTransaction starts a new database transaction
@@ -82,8 +83,8 @@ func (db *ProfessionalEntityDB) RollbackTransaction(tx *Transaction) error {
 // rollbackTransaction performs the actual rollback (internal method)
 func (db *ProfessionalEntityDB) rollbackTransaction(tx *Transaction) error {
 	// Rollback operations in reverse order
-	for i := len(tx.Operations) - 1; i >= 0; i-- {
-		op := tx.Operations[i]
+	for _, op := range slices.Backward(tx.Operations) {
+
 		if err := op.Rollback(db); err != nil {
 			return fmt.Errorf("rollback failed for operation %s: %v", op.Description(), err)
 		}

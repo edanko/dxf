@@ -15,7 +15,7 @@ const (
 // BinaryTag represents a tag in binary DXF format
 type BinaryTag struct {
 	Code  int
-	Value interface{}
+	Value any
 }
 
 // BinaryLoader loads binary DXF files
@@ -133,7 +133,7 @@ func (bl *BinaryLoader) Next() (*BinaryTag, error) {
 	bl.pos += 2
 
 	// Determine value type and read accordingly
-	var value interface{}
+	var value any
 	var err error
 
 	switch {

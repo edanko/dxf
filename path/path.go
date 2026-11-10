@@ -3,6 +3,7 @@ package path
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	dxfmath "github.com/edanko/dxf/math"
 )
@@ -27,7 +28,7 @@ const (
 // PathMoveTo represents a MOVE_TO command
 type PathMoveTo struct {
 	End  dxfmath.Vec2
-	user interface{}
+	user any
 }
 
 func NewMoveTo(x, y float64) *PathMoveTo {
@@ -51,7 +52,7 @@ func (m *PathMoveTo) String() string {
 // PathLineTo represents a LINE_TO command
 type PathLineTo struct {
 	End  dxfmath.Vec2
-	user interface{}
+	user any
 }
 
 func NewLineTo(x, y float64) *PathLineTo {
@@ -76,7 +77,7 @@ func (l *PathLineTo) String() string {
 type PathCurve3To struct {
 	End  dxfmath.Vec2
 	Ctrl dxfmath.Vec2
-	user interface{}
+	user any
 }
 
 func NewCurve3To(endX, endY, ctrlX, ctrlY float64) *PathCurve3To {
@@ -103,7 +104,7 @@ type PathCurve4To struct {
 	End   dxfmath.Vec2
 	Ctrl1 dxfmath.Vec2
 	Ctrl2 dxfmath.Vec2
-	user  interface{}
+	user  any
 }
 
 func NewCurve4To(endX, endY, ctrl1X, ctrl1Y, ctrl2X, ctrl2Y float64) *PathCurve4To {
@@ -132,7 +133,7 @@ type Path struct {
 	vertices   []dxfmath.Vec2
 	commands   []PathCommand
 	startIndex []int
-	user       interface{}
+	user       any
 }
 
 // NewPath creates a new empty path
@@ -271,11 +272,11 @@ func (p *Path) String() string {
 		return "Path(empty)"
 	}
 
-	var result string
+	var result strings.Builder
 	for _, cmd := range p.commands {
-		result += cmd.String() + " "
+		result.WriteString(cmd.String() + " ")
 	}
-	return result
+	return result.String()
 }
 
 // IsClosed returns true if the path start point is close to the end point

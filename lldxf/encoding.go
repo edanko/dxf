@@ -96,7 +96,7 @@ func hasUnicodeEncoding(s string) bool {
 
 // getEncodingByName returns a simple decoder for supported encodings
 // For now, we only support UTF-8 and basic ANSI (Windows-1252) conversion
-func getEncodingByName(encoding string) interface{} {
+func getEncodingByName(encoding string) any {
 	switch encoding {
 	case CodePageUTF8:
 		return nil // UTF-8 needs no conversion

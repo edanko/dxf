@@ -72,7 +72,7 @@ func (a *Attrib) Format(f format.Formatter) {
 	a.entity.Format(f)
 	f.WriteString(100, "AcDbText")
 	if len(a.insertPoint) >= 3 && (a.insertPoint[0] != 0.0 || a.insertPoint[1] != 0.0 || a.insertPoint[2] != 0.0) {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			f.WriteFloat((i+1)*10, a.insertPoint[i])
 		}
 	}
@@ -291,7 +291,7 @@ func (a *Attrib) Copy() Entity {
 // Helper function to copy slice
 func copy(dst, src []float64) {
 	if len(dst) >= len(src) {
-		for i := 0; i < len(src); i++ {
+		for i := range src {
 			dst[i] = src[i]
 		}
 	}

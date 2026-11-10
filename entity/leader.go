@@ -288,7 +288,7 @@ func (l *Leader) BBox() ([]float64, []float64) {
 
 		for _, point := range l.points {
 			if len(point) >= 3 {
-				for i := 0; i < 3; i++ {
+				for i := range 3 {
 					if point[i] < mins[i] {
 						mins[i] = point[i]
 					}
@@ -297,7 +297,7 @@ func (l *Leader) BBox() ([]float64, []float64) {
 					}
 				}
 			} else if len(point) >= 2 {
-				for i := 0; i < 2; i++ {
+				for i := range 2 {
 					if point[i] < mins[i] {
 						mins[i] = point[i]
 					}
@@ -528,7 +528,7 @@ func (l *Leader) String() string {
 // Helper function to copy slice
 func copyFloatSlice(dst, src []float64) {
 	if len(dst) >= len(src) {
-		for i := 0; i < len(src); i++ {
+		for i := range src {
 			dst[i] = src[i]
 		}
 	}

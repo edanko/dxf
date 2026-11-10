@@ -222,7 +222,7 @@ func TestTextToPathPathType(t *testing.T) {
 	tt := NewTextToPath(1.0)
 	result := tt.Convert("Test")
 
-	if _, ok := interface{}(result).(*path.Path); !ok {
+	if _, ok := any(result).(*path.Path); !ok {
 		t.Error("Convert should return *path.Path type")
 	}
 }

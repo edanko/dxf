@@ -67,7 +67,7 @@ func NewText() *Text {
 func (t *Text) Format(f format.Formatter) {
 	t.entity.Format(f)
 	f.WriteString(100, "AcDbText")
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10, t.Coord1[i])
 	}
 	f.WriteFloat(40, t.Height)
@@ -84,7 +84,7 @@ func (t *Text) Format(f format.Formatter) {
 	if t.HorizontalFlag != 0 {
 		f.WriteInt(72, t.HorizontalFlag)
 		if t.VerticalFlag != 0 {
-			for i := 0; i < 3; i++ {
+			for i := range 3 {
 				f.WriteFloat((i+1)*10+1, t.Coord2[i])
 			}
 		}

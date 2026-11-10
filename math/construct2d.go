@@ -129,7 +129,7 @@ func (c *Construct2D) PolygonArea(polygon []Vec2) float64 {
 	}
 
 	area := 0.0
-	for i := 0; i < n; i++ {
+	for i := range n {
 		j := (i + 1) % n
 		area += polygon[i].X()*polygon[j].Y() - polygon[j].X()*polygon[i].Y()
 	}
@@ -158,7 +158,7 @@ func (c *Construct2D) PolygonCentroid(polygon []Vec2) Vec2 {
 	}
 
 	cx, cy := 0.0, 0.0
-	for i := 0; i < n; i++ {
+	for i := range n {
 		j := (i + 1) % n
 		factor := polygon[i].X()*polygon[j].Y() - polygon[j].X()*polygon[i].Y()
 		cx += (polygon[i].X() + polygon[j].X()) * factor

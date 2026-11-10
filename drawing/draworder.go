@@ -4,6 +4,7 @@ package drawing
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/edanko/dxf/entity"
@@ -46,8 +47,8 @@ func (d *Drawing) SetDrawOrder(frontToBack []string) error {
 	}
 	seen := map[string]bool{}
 	ordered := make(entity.Entities, 0, len(frontToBack))
-	for i := len(frontToBack) - 1; i >= 0; i-- {
-		h := frontToBack[i]
+	for _, h := range slices.Backward(frontToBack) {
+
 		idx, ok := index[h]
 		if !ok {
 			return fmt.Errorf("draw order: entity %s is not in model space", h)
@@ -116,8 +117,8 @@ func (d *Drawing) regenerateSortEntsTable() error {
 		return nil
 	}
 	frontToBack := make([]string, 0, len(d.entitiesSection))
-	for i := len(d.entitiesSection) - 1; i >= 0; i-- {
-		frontToBack = append(frontToBack, d.entitiesSection[i].Handle())
+	for _, v := range slices.Backward(d.entitiesSection) {
+		frontToBack = append(frontToBack, v.Handle())
 	}
 	if len(frontToBack) == 0 {
 		return nil
@@ -186,8 +187,8 @@ func (d *Drawing) ApplySortEntsTables() {
 	// Entries are stored front to back; replaying them back to front
 	// reconstructs plot order: "-2" back-most, "-1" front-most, a handle X
 	// means "drawn immediately after X".
-	for i := len(entries) - 1; i >= 0; i-- {
-		h, sortHandle := entries[i][0], entries[i][1]
+	for _, entrie := range slices.Backward(entries) {
+		h, sortHandle := entrie[0], entrie[1]
 		e, ok := byHandle[h]
 		if !ok {
 			continue

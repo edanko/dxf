@@ -241,7 +241,7 @@ func TestDecomposeRoundTrip(t *testing.T) {
 		}
 	}
 	// The rotation columns are unit and orthogonal; shear is zero.
-	for j := 0; j < 3; j++ {
+	for j := range 3 {
 		col := Vec3{dec.Rotation.Get(0, j), dec.Rotation.Get(1, j), dec.Rotation.Get(2, j)}
 		if math.Abs(col.Length()-1) > 1e-9 {
 			t.Errorf("rotation column %d not unit: %v", j, col)

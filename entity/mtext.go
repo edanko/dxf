@@ -298,11 +298,12 @@ func (m *MText) SetText(text string) {
 
 // GetText returns complete text content
 func (m *MText) GetText() string {
-	result := m.Value
+	var result strings.Builder
+	result.WriteString(m.Value)
 	for _, text := range m.AdditionalText {
-		result += text
+		result.WriteString(text)
 	}
-	return result
+	return result.String()
 }
 
 // AddAdditionalText adds additional text content
@@ -448,7 +449,7 @@ func (m *MText) Format(f format.Formatter) {
 
 	// Insertion point. Code 30 is omitted for the default z = 0 plane.
 	if len(m.Coord1) >= 3 && m.Coord1[2] != 0 {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			f.WriteFloat((i+1)*10, m.Coord1[i])
 		}
 	} else {
@@ -559,7 +560,7 @@ func (m *MText) Format(f format.Formatter) {
 
 	// Extrusion direction
 	if len(m.Extrusion) == 3 {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			f.WriteFloat(210+i, m.Extrusion[i])
 		}
 	}
@@ -654,7 +655,7 @@ func (m *MText) ParseFormattingCode(text string) (*MTextFormattingCode, int) {
 // MTextFormattingCode represents a parsed formatting code
 type MTextFormattingCode struct {
 	Type     string
-	Value    interface{}
+	Value    any
 	Consumed int
 	IsValid  bool
 }
@@ -1001,8 +1002,8 @@ func (m *MText) parseFontString(fontStr string) *MTextFont {
 	}
 
 	// Parse font name and properties
-	parts := strings.Split(fontStr, "|")
-	for _, part := range parts {
+	parts := strings.SplitSeq(fontStr, "|")
+	for part := range parts {
 		if len(part) == 0 {
 			continue
 		}
@@ -1085,8 +1086,8 @@ func (m *MText) parseParagraphProperties(propStr string) *MTextParagraphProperti
 	}
 
 	// Parse properties like: pi5,l10,r15,qc
-	parts := strings.Split(propStr, ",")
-	for _, part := range parts {
+	parts := strings.SplitSeq(propStr, ",")
+	for part := range parts {
 		if len(part) < 2 {
 			continue
 		}
@@ -1138,8 +1139,8 @@ func (m *MText) parseTabStops(tabStr string) []MTextTabStop {
 	tabStops := make([]MTextTabStop, 0)
 
 	// Parse tab positions like: 5,c8,r12,16,c20
-	tabs := strings.Split(tabStr, ",")
-	for _, tab := range tabs {
+	tabs := strings.SplitSeq(tabStr, ",")
+	for tab := range tabs {
 		if len(tab) == 0 {
 			continue
 		}
@@ -1417,19 +1418,20 @@ func (m *MText) applyFormattingCode(state *MTextFormattingState, code *MTextForm
 // ToFormattedString converts MTEXT to properly formatted DXF string
 func (m *MText) ToFormattedString() string {
 	// Start with the main text content
-	result := m.Value
+	var result strings.Builder
+	result.WriteString(m.Value)
 
 	// Add additional text content
 	for _, text := range m.AdditionalText {
-		result += text
+		result.WriteString(text)
 	}
 
 	// Escape any backslashes that aren't formatting codes
 	// This is a simple implementation - more sophisticated escaping may be needed
 	var escaped strings.Builder
-	for i, char := range result {
-		if char == '\\' && i+1 < len([]rune(result)) {
-			nextChar := []rune(result)[i+1]
+	for i, char := range result.String() {
+		if char == '\\' && i+1 < len([]rune(result.String())) {
+			nextChar := []rune(result.String())[i+1]
 			// Check if next character starts a valid formatting code
 			if !m.isValidFormattingCode(nextChar) {
 				escaped.WriteRune('\\')

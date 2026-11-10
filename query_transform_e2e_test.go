@@ -63,7 +63,7 @@ func TestDrawOrderBringToFrontAndSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if _, err := d.Model().AddLine(float64(i), 0, 0, float64(i)+1, 1, 0); err != nil {
 			t.Fatal(err)
 		}
@@ -288,7 +288,7 @@ func TestQueryTransformRoundTripStability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		if _, err := d.Model().AddLine(float64(i), 0, 0, float64(i), 3, 0); err != nil {
 			t.Fatal(err)
 		}

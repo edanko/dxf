@@ -260,7 +260,7 @@ func TestVec2(t *testing.T) {
 func TestMatrix44(t *testing.T) {
 	t.Run("Identity", func(t *testing.T) {
 		m := NewMatrix44()
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			if m[i*5] != 1 {
 				t.Errorf("Identity matrix diagonal[%d] should be 1, got %f", i, m[i*5])
 			}

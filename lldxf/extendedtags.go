@@ -234,7 +234,7 @@ func (ext *ExtendedTags) GetEmbeddedObjectNames() []string {
 
 // GetFirstValue returns the value of the first tag with the specified group code
 // searched across all collections
-func (ext *ExtendedTags) GetFirstValue(code GroupCode) (interface{}, bool) {
+func (ext *ExtendedTags) GetFirstValue(code GroupCode) (any, bool) {
 	// Search in main tags first
 	if value, found := ext.tags.GetFirstValue(code); found {
 		return value, true

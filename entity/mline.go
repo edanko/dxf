@@ -342,7 +342,7 @@ func (m *MLine) BBox() ([]float64, []float64) {
 	maxs := make([]float64, 3)
 
 	// Initialize with large/small values
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		mins[i] = 1e100
 		maxs[i] = -1e100
 	}
@@ -350,7 +350,7 @@ func (m *MLine) BBox() ([]float64, []float64) {
 	// Calculate bbox from all vertices
 	for _, vertex := range m.Vertices {
 		if vertex.HasVertex && len(vertex.Point) >= 3 {
-			for i := 0; i < 3; i++ {
+			for i := range 3 {
 				if vertex.Point[i] < mins[i] {
 					mins[i] = vertex.Point[i]
 				}

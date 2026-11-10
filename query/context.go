@@ -88,7 +88,7 @@ func (c *EntityContext) fillBBox(e entity.Entity) {
 		return
 	}
 	c.HasBBox = true
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if i < len(min) {
 			c.Min[i] = min[i]
 		}
@@ -154,7 +154,7 @@ func (c *EntityContext) buildExtras() {
 
 // Property resolves a comparison property name to its value. Unknown
 // properties resolve to nil, which compares unequal to everything.
-func (c *EntityContext) Property(name string) interface{} {
+func (c *EntityContext) Property(name string) any {
 	switch strings.ToLower(name) {
 	case "layer":
 		return c.Layer
@@ -182,7 +182,7 @@ func isKnownProperty(name string) bool {
 
 // Call evaluates a query function. String results are produced for value
 // functions; boolean functions return bool. Unknown functions return nil.
-func (c *EntityContext) Call(fn string, args []interface{}) interface{} {
+func (c *EntityContext) Call(fn string, args []any) any {
 	switch strings.ToLower(fn) {
 	case "bbox_intersects", "bboxintersect":
 		r, ok := rectArg(args, 4)
@@ -242,7 +242,7 @@ func boxesIntersect(min, max math.Vec3, r [4]float64) bool {
 		min[1] <= r[3] && max[1] >= r[1]
 }
 
-func rectArg(args []interface{}, n int) ([4]float64, bool) {
+func rectArg(args []any, n int) ([4]float64, bool) {
 	var r [4]float64
 	if len(args) != n {
 		return r, false

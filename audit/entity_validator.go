@@ -96,7 +96,7 @@ func (v *EntityValidator) validateGeometry(e entity.Entity, result *ValidationRe
 		return
 	}
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if math.IsInf(minBbox[i], 0) || math.IsInf(maxBbox[i], 0) {
 			result.AddWarning("entity has infinite bounding box coordinates")
 		}
@@ -138,7 +138,7 @@ func (v *EntityValidator) validateLine(l *entity.Line, result *ValidationResult)
 		result.AddError("line has invalid start or end points")
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if i < len(l.Start) && i < len(l.End) {
 			if l.Start[i] == l.End[i] && l.Start[i] == 0 {
 				continue

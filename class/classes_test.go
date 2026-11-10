@@ -76,7 +76,7 @@ func TestClassType(t *testing.T) {
 func TestClassesMultiple(t *testing.T) {
 	classes := New()
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		classes = append(classes, &Class{})
 	}
 

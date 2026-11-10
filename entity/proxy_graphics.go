@@ -67,7 +67,7 @@ func ExtractProxyGraphics(e Entity) ([]Entity, error) {
 // BinaryTag is one decoded (group code, value) pair from a binary payload.
 type BinaryTag struct {
 	Code  int
-	Value interface{}
+	Value any
 }
 
 // DecodeBinaryTags decodes a binary DXF tag stream.
@@ -80,7 +80,7 @@ func DecodeBinaryTags(data []byte) ([]BinaryTag, error) {
 		}
 		code := int(int16(binary.LittleEndian.Uint16(data[pos : pos+2])))
 		pos += 2
-		var value interface{}
+		var value any
 		switch {
 		case code <= 9:
 			s, n, err := readCString(data, pos)
@@ -218,12 +218,12 @@ func EncodeBinaryTags(tags []BinaryTag) []byte {
 	return out
 }
 
-func toString(v interface{}) string {
+func toString(v any) string {
 	s, _ := v.(string)
 	return s
 }
 
-func toFloat(v interface{}) float64 {
+func toFloat(v any) float64 {
 	switch x := v.(type) {
 	case float64:
 		return x
@@ -239,7 +239,7 @@ func toFloat(v interface{}) float64 {
 	return 0
 }
 
-func toInt(v interface{}) int {
+func toInt(v any) int {
 	switch x := v.(type) {
 	case int:
 		return x

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	dxfmath "github.com/edanko/dxf/math"
 )
@@ -46,12 +47,12 @@ func FitPolynomial(points []dxfmath.Vec2, degree int) ([]float64, error) {
 	normal := make([][]float64, size)
 	for i := range normal {
 		normal[i] = make([]float64, size)
-		for j := 0; j < size; j++ {
+		for j := range size {
 			normal[i][j] = dot(at[i], at[j])
 		}
 	}
 	b := make([]float64, size)
-	for i := 0; i < size; i++ {
+	for i := range size {
 		b[i] = dot(at[i], ys(points))
 	}
 	return solveDense(normal, b)
@@ -62,8 +63,8 @@ func FitPolynomial(points []dxfmath.Vec2, degree int) ([]float64, error) {
 // returns).
 func EvaluatePolynomial(coeffs []float64, x float64) float64 {
 	var result float64
-	for i := len(coeffs) - 1; i >= 0; i-- {
-		result = result*x + coeffs[i]
+	for _, coeff := range slices.Backward(coeffs) {
+		result = result*x + coeff
 	}
 	return result
 }
@@ -79,7 +80,7 @@ func InterpolatePolynomial(points []dxfmath.Vec2) ([]float64, error) {
 	matrix := make([][]float64, n)
 	for i := range matrix {
 		matrix[i] = make([]float64, n)
-		for j := 0; j < n; j++ {
+		for j := range n {
 			matrix[i][j] = pow(points[i].X(), j)
 		}
 	}
@@ -112,13 +113,13 @@ func InterpolateBSplineWithParams(points []dxfmath.Vec2, degree int) (*dxfmath.B
 	knots := clampedKnots(u, degree)
 
 	basis := make([][]float64, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		basis[i] = basisFunctionsAll(knots, degree, u[i])
 	}
 	control := make([][]float64, 3)
-	for axis := 0; axis < 3; axis++ {
+	for axis := range 3 {
 		rhs := make([]float64, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			switch axis {
 			case 0:
 				rhs[i] = points[i].X()
@@ -135,7 +136,7 @@ func InterpolateBSplineWithParams(points []dxfmath.Vec2, degree int) (*dxfmath.B
 		control[axis] = solution
 	}
 	cps := make([]dxfmath.Vec3, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		cps[i] = dxfmath.Vec3{control[0][i], control[1][i], control[2][i]}
 	}
 	spline := dxfmath.NewBSplineWithKnots(cps, nil, knots, degree)
@@ -306,7 +307,7 @@ func basisFunctionsAll(knots []float64, degree int, t float64) []float64 {
 	}
 	for k := 1; k <= degree; k++ {
 		cur := make([]float64, len(prev)-1)
-		for i := 0; i < len(cur); i++ {
+		for i := range cur {
 			dLeft := knots[i+k] - knots[i]
 			dRight := knots[i+k+1] - knots[i+1]
 			var left, right float64
@@ -341,7 +342,7 @@ func solveDense(matrix [][]float64, b []float64) ([]float64, error) {
 	if len(matrix) != n {
 		return nil, ErrSingularSystem
 	}
-	for col := 0; col < n; col++ {
+	for col := range n {
 		pivot := col
 		for row := col + 1; row < n; row++ {
 			if abs(matrix[row][col]) > abs(matrix[pivot][col]) {
@@ -402,7 +403,7 @@ func dot(a, b []float64) float64 {
 
 func pow(base float64, exponent int) float64 {
 	result := 1.0
-	for i := 0; i < exponent; i++ {
+	for range exponent {
 		result *= base
 	}
 	return result

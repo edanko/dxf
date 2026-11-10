@@ -148,7 +148,7 @@ func (e *Ellipse) Format(f format.Formatter) {
 	}
 
 	// Write center point
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat(10+i*10, e.Center[i])
 	}
 

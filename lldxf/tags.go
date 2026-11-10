@@ -3,6 +3,7 @@ package lldxf
 import (
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -13,7 +14,7 @@ type GroupCode int
 // Tag interface for all DXF tag types
 type Tag interface {
 	Code() GroupCode
-	Value() interface{}
+	Value() any
 	String() string
 	Clone() Tag
 }
@@ -21,14 +22,14 @@ type Tag interface {
 // DXFTag represents a single DXF tag (group code, value pair)
 type DXFTag struct {
 	code  GroupCode
-	value interface{}
+	value any
 }
 
 // SetValue replaces the tag's value.
-func (t *DXFTag) SetValue(v interface{}) { t.value = v }
+func (t *DXFTag) SetValue(v any) { t.value = v }
 
 // NewDXFTag creates a new DXF tag with automatic type casting
-func NewDXFTag(code GroupCode, value interface{}) Tag {
+func NewDXFTag(code GroupCode, value any) Tag {
 	// Special case: if value is already a coordinate array and code is a point code, preserve it
 	if coords, ok := value.([]float64); ok && isPointCode(code) {
 		return &DXFVertex{DXFTag{code: code, value: coords}}
@@ -53,7 +54,7 @@ func (t *DXFTag) Code() GroupCode {
 }
 
 // Value returns the tag value
-func (t *DXFTag) Value() interface{} {
+func (t *DXFTag) Value() any {
 	return t.value
 }
 
@@ -177,7 +178,7 @@ func (t Tags) Add(tag Tag) Tags {
 }
 
 // GetFirstValue returns the value of the first tag with the specified group code
-func (t Tags) GetFirstValue(code GroupCode) (interface{}, bool) {
+func (t Tags) GetFirstValue(code GroupCode) (any, bool) {
 	for _, tag := range t {
 		if tag.Code() == code {
 			return tag.Value(), true
@@ -237,7 +238,7 @@ func (t Tags) String() string {
 }
 
 // castTagValue converts tag values to appropriate types based on group code
-func castTagValue(code GroupCode, value interface{}) interface{} {
+func castTagValue(code GroupCode, value any) any {
 	// Point codes carry floats, but ACIS payloads (3DSOLID/REGION/BODY) reuse
 	// them for text lines. Preserve strings that do not parse as numbers so
 	// the payload survives round trips; numeric parsing stays unchanged.
@@ -272,22 +273,12 @@ func IsBinaryDataCode(code GroupCode) bool { return isBinaryDataCode(code) }
 
 func isBinaryDataCode(code GroupCode) bool {
 	binaryCodes := []GroupCode{260, 261, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 1004}
-	for _, c := range binaryCodes {
-		if code == c {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(binaryCodes, code)
 }
 
 func isPointCode(code GroupCode) bool {
 	pointCodes := []GroupCode{10, 11, 12, 13, 14, 15, 16, 17, 18, 110, 111, 112, 210, 211, 212, 213, 1010, 1011, 1012, 1013}
-	for _, c := range pointCodes {
-		if code == c {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(pointCodes, code)
 }
 
 func isFloatCode(code GroupCode) bool {
@@ -308,12 +299,7 @@ func isFloatCode(code GroupCode) bool {
 		1010, 1011, 1012, 1013, // XDATA floats
 		1040, 1041, 1042, // XDATA floats
 	}
-	for _, c := range floatCodes {
-		if code == c {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(floatCodes, code)
 }
 
 func isInt16Code(code GroupCode) bool {
@@ -332,12 +318,7 @@ func isInt16Code(code GroupCode) bool {
 		1060, 1061, 1062, 1063, 1064, 1065, 1066, 1067, 1068, 1069, // XDATA ints
 		1070, // XDATA int
 	}
-	for _, c := range int16Codes {
-		if code == c {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(int16Codes, code)
 }
 
 func isInt32Code(code GroupCode) bool {
@@ -352,12 +333,7 @@ func isInt32Code(code GroupCode) bool {
 		480, 481, 482, 483, 484, 485, 486, 487, 488, 489, // More handles
 		1071, // XDATA int32
 	}
-	for _, c := range int32Codes {
-		if code == c {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(int32Codes, code)
 }
 
 func isInt64Code(code GroupCode) bool {
@@ -366,17 +342,12 @@ func isInt64Code(code GroupCode) bool {
 	int64Codes := []GroupCode{
 		160, 161, 162, 163, 164, 165, 166, 167, 168, 169, // Lengths, counts (int64 in binary DXF)
 	}
-	for _, c := range int64Codes {
-		if code == c {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(int64Codes, code)
 }
 
 // Type casting functions
 
-func castToFloat(value interface{}) float64 {
+func castToFloat(value any) float64 {
 	switch v := value.(type) {
 	case float64:
 		return v
@@ -396,7 +367,7 @@ func castToFloat(value interface{}) float64 {
 	}
 }
 
-func castToInt16(value interface{}) int16 {
+func castToInt16(value any) int16 {
 	switch v := value.(type) {
 	case int16:
 		return v
@@ -416,7 +387,7 @@ func castToInt16(value interface{}) int16 {
 	}
 }
 
-func castToInt32(value interface{}) int32 {
+func castToInt32(value any) int32 {
 	switch v := value.(type) {
 	case int32:
 		return v
@@ -436,7 +407,7 @@ func castToInt32(value interface{}) int32 {
 	}
 }
 
-func castToInt64(value interface{}) int64 {
+func castToInt64(value any) int64 {
 	switch v := value.(type) {
 	case int64:
 		return v
@@ -456,7 +427,7 @@ func castToInt64(value interface{}) int64 {
 	}
 }
 
-func castToString(value interface{}) string {
+func castToString(value any) string {
 	switch v := value.(type) {
 	case string:
 		return v
@@ -506,7 +477,7 @@ func hexDigit(c byte) (byte, bool) {
 	return 0, false
 }
 
-func castToBinary(value interface{}) []byte {
+func castToBinary(value any) []byte {
 	switch v := value.(type) {
 	case []byte:
 		return v

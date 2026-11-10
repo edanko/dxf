@@ -298,7 +298,7 @@ func (d *Drawing) markXRefResolved(blockName string) {
 
 // addRecoveryIssue records a load-time problem on the drawing recovery report
 // without failing the load.
-func (d *Drawing) addRecoveryIssue(format string, args ...interface{}) {
+func (d *Drawing) addRecoveryIssue(format string, args ...any) {
 	rep := d.RecoveryReport()
 	if rep == nil {
 		rep = &RecoveryReport{}

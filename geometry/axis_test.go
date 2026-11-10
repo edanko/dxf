@@ -139,7 +139,7 @@ func TestArbitraryAxisConsistency(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err2)
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if ax1[i] != ax2[i] {
 			t.Errorf("ax[%d] differs: %f vs %f", i, ax1[i], ax2[i])
 		}
@@ -156,7 +156,7 @@ func TestArbitraryAxisDifferentInputs(t *testing.T) {
 
 	// At least some elements should be different
 	different := false
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if ax1[i] != ax2[i] || ay1[i] != ay2[i] {
 			different = true
 			break

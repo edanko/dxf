@@ -173,7 +173,7 @@ func (s *Spline) Format(f format.Formatter) {
 	s.entity.Format(f)
 	f.WriteString(100, "AcDbSpline")
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat(210+i*10, s.Normal[i])
 	}
 
@@ -210,7 +210,7 @@ func (s *Spline) Format(f format.Formatter) {
 	}
 
 	// Write tolerances
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if s.Tolerance[i] != 0.000000001 {
 			f.WriteFloat(42+i, s.Tolerance[i])
 		}

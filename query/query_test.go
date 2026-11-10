@@ -297,7 +297,7 @@ func TestEntityQueryMap(t *testing.T) {
 
 	q := NewEntityQuery(e1, e2)
 
-	handles := q.Map(func(ent entity.Entity) interface{} {
+	handles := q.Map(func(ent entity.Entity) any {
 		return ent.Handle()
 	})
 

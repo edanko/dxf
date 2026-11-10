@@ -23,7 +23,7 @@ func (l *LwPolyline) IsEntity() bool {
 // NewLwPolyline creates a new LwPolyline.
 func NewLwPolyline(size int) *LwPolyline {
 	vs := make([][]float64, size)
-	for i := 0; i < size; i++ {
+	for i := range size {
 		vs[i] = make([]float64, 2)
 	}
 	l := &LwPolyline{
@@ -50,7 +50,7 @@ func (l *LwPolyline) Format(f format.Formatter) {
 		f.WriteFloat(43, l.ConstantWidth)
 	}
 	for i := 0; i < l.Num; i++ {
-		for j := 0; j < 2; j++ {
+		for j := range 2 {
 			f.WriteFloat((j+1)*10, l.Vertices[i][j])
 		}
 		if l.Bulges[i] != 0 {
@@ -68,7 +68,7 @@ func (l *LwPolyline) BBox() ([]float64, []float64) {
 	mins := make([]float64, 3)
 	maxs := make([]float64, 3)
 	for _, p := range l.Vertices {
-		for i := 0; i < len(p); i++ {
+		for i := range p {
 			if p[i] < mins[i] {
 				mins[i] = p[i]
 			}

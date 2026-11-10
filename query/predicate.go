@@ -99,7 +99,7 @@ func validate(e Expression) error {
 	return nil
 }
 
-func validateCall(fn string, args []interface{}, pos int, bare bool) error {
+func validateCall(fn string, args []any, pos int, bare bool) error {
 	arity, known := queryFunctions[lowerASCII(fn)]
 	if !known {
 		return fmt.Errorf("query: unknown function %q at position %d", fn, pos)

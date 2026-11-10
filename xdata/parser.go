@@ -19,7 +19,7 @@ func NewParser() *Parser {
 	}
 }
 
-func (p *Parser) AddTag(code int, value interface{}) {
+func (p *Parser) AddTag(code int, value any) {
 	p.Tags = append(p.Tags, Tag{Code: code, Value: value})
 }
 

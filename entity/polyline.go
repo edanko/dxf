@@ -129,7 +129,7 @@ func (p *Polyline) BBox() ([]float64, []float64) {
 	mins := make([]float64, 3)
 	maxs := make([]float64, 3)
 	for _, v := range p.Vertices {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			if v.Coord[i] < mins[i] {
 				mins[i] = v.Coord[i]
 			}

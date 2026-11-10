@@ -42,7 +42,7 @@ func (d *DXFEntity) SetBlockRecord(h handle.Handler) {}
 func (d *DXFEntity) Layer() *table.Layer             { return nil }
 func (d *DXFEntity) SetLayer(l *table.Layer)         {}
 func (d *DXFEntity) SetLtscale(v float64)            {}
-func (d *DXFEntity) SetColor(c interface{})          {}
+func (d *DXFEntity) SetColor(c any)                  {}
 
 func (d *DXFEntity) Handle() string {
 	for _, tag := range d.Tags {
@@ -59,10 +59,10 @@ func (d *DXFEntity) DXFType() string {
 	return d.TypeName
 }
 
-func (d *DXFEntity) GetAttributes() map[string]interface{} {
-	return make(map[string]interface{})
+func (d *DXFEntity) GetAttributes() map[string]any {
+	return make(map[string]any)
 }
 
-func (d *DXFEntity) LoadAttributes(attribs map[string]interface{}) error {
+func (d *DXFEntity) LoadAttributes(attribs map[string]any) error {
 	return nil
 }

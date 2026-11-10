@@ -44,7 +44,7 @@ func (p *Point) Format(f format.Formatter) {
 	if p.thickness != 0 {
 		f.WriteFloat(39, p.thickness)
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		f.WriteFloat((i+1)*10, p.Coord[i])
 	}
 	p.entity.FormatBaseExtrusion(f)

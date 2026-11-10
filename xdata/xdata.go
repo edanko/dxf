@@ -24,7 +24,7 @@ var ValidXDataGroupCodes = map[int]bool{
 
 type Tag struct {
 	Code  int
-	Value interface{}
+	Value any
 }
 
 func (t Tag) String() string {
@@ -71,7 +71,7 @@ func (x *XData) SetAppData(appID string, tags []Tag) {
 	}
 }
 
-func (x *XData) AddTag(appID string, code int, value interface{}) error {
+func (x *XData) AddTag(appID string, code int, value any) error {
 	if !ValidXDataGroupCodes[code] {
 		return fmt.Errorf("invalid XDATA group code: %d", code)
 	}

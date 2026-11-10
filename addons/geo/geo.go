@@ -28,9 +28,9 @@ type Options struct {
 
 // Feature is one GeoJSON feature.
 type Feature struct {
-	Type       string                 `json:"type"`
-	Geometry   map[string]interface{} `json:"geometry"`
-	Properties map[string]interface{} `json:"properties"`
+	Type       string         `json:"type"`
+	Geometry   map[string]any `json:"geometry"`
+	Properties map[string]any `json:"properties"`
 }
 
 // ExportGeoJSON renders the drawing entities as a GeoJSON feature collection.
@@ -61,12 +61,12 @@ func ExportGeoJSON(d *drawing.Drawing, opts *Options) ([]byte, error) {
 		if len(layerFilter) > 0 && !layerFilter[layer] {
 			continue
 		}
-		var geom map[string]interface{}
+		var geom map[string]any
 		switch t := e.(type) {
 		case *entity.Line:
 			x1, y1 := transform(t.Start[0], t.Start[1])
 			x2, y2 := transform(t.End[0], t.End[1])
-			geom = map[string]interface{}{"type": "LineString", "coordinates": [][]float64{{x1, y1}, {x2, y2}}}
+			geom = map[string]any{"type": "LineString", "coordinates": [][]float64{{x1, y1}, {x2, y2}}}
 		case *entity.LwPolyline:
 			pts := make([][]float64, 0, len(t.Vertices))
 			for _, v := range t.Vertices {
@@ -76,22 +76,22 @@ func ExportGeoJSON(d *drawing.Drawing, opts *Options) ([]byte, error) {
 			if t.Closed && len(pts) > 0 {
 				pts = append(pts, pts[0])
 			}
-			geom = map[string]interface{}{"type": "LineString", "coordinates": pts}
+			geom = map[string]any{"type": "LineString", "coordinates": pts}
 		case *entity.Point:
 			x, y := transform(t.Coord[0], t.Coord[1])
-			geom = map[string]interface{}{"type": "Point", "coordinates": []float64{x, y}}
+			geom = map[string]any{"type": "Point", "coordinates": []float64{x, y}}
 		case *entity.Insert:
 			p := t.InsertPoint()
 			x, y := transform(p.X(), p.Y())
-			geom = map[string]interface{}{"type": "Point", "coordinates": []float64{x, y}}
+			geom = map[string]any{"type": "Point", "coordinates": []float64{x, y}}
 		default:
 			continue
 		}
 		feats = append(feats, Feature{
 			Type:       "Feature",
 			Geometry:   geom,
-			Properties: map[string]interface{}{"layer": layer, "type": e.DXFType()},
+			Properties: map[string]any{"layer": layer, "type": e.DXFType()},
 		})
 	}
-	return json.MarshalIndent(map[string]interface{}{"type": "FeatureCollection", "features": feats}, "", "  ")
+	return json.MarshalIndent(map[string]any{"type": "FeatureCollection", "features": feats}, "", "  ")
 }

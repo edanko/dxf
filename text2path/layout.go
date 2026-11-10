@@ -68,10 +68,7 @@ func LayoutMText(text string, height, width float64) []string {
 		return lines
 	}
 	charWidth := height * 100.0 / 120.0
-	maxChars := int(width / charWidth)
-	if maxChars < 1 {
-		maxChars = 1
-	}
+	maxChars := max(int(width/charWidth), 1)
 	var out []string
 	for _, line := range lines {
 		if len(line) <= maxChars {
@@ -79,8 +76,8 @@ func LayoutMText(text string, height, width float64) []string {
 			continue
 		}
 		current := ""
-		words := strings.Fields(line)
-		for _, w := range words {
+		words := strings.FieldsSeq(line)
+		for w := range words {
 			if current == "" {
 				current = w
 				continue

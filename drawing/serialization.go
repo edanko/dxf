@@ -32,18 +32,18 @@ func (d *Drawing) ToJSON(opts *SerializationOptions) ([]byte, error) {
 	}
 
 	type DrawingJSON struct {
-		FileName    string                   `json:"file_name,omitempty"`
-		LayerCount  int                      `json:"layer_count"`
-		StyleCount  int                      `json:"style_count"`
-		EntityCount int                      `json:"entity_count"`
-		Statistics  map[string]interface{}   `json:"statistics,omitempty"`
-		Entities    []map[string]interface{} `json:"entities"`
+		FileName    string           `json:"file_name,omitempty"`
+		LayerCount  int              `json:"layer_count"`
+		StyleCount  int              `json:"style_count"`
+		EntityCount int              `json:"entity_count"`
+		Statistics  map[string]any   `json:"statistics,omitempty"`
+		Entities    []map[string]any `json:"entities"`
 	}
 
 	stats := d.GetDrawingStatistics()
 	entities := d.GetAllEntities()
 
-	entitiesJSON := make([]map[string]interface{}, 0, len(entities))
+	entitiesJSON := make([]map[string]any, 0, len(entities))
 	for _, e := range entities {
 		entMap := entityToMap(e, opts)
 		entitiesJSON = append(entitiesJSON, entMap)
@@ -64,8 +64,8 @@ func (d *Drawing) ToJSON(opts *SerializationOptions) ([]byte, error) {
 	return json.MarshalIndent(dj, "", "  ")
 }
 
-func entityToMap(e entity.Entity, opts *SerializationOptions) map[string]interface{} {
-	result := make(map[string]interface{})
+func entityToMap(e entity.Entity, opts *SerializationOptions) map[string]any {
+	result := make(map[string]any)
 	result["type"] = e.DXFType()
 
 	if opts.IncludeHandles && e.Handle() != "" {
@@ -116,11 +116,11 @@ func (d *Drawing) FromBase64(s string) error {
 }
 
 type EntityExport struct {
-	Type    string                 `json:"type"`
-	Handle  string                 `json:"handle,omitempty"`
-	Layer   string                 `json:"layer,omitempty"`
-	Color   int                    `json:"color,omitempty"`
-	RawData map[string]interface{} `json:"raw_data,omitempty"`
+	Type    string         `json:"type"`
+	Handle  string         `json:"handle,omitempty"`
+	Layer   string         `json:"layer,omitempty"`
+	Color   int            `json:"color,omitempty"`
+	RawData map[string]any `json:"raw_data,omitempty"`
 }
 
 func ExportEntitiesToJSON(entities []entity.Entity, opts *SerializationOptions) ([]byte, error) {

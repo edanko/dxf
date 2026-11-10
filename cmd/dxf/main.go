@@ -55,15 +55,15 @@ type exitError struct {
 
 func (e *exitError) Error() string { return e.msg }
 
-func usageError(format string, a ...interface{}) error {
+func usageError(format string, a ...any) error {
 	return &exitError{code: 2, msg: fmt.Sprintf(format, a...)}
 }
 
-func dataError(format string, a ...interface{}) error {
+func dataError(format string, a ...any) error {
 	return &exitError{code: 1, msg: fmt.Sprintf(format, a...)}
 }
 
-func missingError(format string, a ...interface{}) error {
+func missingError(format string, a ...any) error {
 	return &exitError{code: 3, msg: fmt.Sprintf(format, a...)}
 }
 
@@ -210,7 +210,7 @@ func cmdInfo(args []string) error {
 	}
 
 	if *format == "json" {
-		out := map[string]interface{}{
+		out := map[string]any{
 			"version":  d.Header().Version,
 			"entities": entities,
 			"tables":   tables,
@@ -401,7 +401,7 @@ func cmdQuery(args []string) error {
 		return dataError("query: %v", err)
 	}
 	if *format == "json" {
-		out := map[string]interface{}{
+		out := map[string]any{
 			"query":   expr,
 			"count":   sel.Len(),
 			"handles": sel.Handles(),

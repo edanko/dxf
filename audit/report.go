@@ -52,7 +52,7 @@ func (r *Report) Add(issue Issue) {
 }
 
 // Addf appends an issue with a formatted message.
-func (r *Report) Addf(sev Severity, code, handle, format string, args ...interface{}) {
+func (r *Report) Addf(sev Severity, code, handle, format string, args ...any) {
 	r.Add(Issue{Severity: sev, Code: code, Handle: handle, Message: fmt.Sprintf(format, args...)})
 }
 

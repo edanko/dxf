@@ -16,7 +16,7 @@ type MockEntity struct {
 	handle     string
 	entityType string
 	layer      *table.Layer
-	attrs      map[string]interface{}
+	attrs      map[string]any
 }
 
 func (m *MockEntity) IsEntity() bool                  { return true }
@@ -33,9 +33,9 @@ func (m *MockEntity) Handle() string               { return m.handle }
 func (m *MockEntity) SetHandle(h *handle.HandleGenerator) {
 	m.handle = h.Next()
 }
-func (m *MockEntity) DXFType() string                       { return m.entityType }
-func (m *MockEntity) GetAttributes() map[string]interface{} { return m.attrs }
-func (m *MockEntity) LoadAttributes(attribs map[string]interface{}) error {
+func (m *MockEntity) DXFType() string               { return m.entityType }
+func (m *MockEntity) GetAttributes() map[string]any { return m.attrs }
+func (m *MockEntity) LoadAttributes(attribs map[string]any) error {
 	m.attrs = attribs
 	return nil
 }
@@ -43,7 +43,7 @@ func (m *MockEntity) LoadAttributes(attribs map[string]interface{}) error {
 func NewMockEntity(entityType string) *MockEntity {
 	return &MockEntity{
 		entityType: entityType,
-		attrs:      make(map[string]interface{}),
+		attrs:      make(map[string]any),
 	}
 }
 
@@ -223,7 +223,7 @@ func TestProfessionalEntityDB_BulkOperations(t *testing.T) {
 
 	// Create multiple entities
 	entities := make([]entity.Entity, 3)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		entities[i] = NewMockEntity("BULK_TEST")
 	}
 
@@ -349,7 +349,7 @@ func TestProfessionalEntityDB_ConcurrentAccess(t *testing.T) {
 
 	// Goroutine 1: Add entities
 	go func() {
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			entity := NewMockEntity("CONCURRENT_TEST")
 			db.AddEntity(entity)
 		}
@@ -358,7 +358,7 @@ func TestProfessionalEntityDB_ConcurrentAccess(t *testing.T) {
 
 	// Goroutine 2: Query entities
 	go func() {
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			stats := db.GetStatistics()
 			_ = stats
 			time.Sleep(1 * time.Millisecond)

@@ -547,7 +547,7 @@ func TestAuditorWithManyEntities(t *testing.T) {
 	auditor.AutoFix = false // Disable autofix to avoid fix errors
 
 	// Add many entities
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		line := entity.NewLine()
 		line.Start = []float64{float64(i), float64(i), 0}
 		line.End = []float64{float64(i + 1), float64(i + 1), 0}

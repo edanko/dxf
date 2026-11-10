@@ -16,16 +16,16 @@ import (
 	dxf "github.com/edanko/dxf"
 	"github.com/edanko/dxf/drawing"
 	"github.com/edanko/dxf/entity"
+	dxfmath "github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/object"
 	"github.com/edanko/dxf/render"
-	dxfmath "github.com/edanko/dxf/math"
 )
 
 func writeTestPNG(t *testing.T, path string) {
 	t.Helper()
 	im := image.NewRGBA(image.Rect(0, 0, 8, 8))
-	for y := 0; y < 8; y++ {
-		for x := 0; x < 8; x++ {
+	for y := range 8 {
+		for x := range 8 {
 			im.Set(x, y, color.RGBA{R: 255, A: 255})
 		}
 	}

@@ -266,7 +266,7 @@ func CreateBasicDXF(writer TagWriter, version string) error {
 }
 
 // FormatTagValue formats a tag value for output
-func FormatTagValue(value interface{}) string {
+func FormatTagValue(value any) string {
 	switch v := value.(type) {
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64)

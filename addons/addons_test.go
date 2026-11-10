@@ -51,7 +51,7 @@ func TestR12WriterStreaming(t *testing.T) {
 		t.Fatal(err)
 	}
 	const n = 10000
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if err := w.WriteEntity(makeLine(i)); err != nil {
 			t.Fatalf("entity %d: %v", i, err)
 		}
@@ -81,7 +81,7 @@ func TestIterDXFStreaming(t *testing.T) {
 		t.Fatal(err)
 	}
 	const n = 500
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if err := w.WriteEntity(makeLine(i)); err != nil {
 			t.Fatal(err)
 		}

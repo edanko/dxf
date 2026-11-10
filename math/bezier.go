@@ -67,7 +67,7 @@ func (b *Bezier) EvaluatePoint(t float64) Vec3 {
 	n := len(b.controlPoints)
 	point := Vec3{}
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		basis := bernsteinBasis(n-1, i, t)
 		weightedPoint := b.controlPoints[i].Mul(basis)
 		point = point.Add(weightedPoint)
@@ -183,7 +183,7 @@ func (b *Bezier) firstDerivative(t float64) Vec3 {
 	}
 
 	derivative := Vec3{}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		basis := bernsteinDerivative(n, i, t)
 		weightedPoint := b.controlPoints[i].Mul(basis)
 		derivative = derivative.Add(weightedPoint)
@@ -199,7 +199,7 @@ func (b *Bezier) secondDerivative(t float64) Vec3 {
 	}
 
 	derivative := Vec3{}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		basis := bernsteinSecondDerivative(n, i, t)
 		weightedPoint := b.controlPoints[i].Mul(basis)
 		derivative = derivative.Add(weightedPoint)
@@ -368,13 +368,6 @@ func binomialCoefficient(n, k int) int {
 	return result
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func deCasteljauCoefficients(i, j int, t float64) float64 {
 	n := i + j
 	if j == 0 {
@@ -385,7 +378,7 @@ func deCasteljauCoefficients(i, j int, t float64) float64 {
 	}
 
 	coeff := float64(binomialCoefficient(n, j))
-	for l := 0; l < j; l++ {
+	for l := range j {
 		coeff *= math.Pow(t, float64(l)) * math.Pow(1.0-t, float64(j-l))
 	}
 	for l := j; l < i; l++ {

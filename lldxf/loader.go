@@ -457,8 +457,8 @@ func (l *Loader) GetObjectCount() int {
 }
 
 // Info returns loader information
-func (l *Loader) Info() map[string]interface{} {
-	return map[string]interface{}{
+func (l *Loader) Info() map[string]any {
+	return map[string]any{
 		"entity_count": l.GetEntityCount(),
 		"table_count":  l.GetTableCount(),
 		"block_count":  l.GetBlockCount(),

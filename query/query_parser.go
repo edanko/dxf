@@ -3,6 +3,7 @@ package query
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -333,7 +334,7 @@ func (e *NotExpression) String() string {
 type ComparisonExpression struct {
 	Property string
 	Operator Operator
-	Value    interface{}
+	Value    any
 	Pos      int
 }
 
@@ -341,7 +342,7 @@ type ComparisonExpression struct {
 // bbox_intersects(0, 0, 10, 10) or has_xdata('MYAPP').
 type CallExpression struct {
 	Fn   string
-	Args []interface{}
+	Args []any
 	Pos  int
 }
 
@@ -358,9 +359,9 @@ func (e *CallExpression) String() string {
 // attr('SIZE') == '10'.
 type FuncComparison struct {
 	Fn       string
-	Args     []interface{}
+	Args     []any
 	Operator Operator
-	Value    interface{}
+	Value    any
 	Pos      int
 }
 
@@ -419,7 +420,7 @@ func operatorString(op Operator) string {
 	}
 }
 
-func compareValues(propValue, cmpValue interface{}, op Operator) bool {
+func compareValues(propValue, cmpValue any, op Operator) bool {
 	switch op {
 	case OpEquals:
 		return propValue == cmpValue
@@ -442,11 +443,9 @@ func compareValues(propValue, cmpValue interface{}, op Operator) bool {
 		}
 		return re.MatchString(toString(propValue))
 	case OpIn:
-		if list, ok := cmpValue.([]interface{}); ok {
-			for _, item := range list {
-				if item == propValue {
-					return true
-				}
+		if list, ok := cmpValue.([]any); ok {
+			if slices.Contains(list, propValue) {
+				return true
 			}
 		}
 		return false
@@ -455,7 +454,7 @@ func compareValues(propValue, cmpValue interface{}, op Operator) bool {
 	}
 }
 
-func toFloat(v interface{}) float64 {
+func toFloat(v any) float64 {
 	switch x := v.(type) {
 	case float64:
 		return x
@@ -469,7 +468,7 @@ func toFloat(v interface{}) float64 {
 	return 0
 }
 
-func toString(v interface{}) string {
+func toString(v any) string {
 	switch x := v.(type) {
 	case string:
 		return x
@@ -619,8 +618,8 @@ func (p *Parser) parseProperty() (string, int, error) {
 
 // parseArgs parses a comma-separated argument list (numbers, strings,
 // identifiers used as bare values).
-func (p *Parser) parseArgs() ([]interface{}, error) {
-	var args []interface{}
+func (p *Parser) parseArgs() ([]any, error) {
+	var args []any
 	if p.check(TokenRParen) {
 		return args, nil
 	}
@@ -704,7 +703,7 @@ func (p *Parser) parseOperator() (Operator, error) {
 	}
 }
 
-func (p *Parser) parseValue() (interface{}, error) {
+func (p *Parser) parseValue() (any, error) {
 	token := p.current()
 
 	switch token.Type {
@@ -736,7 +735,7 @@ func (p *Parser) parseValue() (interface{}, error) {
 
 	case TokenLBracket:
 		p.pos++
-		values := make([]interface{}, 0)
+		values := make([]any, 0)
 		for !p.check(TokenRBracket) {
 			value, err := p.parseValue()
 			if err != nil {
@@ -779,7 +778,7 @@ func (p *Parser) unexpected(expected string) error {
 }
 
 // getEntityProperty returns an entity property value
-func getEntityProperty(ent entity.Entity, propName string) interface{} {
+func getEntityProperty(ent entity.Entity, propName string) any {
 	switch strings.ToLower(propName) {
 	case "layer":
 		if layer := ent.Layer(); layer != nil {

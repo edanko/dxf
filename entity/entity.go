@@ -25,8 +25,8 @@ type Entity interface {
 
 	// Factory support
 	DXFType() string
-	GetAttributes() map[string]interface{}
-	LoadAttributes(attribs map[string]interface{}) error
+	GetAttributes() map[string]any
+	LoadAttributes(attribs map[string]any) error
 }
 
 // entity is common part of Entities.
@@ -317,8 +317,8 @@ func (e *entity) DXFType() string {
 }
 
 // GetAttributes returns entity attributes as a map
-func (e *entity) GetAttributes() map[string]interface{} {
-	attributes := make(map[string]interface{})
+func (e *entity) GetAttributes() map[string]any {
+	attributes := make(map[string]any)
 	if e.layer != nil {
 		attributes["layer"] = e.layer.Name()
 	}
@@ -330,7 +330,7 @@ func (e *entity) GetAttributes() map[string]interface{} {
 }
 
 // LoadAttributes loads attributes from a map
-func (e *entity) LoadAttributes(attribs map[string]interface{}) error {
+func (e *entity) LoadAttributes(attribs map[string]any) error {
 	if layerName, ok := attribs["layer"].(string); ok {
 		// Note: This requires access to the document's layer table
 		// For now, just store the name

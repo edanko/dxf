@@ -44,7 +44,7 @@ func IsClockwise(points []Point2D) bool {
 	area := 0.0
 	n := len(points)
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		j := (i + 1) % n
 		area += (points[j].X - points[i].X) * (points[j].Y + points[i].Y)
 	}
@@ -679,7 +679,7 @@ func smallestConvex(ring *Node, n int) *Node {
 	var best *Node
 	bestArea := math.Inf(1)
 	cur := ring
-	for i := 0; i < n; i++ {
+	for range n {
 		area := Area(cur.Prev.Point, cur.Point, cur.Next.Point)
 		if area > 0 && area < bestArea {
 			bestArea = area
@@ -769,7 +769,7 @@ func ValidateTriangulation(vertices []Point2D, indices []int) bool {
 	}
 
 	count := len(indices) / 3
-	for i := 0; i < count; i++ {
+	for i := range count {
 		tri1 := trianglePoints(vertices, indices, i)
 		for j := i + 1; j < count; j++ {
 			tri2 := trianglePoints(vertices, indices, j)
@@ -793,16 +793,16 @@ func trianglePoints(vertices []Point2D, indices []int, t int) [3]Point2D {
 // trianglesOverlap reports strict interior overlap: a strict segment
 // crossing of two edges, or a vertex strictly inside the other triangle.
 func trianglesOverlap(tri1, tri2 [3]Point2D) bool {
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		a1, a2 := tri1[i], tri1[(i+1)%3]
-		for j := 0; j < 3; j++ {
+		for j := range 3 {
 			b1, b2 := tri2[j], tri2[(j+1)%3]
 			if properCross(a1, a2, b1, b2) {
 				return true
 			}
 		}
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if pointInTriangleStrict(tri1[i], tri2[0], tri2[1], tri2[2]) {
 			return true
 		}

@@ -1,6 +1,8 @@
 package entity
 
 import (
+	"maps"
+
 	"github.com/edanko/dxf/format"
 )
 
@@ -41,9 +43,7 @@ func (s *SortEntsTable) Copy() Entity {
 	tbl.entity = s.entity
 	tbl.BlockRecordHandle = s.BlockRecordHandle
 	tbl.Table = make(map[string]string)
-	for k, v := range s.Table {
-		tbl.Table[k] = v
-	}
+	maps.Copy(tbl.Table, s.Table)
 	return tbl
 }
 
@@ -65,9 +65,7 @@ func (s *SortEntsTable) Clear() {
 
 func (s *SortEntsTable) SetHandles(handles map[string]string) {
 	s.Table = make(map[string]string)
-	for k, v := range handles {
-		s.Table[k] = v
-	}
+	maps.Copy(s.Table, handles)
 }
 
 func (s *SortEntsTable) RemoveHandle(handle string) {

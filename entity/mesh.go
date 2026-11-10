@@ -417,8 +417,8 @@ func CreateSphere(radius float64, segments int) *Mesh {
 	}
 
 	// Generate triangular faces
-	for lat := 0; lat < segments; lat++ {
-		for lon := 0; lon < segments; lon++ {
+	for lat := range segments {
+		for lon := range segments {
 			// Current row
 			current := lat * (segments + 1)
 			next := current + (segments + 1)

@@ -8,7 +8,7 @@ import (
 // XRecordTag represents a single DXF tag in an XRecord
 type XRecordTag struct {
 	Code  int
-	Value interface{}
+	Value any
 }
 
 // XRecord represents an XRECORD entity for storing arbitrary DXF data
@@ -90,7 +90,7 @@ func (x *XRecord) Validate() error {
 }
 
 // AddTag adds a tag to the XRecord
-func (x *XRecord) AddTag(code int, value interface{}) {
+func (x *XRecord) AddTag(code int, value any) {
 	x.Tags = append(x.Tags, XRecordTag{Code: code, Value: value})
 }
 

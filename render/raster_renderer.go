@@ -268,8 +268,8 @@ func (r *RasterRenderer) End() error {
 	for y := 0; y < r.height; y++ {
 		for x := 0; x < r.width; x++ {
 			var rs, gs, bs, as uint32
-			for dy := 0; dy < s; dy++ {
-				for dx := 0; dx < s; dx++ {
+			for dy := range s {
+				for dx := range s {
 					c := r.sup.RGBAAt(x*s+dx, y*s+dy)
 					rs += uint32(c.R)
 					gs += uint32(c.G)
