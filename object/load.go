@@ -57,6 +57,9 @@ func (o *RawObject) Format(f format.Formatter) {
 // DXFType returns the object type name.
 func (o *RawObject) DXFType() string { return o.TypeName }
 
+// RawTags returns the retained tags of the raw object.
+func (o *RawObject) RawTags() lldxf.Tags { return o.tags }
+
 // dictEmitCounts gives, per code, how many occurrences Dictionary.Format
 // re-emits from its own state; retainObjectTags keeps only the surplus.
 func dictEmitCounts(tags lldxf.Tags) map[int]int {

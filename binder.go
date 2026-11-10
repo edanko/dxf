@@ -17,6 +17,7 @@ import (
 	"github.com/edanko/dxf/lldxf"
 	"github.com/edanko/dxf/object"
 	"github.com/edanko/dxf/table"
+	"github.com/edanko/dxf/xdata"
 )
 
 // LoadOptions controls document loading.
@@ -377,6 +378,10 @@ func (b *documentBinder) readBlock(tags lldxf.Tags, i *int) *block.Block {
 			}
 			e := b.buildEntity(entityTags)
 			if e == nil {
+				b.report.SkippedEntities++
+				b.report.Issues = append(b.report.Issues,
+					fmt.Sprintf("skipped malformed entity record: type %s handle %s",
+						tags[start].Value(), tags.GetHandle()))
 				rawStream = append(rawStream, tags[start:*i]...)
 				continue // Unbuildable record: raw tags retained in stream.
 			}
@@ -469,6 +474,41 @@ func (b *documentBinder) parseBlockHeader(tags lldxf.Tags) *block.Block {
 	return blk
 }
 
+// wireXData attaches extended data (group codes 1001-1071) from the record
+// tags to entities that support it, so audit and round-trip see the apps.
+func wireXData(e entity.Entity, tags lldxf.Tags) {
+	setter, ok := e.(interface{ SetXDataObject(*xdata.XData) })
+	if !ok {
+		return
+	}
+	x := xdata.NewXData()
+	var appID string
+	var tagsOut []xdata.Tag
+	flush := func() {
+		if appID != "" {
+			x.Apps[appID] = xdata.AppData{AppID: appID, Tags: tagsOut}
+			tagsOut = nil
+		}
+	}
+	seen := false
+	for _, t := range tags {
+		code := int(t.Code())
+		if code == 1001 {
+			flush()
+			appID = fmt.Sprint(t.Value())
+			seen = true
+			continue
+		}
+		if appID != "" && code >= 1000 && code <= 1071 {
+			tagsOut = append(tagsOut, xdata.Tag{Code: code, Value: t.Value()})
+		}
+	}
+	flush()
+	if seen {
+		setter.SetXDataObject(x)
+	}
+}
+
 func (b *documentBinder) bindEntities() {
 	tags := b.loader.GetSection(lldxf.SectionEntities)
 	objects := splitObjects(tags)
@@ -476,6 +516,10 @@ func (b *documentBinder) bindEntities() {
 		entityTags := objects[i]
 		e := b.buildEntity(entityTags)
 		if e == nil {
+			b.report.SkippedEntities++
+			b.report.Issues = append(b.report.Issues,
+				fmt.Sprintf("skipped malformed entity record: type %s handle %s",
+					entityTags[0].Value(), entityTags.GetHandle()))
 			continue
 		}
 		if owner := entityOwnerHandle(entityTags); owner != "" {
@@ -574,10 +618,20 @@ func stripRawTag330(e entity.Entity) {
 		return
 	}
 	var kept []entity.TagPair
+	inReactors := false
 	for _, t := range tags {
-		if t.Code != 330 {
+		if t.Code == 102 {
+			v := strings.TrimSpace(t.Value)
+			inReactors = v == "{ACAD_REACTORS"
 			kept = append(kept, t)
+			continue
 		}
+		// Only the standalone owner 330 is removed; reactor links inside
+		// {ACAD_REACTORS} groups must survive for audit.
+		if t.Code == 330 && !inReactors {
+			continue
+		}
+		kept = append(kept, t)
 	}
 	rt.SetRawTags(kept)
 }
@@ -629,6 +683,10 @@ func (b *documentBinder) buildEntity(tags lldxf.Tags) entity.Entity {
 	}
 	layerName := tagValueString(tags, 8)
 	b.d.SetEntityLayer(e, layerName)
+	// Wire xdata before capturing raw tags: the entity then emits its
+	// extended data, and those group codes are excluded from the raw tags
+	// (no duplication on write).
+	wireXData(e, tags)
 	attachRawTags(e, tags)
 	return e
 }

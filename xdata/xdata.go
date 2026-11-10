@@ -2,6 +2,7 @@ package xdata
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -107,11 +108,14 @@ func (x *XData) AllTags() []Tag {
 	return allTags
 }
 
+// AppIDs returns the application IDs in sorted order so that writing is
+// deterministic (the Apps map is unordered).
 func (x *XData) AppIDs() []string {
 	ids := make([]string, 0, len(x.Apps))
 	for id := range x.Apps {
 		ids = append(ids, id)
 	}
+	sort.Strings(ids)
 	return ids
 }
 

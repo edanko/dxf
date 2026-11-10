@@ -270,6 +270,11 @@ func (d *Dimension) SetStyle(style string) {
 	d.style = style
 }
 
+// GetStyle returns the dimension style name (code 3).
+func (d *Dimension) GetStyle() string {
+	return d.style
+}
+
 // SetAttachmentPoint sets the text attachment point
 func (d *Dimension) SetAttachmentPoint(point int) {
 	d.attachmentPoint = point

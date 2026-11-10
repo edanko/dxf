@@ -2,6 +2,7 @@ package xdata
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/edanko/dxf/format"
@@ -62,15 +63,30 @@ func (f *Formatter) Output() string {
 }
 
 func (f *Formatter) TagsFromXData(x *XData) {
-	for _, appData := range x.Apps {
+	for _, appData := range sortedApps(x) {
 		for _, tag := range appData.Tags {
 			f.WriteTag(tag.Code, tag.Value)
 		}
 	}
 }
 
+// sortedApps returns the app data ordered by application ID, so output is
+// deterministic across runs (the Apps map is unordered).
+func sortedApps(x *XData) []AppData {
+	ids := make([]string, 0, len(x.Apps))
+	for id := range x.Apps {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	out := make([]AppData, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, x.Apps[id])
+	}
+	return out
+}
+
 func (f *Formatter) FormatTo(fm format.Formatter, x *XData) {
-	for _, appData := range x.Apps {
+	for _, appData := range sortedApps(x) {
 		for _, tag := range appData.Tags {
 			switch v := tag.Value.(type) {
 			case string:

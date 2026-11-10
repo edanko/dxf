@@ -127,7 +127,7 @@ must be verified before implementation starts.
 | ACDSDATA section | `sections/acdsdata.py` | `DONE` — retained opaque and re-emitted |
 | Unknown tag retention | `entities/dxfentity.py` | `PARTIAL` — known entities keep unhandled codes; unknown table entries/blocks/typed objects still drop some tags |
 | Load/save round trip | `document.py` | `DONE` — all 51 `testdata/*.dxf` round-trip with matching inventories (`TestCorpusRoundTrip`) |
-| Recover mode | `recover.py` | `PARTIAL` — missing ENDSEC/EOF and tagger errors recovered with a report (`TestRecoveryLoadsTruncatedDocument`) |
+| Recover mode | `recover.py` | `DONE` — missing ENDSEC/EOF and tagger errors recovered with a report; malformed entity records are skipped and counted; `RecoverFile`/`RecoverReader` add a merged audit pass (`TestRecoveryLoadsTruncatedDocument`, `TestRecoverMalformedEntity`, `audit/recover.go`) |
 | Comments (`999`) | `comments.py` | `PARTIAL` — preserved per section and re-emitted at section start; original position is not retained (`TestCommentsArePreservedUnlessStripped`) |
 | R12 strict mode | `r12strict.py` | `DONE` — sanitizer drops non-R12 tables/entities/layers, true-color header variables, records conversion report (`TestR12Downgrade`, `drawing/r12strict.go`) |
 | Binary DXF read/write | `lldxf/tagger.py`, `tagwriter.py` | `DONE` — binary writer emits all sections + EOF with per-code int16/int32/int64/float/raw sizing; ASCII/binary tag streams are value-identical (`TestBinaryASCIIEquivalence`) |
@@ -262,12 +262,12 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
-| Audit protocol and fixers | `audit.py` | `PARTIAL` |
-| Recover damaged files | `recover.py` | `ABSENT` |
-| R12 strict checker | `r12strict.py` | `ABSENT` |
-| Tag/validator checks | `lldxf/validator.py`, `lldxf/repair.py` | `PARTIAL` |
-| Orphan/cycle repair | `audit.py` | `PARTIAL` |
-| Header/table/block/object consistency | `audit.py` | `PARTIAL` |
+| Audit protocol and fixers | `audit.py` | `DONE` — pluggable check registry (handles, owners, tables, references, xdata, reactors, extension dictionaries, extents, entity invariant hooks), safe fixers with re-audit, bounded report with severity counts and JSON (`TestRegistryCodes`, `TestCleanDocumentZeroErrors`, `TestReferenceIntegrity`, `TestTableIntegrity`, `audit/parity_test.go`) |
+| Recover damaged files | `recover.py` | `DONE` — `RecoverFile`/`RecoverReader` merge loader recovery (truncated sections, skipped malformed records) with a full audit pass; report attached to the document (`TestRecoverTruncatedFile`, `TestRecoverMalformedEntity`, `audit/recover.go`) |
+| R12 strict checker | `r12strict.py` | `DONE` — strict R12 audit flags OBJECTS/CLASSES sections and opaque object sections against the version profile (`TestStrictR12RejectsObjects`); the sanitizing mode is `drawing/r12strict.go` |
+| Tag/validator checks | `lldxf/validator.py`, `lldxf/repair.py` | `PARTIAL` — loader recovers truncated sections and skips malformed records with a report (`TestRecoverTruncatedFile`); tag-level rewriting is not modeled |
+| Orphan/cycle repair | `audit.py` | `PARTIAL` — missing/dangling entity owners resolved to *Model_Space block record, missing table entries created (`TestMissingOwnerReportedAndFixed`, `TestMissingLayerZeroReportedAndFixed`); duplicate handles are reported, not repaired; cycle detection is not modeled |
+| Header/table/block/object consistency | `audit.py` | `DONE` — required default entries, duplicate/empty entry names, owner mismatches, block record/layout links, dictionary entries, header extents (`TestTableIntegrity`, `TestDictionaryEntryUnresolved`, `TestExtentsAndSplineHook`) |
 
 ### 8. Query, selection, transformation, decomposition
 
