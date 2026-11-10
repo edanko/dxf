@@ -32,7 +32,12 @@ func FromFile(fn string) (*drawing.Drawing, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return FromReader(f)
+	d, err := FromReader(f)
+	if err != nil {
+		return nil, err
+	}
+	d.SetFileName(fn)
+	return d, nil
 }
 
 // FromStringData parses DXF data from a string and returns a Drawing.
@@ -147,6 +152,7 @@ func loadEntity(dxfType string, tags lldxf.Tags) (entity.Entity, error) {
 // registerEntityLoaders wires the typed loaders into the registry once.
 func init() {
 	entity.SetDefaultLoader(entity.NewRetainedLoader)
+	drawing.RegisterDocumentLoader(FromReader)
 	loaders := map[string]func(lldxf.Tags) (entity.Entity, error){
 		"POINT":            func(t lldxf.Tags) (entity.Entity, error) { return loadPoint(t), nil },
 		"LINE":             func(t lldxf.Tags) (entity.Entity, error) { return loadLine(t), nil },
@@ -174,6 +180,7 @@ func init() {
 		"XLINE":            func(t lldxf.Tags) (entity.Entity, error) { return loadXLine(t), nil },
 		"RAY":              func(t lldxf.Tags) (entity.Entity, error) { return loadRay(t), nil },
 		"WIPEOUT":          func(t lldxf.Tags) (entity.Entity, error) { return loadWipeout(t), nil },
+		"UNDERLAY":         func(t lldxf.Tags) (entity.Entity, error) { return loadUnderlay(t), nil },
 		"MLINE":            func(t lldxf.Tags) (entity.Entity, error) { return loadMLine(t), nil },
 		"ATTDEF":           func(t lldxf.Tags) (entity.Entity, error) { return loadAttdef(t), nil },
 		"ATTRIB":           func(t lldxf.Tags) (entity.Entity, error) { return loadAttrib(t), nil },
@@ -845,6 +852,8 @@ func loadVertex(tags lldxf.Tags) *entity.Vertex {
 func loadInsert(tags lldxf.Tags) *entity.Insert {
 	i := entity.NewInsert()
 	loadCommonAttribs(i, tags)
+	xclip, rest := extractXClipTags(tags)
+	tags = rest
 	var x, y, z float64
 	for _, tag := range tags {
 		switch tag.Code() {
@@ -917,7 +926,67 @@ func loadInsert(tags lldxf.Tags) *entity.Insert {
 		}
 	}
 	i.SetInsertPoint(dxfmath.NewVec3(x, y, z))
+	applyXClipBoundary(i, xclip)
 	return i
+}
+
+// extractXClipTags pulls the 102 {XCLIP_BOUNDS} group out of the tag stream,
+// returning its inner tags and the remaining tags.
+func extractXClipTags(tags lldxf.Tags) (inner, rest lldxf.Tags) {
+	inGroup := false
+	for _, tag := range tags {
+		if tag.Code() == 102 {
+			if s, ok := tag.Value().(string); ok {
+				if !inGroup && s == "{XCLIP_BOUNDS" {
+					inGroup = true
+					continue
+				}
+				if inGroup && s == "}" {
+					inGroup = false
+					continue
+				}
+			}
+		}
+		if inGroup {
+			inner = append(inner, tag)
+		} else {
+			rest = append(rest, tag)
+		}
+	}
+	return inner, rest
+}
+
+// applyXClipBoundary builds the clip boundary of an insert from the tags of
+// its XCLIP group.
+func applyXClipBoundary(i *entity.Insert, tags lldxf.Tags) {
+	typ := 0
+	var pts [][2]float64
+	var px float64
+	var hasX bool
+	for _, tag := range tags {
+		switch tag.Code() {
+		case 71:
+			if v, ok := tagInt(tag); ok {
+				typ = v
+			}
+		case 10:
+			if v, ok := tagFloat(tag); ok {
+				px = v
+				hasX = true
+			}
+		case 20:
+			if v, ok := tagFloat(tag); ok && hasX {
+				pts = append(pts, [2]float64{px, v})
+				hasX = false
+			}
+		}
+	}
+	switch {
+	case typ == entity.XClipRectangular && len(pts) >= 2:
+		i.SetXClipRect(pts[0][0], pts[0][1], pts[1][0], pts[1][1])
+	case len(pts) >= 2:
+		i.SetXClipPolyline(pts)
+	}
 }
 
 func loadTrace(tags lldxf.Tags) *entity.Trace {
@@ -1325,6 +1394,10 @@ func loadImage(tags lldxf.Tags) *entity.Image {
 	loadCommonAttribs(img, tags)
 
 	var uVec, vVec dxfmath.Vec3
+	brightness, contrast, fade := img.Brightness(), img.Contrast(), img.Fade()
+	var boundary []entity.ImageBoundaryPoint
+	var pendingX float64
+	var hasPendingX bool
 	for _, tag := range tags {
 		switch tag.Code() {
 		case 10:
@@ -1376,8 +1449,51 @@ func loadImage(tags lldxf.Tags) *entity.Image {
 			}
 		case 70:
 			if v, ok := tagInt(tag); ok {
-				_ = v
-				img.SetDisplayProperties(0, 0, 0)
+				img.SetFlags(v)
+			}
+		case 280:
+			if v, ok := tagInt(tag); ok {
+				img.SetClipping(v != 0)
+			}
+		case 281:
+			if v, ok := tagFloat(tag); ok {
+				brightness = v
+			}
+		case 282:
+			if v, ok := tagFloat(tag); ok {
+				contrast = v
+			}
+		case 283:
+			if v, ok := tagFloat(tag); ok {
+				fade = v
+			}
+		case 71:
+			if v, ok := tagInt(tag); ok {
+				img.SetClippingBoundaryType(v)
+			}
+		case 91:
+			// boundary point count: pairs follow as 14/24
+		case 14:
+			if v, ok := tagFloat(tag); ok {
+				pendingX = v
+				hasPendingX = true
+			}
+		case 24:
+			if v, ok := tagFloat(tag); ok && hasPendingX {
+				boundary = append(boundary, entity.ImageBoundaryPoint{X: pendingX, Y: v})
+				hasPendingX = false
+			}
+		case 290:
+			if v, ok := tagInt(tag); ok {
+				img.SetClipMode(v)
+			}
+		case 360:
+			if v, ok := tag.Value().(string); ok {
+				img.SetImageDefReactorHandle(v)
+			}
+		case 62:
+			if v, ok := tagInt(tag); ok {
+				img.SetColor(color.ColorNumber(v))
 			}
 		case 340:
 			if v, ok := tag.Value().(string); ok {
@@ -1387,6 +1503,14 @@ func loadImage(tags lldxf.Tags) *entity.Image {
 	}
 	if uVec.X() != 0 || uVec.Y() != 0 {
 		img.SetUVectors(uVec, vVec)
+	}
+	img.SetDisplayProperties(brightness, contrast, fade)
+	if len(boundary) > 0 {
+		if img.ClippingBoundaryType() == entity.ImageClippingRectangular && len(boundary) >= 2 {
+			img.SetRectangularClipping(boundary[0].X, boundary[0].Y, boundary[1].X, boundary[1].Y)
+		} else {
+			img.SetPolygonClipping(boundary)
+		}
 	}
 	return img
 }
@@ -2600,4 +2724,100 @@ func fmtTagValue(v interface{}) string {
 		return "0"
 	}
 	return ""
+}
+
+// FromFileWithXRefs loads a drawing and resolves its external references
+// (recursively) using the optional search paths.
+func FromFileWithXRefs(path string, searchPaths []string) (*drawing.Drawing, error) {
+	d, err := FromFile(path)
+	if err != nil {
+		return nil, err
+	}
+	for _, sp := range searchPaths {
+		d.AddXRefSearchPath(sp)
+	}
+	if err := d.LoadXRefsRecursive(); err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+// loadUnderlay parses an UNDERLAY entity record.
+func loadUnderlay(tags lldxf.Tags) *entity.Underlay {
+	u := entity.NewUnderlay()
+	loadCommonAttribs(u, tags)
+	var x, y, z float64
+	var bx float64
+	var hasBX bool
+	var bnd [][]float64
+	for _, tag := range tags {
+		switch tag.Code() {
+		case 340:
+			if v, ok := tag.Value().(string); ok {
+				u.UnderlayDefHandle = v
+			}
+		case 10:
+			if v, ok := tagFloat(tag); ok {
+				x = v
+			}
+		case 20:
+			if v, ok := tagFloat(tag); ok {
+				y = v
+			}
+		case 30:
+			if v, ok := tagFloat(tag); ok {
+				z = v
+			}
+		case 41:
+			if v, ok := tagFloat(tag); ok {
+				u.ScaleX = v
+			}
+		case 42:
+			if v, ok := tagFloat(tag); ok {
+				u.ScaleY = v
+			}
+		case 43:
+			if v, ok := tagFloat(tag); ok {
+				u.ScaleZ = v
+			}
+		case 50:
+			if v, ok := tagFloat(tag); ok {
+				u.Rotation = v
+			}
+		case 210, 220, 230:
+			if v, ok := tagFloat(tag); ok {
+				if u.Extrusion == nil {
+					u.Extrusion = []float64{0, 0, 1}
+				}
+				u.Extrusion[tag.Code()/10-21] = v
+			}
+		case 280:
+			if v, ok := tagInt(tag); ok {
+				u.Flags = v
+			}
+		case 281:
+			if v, ok := tagInt(tag); ok {
+				u.Contrast = v
+			}
+		case 282:
+			if v, ok := tagInt(tag); ok {
+				u.Fade = v
+			}
+		case 11:
+			if v, ok := tagFloat(tag); ok {
+				bx = v
+				hasBX = true
+			}
+		case 21:
+			if v, ok := tagFloat(tag); ok && hasBX {
+				bnd = append(bnd, []float64{bx, v})
+				hasBX = false
+			}
+		}
+	}
+	u.SetInsertPoint(x, y, z)
+	if len(bnd) > 0 {
+		u.SetBoundaryPath(bnd)
+	}
+	return u
 }

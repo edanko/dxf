@@ -9,6 +9,7 @@ import (
 
 	"github.com/edanko/dxf/block"
 	"github.com/edanko/dxf/drawing"
+	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/handle"
 	"github.com/edanko/dxf/table"
 )
@@ -185,7 +186,13 @@ func (c *Context) AllEntities() []any {
 	var out []any
 	done := map[interface{}]bool{}
 	for _, b := range c.blocks {
-		for _, e := range b.Entities() {
+		for _, be := range b.Entities() {
+			// Adapters (raw-tag wrappers) hide the entity method set; audit
+			// the unwrapped model so owner/layer/bbox checks see it.
+			e := any(be)
+			if u, ok := be.(interface{ Unwrap() entity.Entity }); ok {
+				e = u.Unwrap()
+			}
 			if done[e] {
 				continue
 			}

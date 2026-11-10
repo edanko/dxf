@@ -133,17 +133,17 @@ func (i *Image) Format(f format.Formatter) {
 
 	// Write brightness (281)
 	if i.brightness != 0.0 {
-		f.WriteFloat(281, i.brightness)
+		f.WriteInt(281, int(math.Round(i.brightness)))
 	}
 
 	// Write contrast (282)
 	if i.contrast != 0.0 {
-		f.WriteFloat(282, i.contrast)
+		f.WriteInt(282, int(math.Round(i.contrast)))
 	}
 
 	// Write fade (283)
 	if i.fade != 0.0 {
-		f.WriteFloat(283, i.fade)
+		f.WriteInt(283, int(math.Round(i.fade)))
 	}
 
 	// Write ImageDefReactor handle (360)
@@ -168,10 +168,6 @@ func (i *Image) Format(f format.Formatter) {
 		f.WriteInt(290, i.clipMode)
 	}
 
-	// Write color (62)
-	if i.color != 0 {
-		f.WriteInt(62, i.color)
-	}
 }
 
 // SetInsertPoint sets image insertion point
@@ -212,6 +208,18 @@ func (i *Image) SetClipping(enabled bool) {
 		i.flags &^= ImageFlagUseClippingBoundary
 	}
 }
+
+// SetFlags replaces the display flags (code 70).
+func (i *Image) SetFlags(v int) { i.flags = v }
+
+// SetClipMode sets the clipping mode (code 290).
+func (i *Image) SetClipMode(v int) { i.clipMode = v }
+
+// SetImageDefReactorHandle sets the reactor object handle (code 360).
+func (i *Image) SetImageDefReactorHandle(h string) { i.imageDefReactorHandle = h }
+
+// SetClippingBoundaryType sets the clipping boundary kind (code 71).
+func (i *Image) SetClippingBoundaryType(v int) { i.clippingBoundaryType = v }
 
 // SetRectangularClipping sets rectangular clipping boundary
 func (i *Image) SetRectangularClipping(xMin, yMin, xMax, yMax float64) {

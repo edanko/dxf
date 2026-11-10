@@ -93,10 +93,6 @@ func (w *Wipeout) Format(f format.Formatter) {
 		}
 	}
 
-	// Write color (62)
-	if w.color != 0 {
-		f.WriteInt(62, w.color)
-	}
 }
 
 // SetInsertPoint sets wipeout insertion point

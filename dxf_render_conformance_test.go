@@ -44,6 +44,9 @@ func TestRenderConformance(t *testing.T) {
 					t.Fatal(err)
 				}
 				for _, sp := range sc.Paths {
+					if err := r.Clip(sp.Clip); err != nil {
+						t.Fatalf("%s clip: %v", name, err)
+					}
 					if err := r.SetStyle(sp.Style); err != nil {
 						t.Fatalf("%s style: %v", name, err)
 					}
@@ -55,6 +58,20 @@ func TestRenderConformance(t *testing.T) {
 					}
 					if err := r.DrawPath(sp.Path); err != nil {
 						t.Fatalf("%s draw: %v", name, err)
+					}
+					if err := r.Clip(nil); err != nil {
+						t.Fatalf("%s clip reset: %v", name, err)
+					}
+				}
+				for _, ri := range sc.Rasters {
+					if err := r.Clip(ri.Clip); err != nil {
+						t.Fatalf("%s raster clip: %v", name, err)
+					}
+					if err := r.DrawImage(ri.Image, ri.X, ri.Y, ri.W, ri.H, ri.Rotation, ri.Opacity); err != nil {
+						t.Fatalf("%s raster: %v", name, err)
+					}
+					if err := r.Clip(nil); err != nil {
+						t.Fatalf("%s raster clip reset: %v", name, err)
 					}
 				}
 				if err := r.End(); err != nil {

@@ -526,3 +526,51 @@ func sortFloatsAbs(xs []float64) {
 		}
 	}
 }
+
+// DrawImage blits a raster image into the supersampled canvas with
+// inverse-affine sampling, respecting the current clip and opacity.
+func (r *RasterRenderer) DrawImage(im image.Image, x, y, w, h, rotDeg, opacity float64) error {
+	if !r.started || im == nil || w <= 0 || h <= 0 || opacity <= 0 {
+		return nil
+	}
+	if opacity > 1 {
+		opacity = 1
+	}
+	sb := im.Bounds()
+	sw, sh := float64(sb.Dx()), float64(sb.Dy())
+	if sw <= 0 || sh <= 0 {
+		return nil
+	}
+	rad := rotDeg * math.Pi / 180
+	cos, sin := math.Cos(rad), math.Sin(rad)
+	cx, cy := x+w/2, y+h/2
+	x0, x1 := int(math.Floor(x*float64(r.s))), int(math.Ceil((x+w)*float64(r.s)))
+	y0, y1 := int(math.Floor(y*float64(r.s))), int(math.Ceil((y+h)*float64(r.s)))
+	for py := y0; py < y1; py++ {
+		for px := x0; px < x1; px++ {
+			if px < 0 || py < 0 || px >= r.sup.Bounds().Max.X || py >= r.sup.Bounds().Max.Y {
+				continue
+			}
+			if !r.pointInClips(float64(px), float64(py)) {
+				continue
+			}
+			dx := (float64(px)+0.5)/float64(r.s) - cx
+			dy := (float64(py)+0.5)/float64(r.s) - cy
+			rx := dx*cos + dy*sin
+			ry := -dx*sin + dy*cos
+			ix := sb.Min.X + int(math.Floor(rx/w*sw+sw/2))
+			iy := sb.Min.Y + int(math.Floor(ry/h*sh+sh/2))
+			if ix < sb.Min.X || iy < sb.Min.Y || ix >= sb.Max.X || iy >= sb.Max.Y {
+				continue
+			}
+			c := im.At(ix, iy)
+			rr, gg, bb, aa := c.RGBA()
+			if aa == 0 {
+				continue
+			}
+			src := color.RGBA{uint8(rr >> 8), uint8(gg >> 8), uint8(bb >> 8), uint8(float64(uint8(aa>>8)) * opacity)}
+			r.blend(px, py, src)
+		}
+	}
+	return nil
+}

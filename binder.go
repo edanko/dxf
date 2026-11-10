@@ -280,6 +280,7 @@ func (b *documentBinder) bind() error {
 	b.bindHeader()
 	b.bindClasses()
 	b.bindTables()
+	b.d.RestoreXRefRecords()
 	b.bindBlocks()
 	b.bindEntities()
 	b.bindObjects()

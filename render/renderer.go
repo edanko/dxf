@@ -9,6 +9,8 @@ import (
 	dxfcolor "github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/path"
+
+	"image"
 )
 
 // RenderContext carries global rendering parameters for the legacy
@@ -45,6 +47,10 @@ type Renderer interface {
 	// Clip restricts subsequent drawing to the interior of the path.
 	// A nil path resets the clip to the full canvas.
 	Clip(p *path.Path) error
+	// DrawImage blits a raster image at canvas position (x, y) with the
+	// given size in canvas units, rotated by rotDeg about its center and
+	// faded by opacity (0..1). Backends without raster support may ignore it.
+	DrawImage(im image.Image, x, y, w, h, rotDeg, opacity float64) error
 	// FillGradient fills the boundary path with a linear gradient.
 	// PDF backends fill with the first color (minimal support).
 	FillGradient(boundary *path.Path, g *GradientFill) error
@@ -58,7 +64,20 @@ type StyledPath struct {
 	Style Style
 	// FillHatch, when set, replaces the plain boundary fill with hatch
 	// pattern/gradient filling of the boundary.
+	// Clip restricts drawing of this path to the given boundary
+	// (canvas space). Nil means no clipping.
+	Clip      *path.Path
 	FillHatch *HatchFill
+}
+
+// StyledImage is a raster image placed on the canvas.
+type StyledImage struct {
+	Image    image.Image
+	X, Y     float64 // top-left corner in canvas units
+	W, H     float64 // size in canvas units
+	Rotation float64 // degrees about the image center
+	Opacity  float64 // 0..1
+	Clip     *path.Path
 }
 
 // HatchFill describes pattern or gradient filling of a hatch boundary.

@@ -34,6 +34,7 @@ type StdObject struct {
 
 	sortOrder []string          // entity handles in source order
 	sortBy    map[string]string // entity handle -> sort handle
+	page      int               // underlay definition page (code 300)
 }
 
 // IsObject is for the Object interface.

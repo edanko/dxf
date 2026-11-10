@@ -29,6 +29,12 @@ func NewEntityDatabase() *EntityDatabase {
 }
 
 // AddEntity adds an entity to the database with automatic handle assignment
+// SetHandleGenerator replaces the handle generator so the database shares
+// the drawing-wide counter (table entries and entities stay unique).
+func (db *EntityDatabase) SetHandleGenerator(hg *handle.HandleGenerator) {
+	db.handles = hg
+}
+
 func (db *EntityDatabase) AddEntity(e entity.Entity) error {
 	if e == nil {
 		return fmt.Errorf("cannot add nil entity")

@@ -2,13 +2,18 @@ package render
 
 import (
 	"fmt"
-	"math"
 	"image/color"
 	"io"
+	"math"
 	"strings"
 
 	dxfmath "github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/path"
+
+	"bytes"
+	"encoding/base64"
+	"image"
+	"image/png"
 )
 
 // SVGRenderer renders styled paths into an SVG document.
@@ -281,4 +286,32 @@ func flattenPath(p *path.Path, deviation float64) [][]dxfmath.Vec2 {
 func to2(v dxfmath.Vec3) dxfmath.Vec2 { return dxfmath.Vec2{v.X(), v.Y()} }
 func to3(v dxfmath.Vec2) dxfmath.Vec3 {
 	return dxfmath.Vec3{v.X(), v.Y(), 0}
+}
+
+// DrawImage embeds a raster image as a base64 PNG, honoring the current clip.
+func (r *SVGRenderer) DrawImage(im image.Image, x, y, w, h, rotDeg, opacity float64) error {
+	if r == nil || !r.started || im == nil || w <= 0 || h <= 0 || opacity <= 0 {
+		return nil
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, im); err != nil {
+		return err
+	}
+	cx, cy := x+w/2, y+h/2
+	var b strings.Builder
+	b.WriteString("<image ")
+	b.WriteString(fmt.Sprintf("x=%q y=%q width=%q height=%q ", num(x), num(y), num(w), num(h)))
+	if rotDeg != 0 {
+		fmt.Fprintf(&b, "transform=%q ", "rotate("+num(-rotDeg)+" "+num(cx)+" "+num(cy)+")")
+	}
+	if opacity < 1 {
+		b.WriteString(fmt.Sprintf("opacity=%q ", num(opacity)))
+	}
+	if r.clipRef != "" {
+		fmt.Fprintf(&b, "clip-path=%q ", r.clipRef)
+	}
+	fmt.Fprintf(&b, "href=%q", "data:image/png;base64,"+base64.StdEncoding.EncodeToString(buf.Bytes()))
+	b.WriteString("/>")
+	r.body.WriteString(b.String())
+	return nil
 }

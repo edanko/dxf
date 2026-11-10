@@ -93,7 +93,7 @@ openspec instructions <artifact> --change "<name>" --json
 | `audit` | auditor, recovery, block cycles | partial; some placeholder loading |
 | `spatial` | R-tree and entity spatial index | usable |
 | `layouts` | model/paper layouts and viewports | partial |
-| `xref` | xref manager and loader | partial; no real document binding |
+| `xref` | xref manager and loader | `DONE` — attach/detach/bind/reload, relative paths + search paths, nested loading with cycle detection, BLOCK_RECORD xref flags (`xref_parity_e2e_test.go`) |
 | `factory` | entity factory/registry | usable |
 | `csg` | mesh boolean CSG | simplified/placeholder booleans |
 | `patterns` | hatch pattern definitions | lookup tables only |
@@ -201,8 +201,8 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | LAYOUT, PLOTSETTINGS | `entities/layout.py`, `dxfobjects/plotsettings.py` | `PARTIAL` — typed name/block record/flags, retained round trip (`TestLayoutNameAndBlockRecord`) |
 | MLINESTYLE, MLEADERSTYLE, TABLESTYLE | `entities/mlinestyle.py`, `mleader.py`, `table.py` | `PARTIAL` — typed name/description/flags, retained round trip (`TestStandardObjectTypedModels`) |
 | MATERIAL, VISUALSTYLE, SUN, LIGHT, GEODATA | `entities/material.py`, `visualstyle.py`, `sun.py`, `light.py`, `geodata.py` | `PARTIAL` — typed name/description/flags, retained round trip |
-| SPATIAL_FILTER, IDBUFFER, RASTERVARIABLES, WIPEOUTVARIABLES | `entities/spatial_filter.py`, `idbuffer.py` | `PARTIAL` — typed models, retained round trip |
-| SORTENTSTABLE, FIELDLIST, IMAGEDEF, IMAGEDEF_REACTOR, UNDERLAYDEFINITION, PDF/DWF/DGN DEFINITION | `entities/sortentstable.py`, `field.py`, `image.py`, `underlay.py` | `PARTIAL` — typed sort order, entity handles, filename/size (`TestImageDefPathAndSize`, `TestSortEntsTableOrder`) |
+| SPATIAL_FILTER, IDBUFFER, RASTERVARIABLES, WIPEOUTVARIABLES | `entities/spatial_filter.py`, `idbuffer.py` | `PARTIAL` — typed models, retained round trip; RASTERVARIABLES constructor (`object.NewRasterVariables`) |
+| SORTENTSTABLE, FIELDLIST, IMAGEDEF, IMAGEDEF_REACTOR, UNDERLAYDEFINITION, PDF/DWF/DGN DEFINITION | `entities/sortentstable.py`, `field.py`, `image.py`, `underlay.py` | `DONE` — typed sort order, entity handles, filename/size plus constructors and the Page accessor (`object.NewImageDef`, `object.NewUnderlayDef`, `TestImageDefPathAndSize`, `TestSortEntsTableOrder`, `TestUnderlayEntityRoundTrip`) |
 | ACAD_PROXY_ENTITY, ACAD_XREC_ROUNDTRIP | `entities/acad_proxy_entity.py` | `PARTIAL` |
 | Extension dictionary/reactors on every entity | `xdict.py`, `appdata.py` | `PARTIAL` — preserved on typed table entries and objects (`TestObjectReactorsAndExtDict`) |
 
@@ -289,11 +289,11 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
-| XREF load/attach/overlay | `xref.py` | `PARTIAL` |
-| Image definitions and rendering | `entities/image.py` | `PARTIAL` |
-| PDF/DGN/DWF underlays | `entities/underlay.py` | `PARTIAL` |
-| XCLIP boundaries | `xclip.py` | `PARTIAL` |
-| Nested xref resolution | `xref.py` | `PARTIAL` |
+| XREF load/attach/overlay | `xref.py` | `DONE` — AttachXRef/DetachXRef/BindXRef/ReloadXRef, relative paths + search paths, missing-file reporting (`xref_parity_e2e_test.go`) |
+| Image definitions and rendering | `entities/image.py` | `DONE` — IMAGEDEF/IMAGEDEF_REACTOR objects, full attribute load (fade/contrast/brightness/clipping/boundary), scene rasters with SVG/PNG rendering (`TestImageEntityRoundTrip`, `TestImageRenderingScene`, `TestRasterImageDraw`) |
+| PDF/DGN/DWF underlays | `entities/underlay.py` | `DONE` — definition objects plus UNDERLAY entity with typed loader, fade/scale/rotation round trip (`TestUnderlayEntityRoundTrip`) |
+| XCLIP boundaries | `xclip.py` | `DONE` — rectangular and polyline boundaries on INSERT, save/reload and SVG clipPath rendering (`TestXClipRoundTrip`) |
+| Nested xref resolution | `xref.py` | `DONE` — recursive loading with canonical-path cycle detection (`TestNestedXRefsLoad`, `TestXRefCycleTerminates`) |
 
 ### 10. Add-ons
 

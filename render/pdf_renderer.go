@@ -11,6 +11,8 @@ import (
 
 	dxfmath "github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/path"
+
+	"image"
 )
 
 // PDFRenderer renders styled paths into a single-page PDF document.
@@ -267,4 +269,9 @@ func pdfNum(v float64) string {
 		v = 0
 	}
 	return strconv.FormatFloat(v, 'f', 4, 64)
+}
+
+// DrawImage is not supported by the PDF backend; raster images are skipped.
+func (r *PDFRenderer) DrawImage(im image.Image, x, y, w, h, rotDeg, opacity float64) error {
+	return nil
 }

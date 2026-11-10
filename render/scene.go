@@ -13,6 +13,13 @@ import (
 	"github.com/edanko/dxf/patterns"
 	"github.com/edanko/dxf/table"
 	"github.com/edanko/dxf/text2path"
+
+	"fmt"
+	"github.com/edanko/dxf/object"
+	"github.com/edanko/dxf/xref"
+	"image"
+	_ "image/jpeg"
+	"os"
 )
 
 // SceneOptions controls scene construction.
@@ -27,6 +34,11 @@ type SceneOptions struct {
 	Background color.RGBA
 	// Tessellation is the maximum curve deviation in model units.
 	Tessellation float64
+	// BasePath is the directory used to resolve image and underlay file
+	// references; empty means the process working directory.
+	BasePath string
+	// ImageSearchPaths are additional directories searched for image files.
+	ImageSearchPaths []string
 }
 
 // StyledScene is a canvas-ready drawing: paths with resolved styles
@@ -42,6 +54,8 @@ type StyledScene struct {
 	// Fallbacks lists degradations applied during scene construction,
 	// e.g. text rendered with the built-in vector font.
 	Fallbacks []string
+	// Rasters are images drawn on top of the vector paths (IMAGE entities).
+	Rasters []StyledImage
 }
 
 // BuildScene lowers every visible entity of the drawing (or of the
@@ -75,7 +89,7 @@ func BuildScene(d *drawing.Drawing, width, height float64, opts *SceneOptions) (
 		if !ok {
 			continue
 		}
-		paths = append(paths, entityPaths(d, e, st, dev, bg, nt)...)
+		paths = append(paths, entityPaths(d, e, st, dev, bg, opts, nt)...)
 	}
 
 	// Fit transform: an active viewport in the entity list projects the
@@ -116,6 +130,9 @@ func BuildScene(d *drawing.Drawing, width, height float64, opts *SceneOptions) (
 
 	for i := range paths {
 		paths[i].Path = paths[i].Path.Transform(&fit)
+		if paths[i].Clip != nil {
+			paths[i].Clip = paths[i].Clip.Transform(&fit)
+		}
 		for j := range paths[i].Style.Dash {
 			paths[i].Style.Dash[j] *= scale
 		}
@@ -147,6 +164,23 @@ func BuildScene(d *drawing.Drawing, width, height float64, opts *SceneOptions) (
 		expanded = append(expanded, sp)
 	}
 	paths = expanded
+	for i := range paths {
+		paths[i].Style = applyOpacity(paths[i].Style)
+	}
+	for i := range nt.rasters {
+		ri := &nt.rasters[i]
+		mx, my, mw, mh := ri.X, ri.Y, ri.W, ri.H
+		// The fit transform flips Y: the canvas top-left corner is the
+		// image's model top-left corner.
+		q := fit.MulVec(dxfmath.NewVec3(mx, my+mh, 0))
+		ri.X, ri.Y = q[0], q[1]
+		ri.W = mw * scale
+		ri.H = mh * scale
+		ri.Rotation = -ri.Rotation
+		if ri.Clip != nil {
+			ri.Clip = ri.Clip.Transform(&fit)
+		}
+	}
 
 	sc := &StyledScene{
 		Paths: paths, Background: bg, Scale: scale,
@@ -156,6 +190,8 @@ func BuildScene(d *drawing.Drawing, width, height float64, opts *SceneOptions) (
 		sc.Fallbacks = append(sc.Fallbacks,
 			"TEXT/MTEXT: built-in vector font used (no system TrueType font available)")
 	}
+	sc.Fallbacks = append(sc.Fallbacks, nt.fallbacks...)
+	sc.Rasters = nt.rasters
 	return sc, nil
 }
 
@@ -203,7 +239,7 @@ func sceneExtents(d *drawing.Drawing, opts *SceneOptions, paths []StyledPath) (f
 }
 
 // entityPaths converts one entity into styled model-space paths.
-func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg color.RGBA, nt *sceneNotes) []StyledPath {
+func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg color.RGBA, opts *SceneOptions, nt *sceneNotes) []StyledPath {
 	switch t := e.(type) {
 	case *entity.Text:
 		p, fontName := runText(t.Value, t.Height, t.Coord1[0], t.Coord1[1], t.Rotation)
@@ -249,7 +285,18 @@ func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg 
 				out = append(out, StyledPath{Path: p, Style: st})
 			}
 		}
+		if t.IsXClipped() {
+			if cp := xclipClipPath(t); cp != nil {
+				for i := range out {
+					out[i].Clip = cp
+				}
+			}
+		}
 		return out
+	case *entity.Image:
+		return imageEntityPaths(d, t, st, opts, nt)
+	case *entity.Underlay:
+		return underlayEntityPaths(t, st, nt)
 	case *entity.Hatch:
 		p, err := path.MakePath(t, path.WithDistance(dev))
 		if err != nil {
@@ -555,7 +602,11 @@ func gradientColorRGB(v int) [3]float64 {
 }
 
 // sceneNotes records scene-level degradations applied while lowering entities.
-type sceneNotes struct{ gridText bool }
+type sceneNotes struct {
+	gridText  bool
+	rasters   []StyledImage
+	fallbacks []string
+}
 
 // recordText notes text rendered with the built-in vector font
 // (fontName empty) as a fallback.
@@ -597,4 +648,155 @@ func pickViewport(ents entity.Entities) *entity.Viewport {
 		}
 	}
 	return nil
+}
+
+// imageEntityPaths renders an IMAGE entity: a frame quad plus a raster when
+// the referenced image file resolves.
+func imageEntityPaths(d *drawing.Drawing, t *entity.Image, st Style, opts *SceneOptions, nt *sceneNotes) []StyledPath {
+	org := t.InsertPoint()
+	u := t.UVector()
+	v := t.VVector()
+	size := t.ImageSize()
+	c1x := org.X() + u.X()*size.X()
+	c1y := org.Y() + u.Y()*size.X()
+	c2x := c1x + v.X()*size.Y()
+	c2y := c1y + v.Y()*size.Y()
+	c3x := org.X() + v.X()*size.Y()
+	c3y := org.Y() + v.Y()*size.Y()
+	quad := path.NewPath()
+	quad.MoveTo(org.X(), org.Y())
+	quad.LineTo(c1x, c1y)
+	quad.LineTo(c2x, c2y)
+	quad.LineTo(c3x, c3y)
+	quad.Close()
+	out := []StyledPath{{Path: quad, Style: Style{Stroke: st.Stroke, Width: st.Width}}}
+
+	defPath := ""
+	if def, ok := d.GetObject(t.ImageDefHandle()); ok {
+		if id, ok := def.(*object.ImageDef); ok {
+			defPath = id.FilePath()
+		}
+	}
+	if defPath == "" {
+		nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("IMAGE %s: image definition %s not found", t.Handle(), t.ImageDefHandle()))
+		return out
+	}
+	basePath, search := "", []string(nil)
+	if opts != nil {
+		basePath, search = opts.BasePath, opts.ImageSearchPaths
+	}
+	resolved, found := xref.ResolveExternalPath(defPath, basePath, search)
+	if !found {
+		nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("IMAGE %s: image file not found: %s", t.Handle(), defPath))
+		return out
+	}
+	f, err := os.Open(resolved)
+	if err != nil {
+		nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("IMAGE %s: %v", t.Handle(), err))
+		return out
+	}
+	defer f.Close()
+	im, _, err := image.Decode(f)
+	if err != nil {
+		nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("IMAGE %s: decode %s: %v", t.Handle(), resolved, err))
+		return out
+	}
+	rot := math.Atan2(u.Y(), u.X()) * 180 / math.Pi
+	nt.rasters = append(nt.rasters, StyledImage{
+		Image: im, X: org.X(), Y: org.Y(),
+		W: size.X(), H: size.Y(),
+		Rotation: rot, Opacity: 1 - t.Fade()/100,
+		Clip: imageClipPath(t, org, u, v, size),
+	})
+	return out
+}
+
+// underlayEntityPaths renders the frame of an underlay reference; the
+// underlay content itself is not vectorized.
+func underlayEntityPaths(t *entity.Underlay, st Style, nt *sceneNotes) []StyledPath {
+	if len(t.InsertPoint) < 2 {
+		return nil
+	}
+	w, h := t.ScaleX, t.ScaleY
+	if w == 0 {
+		w = 1
+	}
+	if h == 0 {
+		h = 1
+	}
+	rad := t.Rotation * math.Pi / 180
+	cos, sin := math.Cos(rad), math.Sin(rad)
+	rot := func(x, y float64) (float64, float64) {
+		return t.InsertPoint[0] + x*cos - y*sin, t.InsertPoint[1] + x*sin + y*cos
+	}
+	x0, y0 := rot(0, 0)
+	x1, y1 := rot(w, 0)
+	x2, y2 := rot(w, h)
+	x3, y3 := rot(0, h)
+	quad := path.NewPath()
+	quad.MoveTo(x0, y0)
+	quad.LineTo(x1, y1)
+	quad.LineTo(x2, y2)
+	quad.LineTo(x3, y3)
+	quad.Close()
+	nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("UNDERLAY %s: content not vectorized (frame only)", t.Handle()))
+	return []StyledPath{{Path: quad, Style: Style{Stroke: st.Stroke, Width: st.Width, Opacity: 1 - float64(t.Fade)/100}}}
+}
+
+// xclipClipPath builds the clip boundary of an INSERT.
+func xclipClipPath(t *entity.Insert) *path.Path {
+	pts := t.XClipBoundaryPath()
+	if len(pts) < 2 {
+		return nil
+	}
+	p := path.NewPath()
+	p.MoveTo(pts[0][0], pts[0][1])
+	for _, pt := range pts[1:] {
+		p.LineTo(pt[0], pt[1])
+	}
+	p.Close()
+	return p
+}
+
+// imageClipPath maps the pixel-space clipping boundary of an IMAGE entity
+// into model space.
+func imageClipPath(t *entity.Image, org, u, v dxfmath.Vec3, size dxfmath.Vec2) *path.Path {
+	if t.Clipping() == 0 || size.X() == 0 || size.Y() == 0 {
+		return nil
+	}
+	pts := t.BoundaryPoints()
+	if len(pts) == 0 {
+		return nil
+	}
+	var corners [][2]float64
+	if t.ClippingBoundaryType() == entity.ImageClippingRectangular && len(pts) >= 2 {
+		x0, y0, x1, y1 := pts[0].X, pts[0].Y, pts[1].X, pts[1].Y
+		if x0 > x1 {
+			x0, x1 = x1, x0
+		}
+		if y0 > y1 {
+			y0, y1 = y1, y0
+		}
+		corners = [][2]float64{{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}
+	} else {
+		for _, p := range pts {
+			corners = append(corners, [2]float64{p.X, p.Y})
+		}
+	}
+	if len(corners) < 2 {
+		return nil
+	}
+	mapPt := func(px, py float64) (float64, float64) {
+		return org.X() + u.X()*(px/size.X()) + v.X()*(py/size.Y()),
+			org.Y() + u.Y()*(px/size.X()) + v.Y()*(py/size.Y())
+	}
+	p := path.NewPath()
+	x, y := mapPt(corners[0][0], corners[0][1])
+	p.MoveTo(x, y)
+	for _, c := range corners[1:] {
+		x, y = mapPt(c[0], c[1])
+		p.LineTo(x, y)
+	}
+	p.Close()
+	return p
 }

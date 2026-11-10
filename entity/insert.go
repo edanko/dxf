@@ -50,10 +50,14 @@ type Insert struct {
 	flags      int          // INSERT flags
 
 	// Advanced options
-	hasAttribs bool // Whether insert has attributes
-	isMultiple bool // Whether this is a multi-insert (MINSERT)
-	isResolved bool // Whether XREF is resolved
-	isExternal bool // Whether this is an external reference
+	// XCLIP boundary (102 {XCLIP_BOUNDS} group)
+	xclipEnabled bool
+	xclipType    int // 1 rectangular, 2 polyline
+	xclipPoints  [][2]float64
+	hasAttribs   bool // Whether insert has attributes
+	isMultiple   bool // Whether this is a multi-insert (MINSERT)
+	isResolved   bool // Whether XREF is resolved
+	isExternal   bool // Whether this is an external reference
 }
 
 // NewInsert creates a new INSERT entity
@@ -92,6 +96,48 @@ func NewInsertFromBlock(blk *block.Block, insertPoint dxfmath.Vec3) *Insert {
 }
 
 // IsEntity returns true for INSERT entities
+// XClip boundary types.
+const (
+	XClipRectangular = 1
+	XClipPolyline    = 2
+)
+
+// SetXClipRect clips the inserted block reference to an axis-aligned rectangle.
+func (i *Insert) SetXClipRect(x0, y0, x1, y1 float64) {
+	i.xclipEnabled = true
+	i.xclipType = XClipRectangular
+	i.xclipPoints = [][2]float64{{x0, y0}, {x1, y1}}
+}
+
+// SetXClipPolyline clips the inserted block reference to a closed polyline.
+func (i *Insert) SetXClipPolyline(points [][2]float64) {
+	i.xclipEnabled = true
+	i.xclipType = XClipPolyline
+	i.xclipPoints = append([][2]float64(nil), points...)
+}
+
+// RemoveXClip removes the clipping boundary.
+func (i *Insert) RemoveXClip() {
+	i.xclipEnabled = false
+	i.xclipType = 0
+	i.xclipPoints = nil
+}
+
+// IsXClipped reports whether a clipping boundary is set.
+func (i *Insert) IsXClipped() bool { return i.xclipEnabled }
+
+// XClipType returns the boundary type (XClipRectangular or XClipPolyline).
+func (i *Insert) XClipType() int { return i.xclipType }
+
+// XClipBoundaryPath returns a copy of the boundary vertices.
+func (i *Insert) XClipBoundaryPath() [][2]float64 {
+	out := make([][2]float64, len(i.xclipPoints))
+	for k, p := range i.xclipPoints {
+		out[k] = p
+	}
+	return out
+}
+
 func (i *Insert) IsEntity() bool {
 	return true
 }
@@ -158,6 +204,17 @@ func (i *Insert) Format(f format.Formatter) {
 				f.WriteString(5, attrib.EndHandle())
 			}
 		}
+	}
+	// Write the XCLIP boundary group (102 {XCLIP_BOUNDS} ... 102 }).
+	if i.xclipEnabled && len(i.xclipPoints) > 0 {
+		f.WriteString(102, "{XCLIP_BOUNDS")
+		f.WriteInt(71, i.xclipType)
+		f.WriteInt(91, len(i.xclipPoints))
+		for _, p := range i.xclipPoints {
+			f.WriteFloat(10, p[0])
+			f.WriteFloat(20, p[1])
+		}
+		f.WriteString(102, "}")
 	}
 }
 

@@ -22,10 +22,13 @@ func rgba(r, g, b, a uint8) color.RGBA { return color.RGBA{R: r, G: g, B: b, A: 
 
 type stubBackend struct{ began bool }
 
-func (s *stubBackend) Begin(width, height float64) error                { s.began = true; return nil }
-func (s *stubBackend) SetStyle(st Style) error                          { return nil }
-func (s *stubBackend) DrawPath(p *path.Path) error                      { return nil }
-func (s *stubBackend) Clip(p *path.Path) error                          { return nil }
+func (s *stubBackend) Begin(width, height float64) error { s.began = true; return nil }
+func (s *stubBackend) SetStyle(st Style) error           { return nil }
+func (s *stubBackend) DrawPath(p *path.Path) error       { return nil }
+func (s *stubBackend) Clip(p *path.Path) error           { return nil }
+func (s *stubBackend) DrawImage(im image.Image, x, y, w, h, rotDeg, opacity float64) error {
+	return nil
+}
 func (s *stubBackend) FillGradient(b *path.Path, g *GradientFill) error { return nil }
 func (s *stubBackend) End() error                                       { return nil }
 

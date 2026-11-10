@@ -275,6 +275,9 @@ func ParseTableEntry(tableName string, tags lldxf.Tags) SymbolTable {
 		if v, ok := tagIntByCodeOK(tags, 281); ok {
 			b.SetExploding(v)
 		}
+		if v := tagStringByCode(tags, 305); v != "" {
+			b.SetXRefPath(v)
+		}
 		st = b
 	case "APPID":
 		a := NewAppID(name)
