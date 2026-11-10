@@ -8,7 +8,7 @@ Several ezdxf bundled add-ons are still absent. Some are inspection helpers, som
 
 - Add browser/acisbrowser data extraction helpers.
 - Add DWG conversion add-on through an external ODA converter with actionable errors.
-- Add dimension-line, r12export, and xqt add-ons.
+- Add dimension-line and r12export add-ons.
 - Add generative add-ons: genetic algorithm, Menger sponge, Sierpinski pyramid.
 - Add mixins that match ezdxf behavior.
 

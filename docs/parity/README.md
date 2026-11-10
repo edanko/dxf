@@ -310,6 +310,14 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 | `meshex` | `addons/meshex.py` | `DONE` — `addons/meshex.ExportOBJ` |
 | `openscad` | `addons/openscad.py` | `DONE` — `addons/meshex.ExportOpenSCAD` polyhedron source |
 | `odafc` | `addons/odafc.py` | `DONE` — `addons/odafc` CommandRunner + actionable missing-tool error |
+| `browser` | `addons/browser` | `DONE` — `addons/browser.Extract` exposes document, layout and entity inspection data (handle, type, layer, bbox) grouped by layout and type (`addons/browser/browser_test.go`) |
+| `acisbrowser` | `addons/acisbrowser` | `DONE` — `addons/acisbrowser.Extract` exposes ACIS SAT/SAB payloads and metadata for REGION/BODY/SOLID3D without a GUI (`addons/acisbrowser/acisbrowser_test.go`) |
+| `dwg` | `addons/dwg` | `DONE` — `addons/dwg.Converter` delegates DWG→DXF conversion to a configurable external `CommandRunner`, names the missing tool on failure and leaves no partial output (`addons/dwg/dwg_test.go`) |
+| `r12export` | `addons/r12export.py` | `DONE` — streaming R12 exporter converts SPLINE/ELLIPSE/LWPOLYLINE to POLYLINE, MTEXT to TEXT, MESH to POLYFACE and reports conversions (`addons/r12export/r12export_test.go`) |
+| `dimlines` | `addons/dimlines.py` | `DONE` — `addons/dimlines` builds linear and angular dimension lines from LINE/TEXT primitives with configurable style (`addons/dimlines/dimlines_test.go`) |
+| `genetic_algorithm` | `addons/genetic_algorithm.py` | `DONE` — `addons/genetic` DNA types, mutation/crossover strategies, selections and maximizing optimizer with deterministic RNG support (`addons/genetic/genetic_test.go`) |
+| `menger_sponge`, `sierpinski_pyramid` | `addons/menger_sponge.py`, `addons/sierpinski_pyramid.py` | `DONE` — `addons/fractals` generates Menger sponge variants and 3/4-sided Sierpinski pyramids, with cube/pyramid and face counts, merged or per-cell MESH output and drawing helpers (`addons/fractals/fractals_test.go`) |
+| `mixins` | `addons/mixins.py` | `DONE` — `addons/mixins.SubscriptAttributes` exposes Has/Get/Set semantics for existing keys, typed access, cloning, and leaves entity data unchanged (`addons/mixins/mixins_test.go`) |
 | `hpgl2` | `addons/hpgl2` | `DONE` — `addons/hpgl2.ExportHPGL2`/`PlotWithRunner` |
 | `xplayer` | `addons/xplayer.py` | `DONE` — `addons/xplayer.ExportAnimationSVG` per-frame SVG |
 | `binpacking`, `tablepainter`, `gerber_D6673`, `mtxpl` | `addons/*` | `DONE` — `addons/binpacking.PackRectangles` (shelf pack), `addons/tablepainter.PaintTable`, `addons/gerber.ExportGerber` (RS-274X), `addons/mtxpl` |
@@ -362,15 +370,16 @@ assume the earlier ones.
 ### Follow-up parity changes
 
 These changes cover remaining gaps found after the first thirteen changes were
-implemented. `entity-object-completion-parity` and `library-refactor` are
-complete; the rest are not yet applied.
+implemented. `entity-object-completion-parity`, `math-shape-clipping-parity`,
+`addons-remaining-parity`, `dev-tools-parity`, and `library-refactor` are
+complete; changes 16 and 19 are not yet applied.
 
 | # | Change name | Scope | Depends on |
 |---|---|---|---|
 | 14 | `entity-object-completion-parity` (done) | ACAD_TABLE typed content, collection objects, POLYFACE/POLYMESH vertices, MESHVERTEXCACHE, ACIS SAT/SAB metadata, objects-as-entities | 3, 4 |
 | 15 | `math-shape-clipping-parity` (done) | Perlin noise, clustering, Shape container, portal clipping, triangulation hole bridge, path nesting | 6, 7 |
 | 16 | `render-plot-font-parity` | full DIMENSION renderer, mesh/polyface faces, arrow heads, STB/binary CTB plot styles, SHX/TTF text metrics, ISO hatch patterns | 7, 11 |
-| 17 | `addons-remaining-parity` | browser/acisbrowser extraction, DWG via CommandRunner, r12export, xqt, dimlines, genetic algorithm, Menger sponge, Sierpinski pyramid, mixins | 11 |
+| 17 | `addons-remaining-parity` (done) | browser/acisbrowser extraction, DWG via CommandRunner, r12export, dimlines, genetic algorithm, Menger sponge, Sierpinski pyramid, mixins | 11 |
 | 18 | `dev-tools-parity` (done) | `dxf analyze`, `difftags`, `debug`, `standards`, ZIP manager and CLI zip/unzip | 12 |
 | 19 | `library-refactor` | dead code, duplicate adapters, named interfaces, SOLID/DRY/YAGNI review | 1–13 |
 
@@ -422,8 +431,9 @@ on complete data; add-ons and CLI depend on everything.
   plot style tables (CTB/STB), SHX fonts, ISO hatch pattern library.
 - Audit gaps: duplicate handles are reported, not repaired; cycle repair is not
   modeled.
-- Add-on/tool gaps: browser, acisbrowser, dwg, dimlines, r12export, xqt,
-  genetic_algorithm, menger_sponge, sierpinski_pyramid, mixins.
+- Add-on/tool gaps: none from change 17; binary CTB parsing remains
+  unavailable, and `xqt` is intentionally not ported because the Go package has
+  no Qt dependency.
 - The repository has a large untracked `.agents/`, `.dsh/`, `.zcode/` skill
   configuration. Treat as tooling, not library code.
 
@@ -444,13 +454,14 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-10 | change 8 `audit-recover-parity` | done | Pluggable audit checks and fixers, recovery mode, R12 strict checker, table/reference/dictionary/extents consistency. Duplicate-handle and cycle repair remain partial. |
 | 2026-11-10 | change 9 `query-transform-parity` | done | Query expressions, selections, grouping, transforms, explode/disassemble, upright text, draw order, block traversal, zoom/extents, revcloud. |
 | 2026-11-10 | change 10 `xref-image-underlay-parity` | done | XREF attach/detach/bind/reload, nested loading with cycle detection, images, PDF/DGN/DWF underlays, XCLIP. |
-| 2026-11-10 | change 11 `addons-parity` | done | r12writer, iterdxf, SVG importer, dxf2code, STB plot styles, CSG, MText explode, text2path, geo, mesh/OpenSCAD, ODA, HPGL2, xplayer, binpacking, tablepainter, gerber. Binary CTB and browser/acisbrowser/dwg/dimlines/r12export/xqt/genetic/menger/sierpinski/mixins remain absent. |
+| 2026-11-10 | change 11 `addons-parity` | done | r12writer, iterdxf, SVG importer, dxf2code, STB plot styles, CSG, MText explode, text2path, geo, mesh/OpenSCAD, ODA, HPGL2, xplayer, binpacking, tablepainter, gerber. Binary CTB and browser/acisbrowser/dwg/dimlines/r12export/genetic/menger/sierpinski/mixins remain absent (closed by change 17). `xqt` is intentionally not ported because the Go package has no Qt dependency. |
 | 2026-11-10 | change 12 `cli-tooling-parity` | done | `cmd/dxf` CLI with info/audit/convert/draw/query/explode/fix/strip/header/layers/browse/version/completion, text+JSON output, exit codes, config precedence, atomic writes/backups, shell completion, integration tests. `docs/cli.md` added. |
 | 2026-11-10 | change 13 `color-enum-units-parity` | done | Full ACI table/nearest lookup/transparency, typed enums, units/$INSUNITS conversion, lineweight validation. Linetype patterns and ISO hatch patterns remain partial. |
 | 2026-11-10 | ezdxf cross-check harness | done | `scripts/ezdxf_dump.py` + opt-in `TestEzdxfCrossCheck` compare version, entity/block/subentity inventory, source tables, and source objects across all 52 fixtures. Passing against ezdxf 1.4.6b0; `go test ./...` passes. |
 | 2026-11-10 | `library-refactor` | done | Removed dead `parser.go` and unused render helpers; consolidated block adapters in `internal/blockadapter`; replaced inline interface assertions with named interfaces across the public packages; `go test ./...` and the ezdxf cross-check still pass. |
 | 2026-11-10 | change 14 `entity-object-completion-parity` | done | ACAD_TABLE typed rows/cells/styles/merges with typed loader and round trips; POLYFACE/POLYMESH vertex variants and face records; MESHVERTEXCACHE typed and linked to MESH; SAT/SAB metadata parsing with byte-preserving payloads and ACDSDATA linkage; typed MLEADERSTYLE/MLINESTYLE collections, LAYER_FILTER, VBA_PROJECT; objects-as-entities loaded through typed object models without moving sections; typed reactors/extension dictionaries on entities and objects. Cross-check now compares typed object inventories and passes across 54 fixtures. Tests: `acad_table_roundtrip_test.go`, `polyface_mesh_roundtrip_test.go`, `acis_metadata_test.go`, `object_collection_roundtrip_test.go`, `object_entity_roundtrip_test.go`, `extension_links_test.go`, plus package unit tests. |
 | 2026-11-10 | change 15 `math-shape-clipping-parity` | done | Seeded deterministic Perlin 2D/3D with octave variants; point clustering with membership and centroids; `Shape` container with holes, area/containment/centroid/bbox and winding normalization; portal clipping for line segments and quadratic/cubic Bezier curves; earcut hole bridging via deterministic visible-vertex candidate search plus post-triangulation area verification (centered hole now has no exterior bay and exact area); path nesting tree with normalized CCW outer / CW holes. Tests: `math/perlin_test.go`, `math/clustering_test.go`, `math/shape_test.go`, `math/clipping_test.go`, `math/parity_ext_test.go`, `path/nesting_test.go`. |
+| 2026-11-10 | change 17 `addons-remaining-parity` | done | GUI-free browser and ACIS browser extraction; external DWG converter with actionable missing-tool errors and atomic output; streaming R12 exporter converting splines/ellipses/LWPolylines/MTEXT/meshes; linear and angular dimension-line generators; genetic algorithm engine; Menger sponge and Sierpinski pyramid generators; `SubscriptAttributes` mixin. Tests: `addons/browser/browser_test.go`, `addons/acisbrowser/acisbrowser_test.go`, `addons/dwg/dwg_test.go`, `addons/r12export/r12export_test.go`, `addons/dimlines/dimlines_test.go`, `addons/genetic/genetic_test.go`, `addons/fractals/fractals_test.go`, `addons/mixins/mixins_test.go`. |
 | 2026-11-10 | change 18 `dev-tools-parity` | done | `dxf analyze` tag/entity/table/block/object statistics; `dxf difftags` structural added/removed/changed tag paths with non-zero exit on differences; `dxf debug` version/encoding/section/loader/recovery diagnostics; reusable `standards` rule engine with structured violations, configurable severities and `dxf standards`; ZIP manager with atomic creation/extraction, per-entry path traversal and symlink rejection, plus `dxf zip`/`dxf unzip`. Tests: `cmd/dxf/devtools_test.go`, `cmd/dxf/zip_test.go`, `standards/standards_test.go`, `filemanagement/zip_test.go`. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

@@ -24,7 +24,7 @@ The system SHALL convert DWG to DXF through a configurable external converter an
 
 ### Requirement: Geometry generator add-ons are available
 
-The system SHALL provide dimension-line helpers, r12export, xqt, genetic algorithm, Menger sponge, and Sierpinski pyramid add-ons with documented inputs and outputs.
+The system SHALL provide dimension-line helpers, r12export, genetic algorithm, Menger sponge, and Sierpinski pyramid add-ons with documented inputs and outputs.
 
 #### Scenario: Menger sponge generation
 
