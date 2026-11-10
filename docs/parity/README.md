@@ -210,15 +210,15 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
-| `doc.modelspace()`, paper space layouts | `layouts/*` | `PARTIAL` |
-| `layout.add_*` factory methods for every entity | `graphicsfactory.py` | `PARTIAL` — root has helpers for a subset |
-| `dxfattribs` handling | `gfxattribs.py` | `PARTIAL` |
-| Entity linking (INSERT/ATTRIB/SEQEND, POLYLINE/VERTEX) | `entitydb.py`, `entities/subentity.py` | `PARTIAL` |
-| Entity copy/transform/explode | `entities/copy.py`, `transform.py`, `explode.py` | `PARTIAL` |
-| Blocks: create, insert, explode, purge, rename | `blkrefs.py`, `entities/block.py` | `PARTIAL` |
-| Header variable API | `document.py` | `PARTIAL` |
-| Query/select API | `query.py`, `select.py` | `PARTIAL` |
-| Transaction/undo model | `entitydb.py` | `STUB` |
+| `doc.modelspace()`, paper space layouts | `layouts/*` | `DONE` — `d.Model()`, `d.BlockSpace`, `d.SpaceByName`, layout create/rename/delete/activate with block+BLOCK_RECORD linkage (`TestFacadeLayoutLifecycle`, `TestFacadeLayoutSaveReload`) |
+| `layout.add_*` factory methods for every entity | `graphicsfactory.py` | `DONE` — typed `Add<Type>` methods on every space for all supported entity types plus `AddGeneric` by DXF type (`TestFacadeAddEntityTypes`) |
+| `dxfattribs` handling | `gfxattribs.py` | `DONE` — functional entity options (`WithLayer`, `WithColor`, `WithLinetype`, `WithLineweight`, `WithInvisible`, `WithLTScale`, `WithOwner`, `WithAttribs`) applied at add time, layers auto-created (`TestFacadeEntityOptions`) |
+| Entity linking (INSERT/ATTRIB/SEQEND, POLYLINE/VERTEX) | `entitydb.py`, `entities/subentity.py` | `DONE` — loader links ATTRIB/SEQEND to INSERT, `GetAttribute` access, options attach attribs at insert time (`TestFacadeInsertAttribsReload`, `TestFacadeInsertAttribsExplode`) |
+| Entity copy/transform/explode | `entities/copy.py`, `transform.py`, `explode.py` | `DONE` — `Copy()` deep clones (basis of transactions), per-entity matrix `Transform`, `Insert.Explode` (`TestFacadeInsertAttribsExplode`, `TestFacadeTransactions`) |
+| Blocks: create, insert, explode, purge, rename | `blkrefs.py`, `entities/block.py` | `PARTIAL` — create/insert/explode and layout rename (block+BLOCK_RECORD); purge `ABSENT` (`TestFacadeBlockRoundTrip`) |
+| Header variable API | `document.py` | `PARTIAL` — `d.Header()` accessor with typed `Variable(name)`, `RecalcExtents` writes EXTMIN/EXTMAX (`TestFacadeSelectionAndExtents`) |
+| Query/select API | `query.py`, `select.py` | `DONE` — `SelectByType`/`SelectByLayer`/`SelectInExtents` over model space, `Extents`/`LayoutExtents` (`TestFacadeSelectionAndExtents`) |
+| Transaction/undo model | `entitydb.py` | `DONE` — `BeginTransaction`/`Commit`/`Rollback` with snapshot restore of entities and layout ownership (`TestFacadeTransactions`) |
 
 ### 5. Math and geometry
 

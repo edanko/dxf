@@ -111,9 +111,6 @@ func (e *entity) Format(f format.Formatter) {
 		f.WriteString(330, e.blockRecord.Handle())
 		f.WriteString(102, "}")
 	}
-	if e.owner != nil {
-		f.WriteString(330, e.owner.Handle())
-	}
 	f.WriteString(100, "AcDbEntity")
 	layerName := e.layerName
 	if e.layer != nil {

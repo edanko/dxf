@@ -60,3 +60,8 @@ func (b *BlockRecord) RetainTags(tags lldxf.Tags) {
 func (b *BlockRecord) Name() string {
 	return b.name
 }
+
+// SetName renames the BLOCK_RECORD entry (code 2).
+func (b *BlockRecord) SetName(name string) {
+	b.name = name
+}

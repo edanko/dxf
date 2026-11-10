@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/edanko/dxf/block"
 	"github.com/edanko/dxf/class"
@@ -60,8 +61,15 @@ type Drawing struct {
 
 	handleGenarator *handle.HandleGenerator
 	entityDatabase  *EntityDatabase // Enhanced entity management
-	xrefManager     *xref.XRefManager
-	xrefLoader      *xref.Loader
+
+	// Authoring facade state: layout registry, entity→layout assignment, and
+	// the active layout tab.
+	layouts      map[string]*layoutEntry
+	entityLayout map[string]string
+	activeLayout string
+	transaction  *DrawingTransaction
+	xrefManager  *xref.XRefManager
+	xrefLoader   *xref.Loader
 }
 
 // New creates a new Drawing.
@@ -89,6 +97,10 @@ func New() (*Drawing, error) {
 	d.formatter.SetPrecision(16)
 
 	d.entityDatabase = NewEntityDatabase()
+
+	d.layouts = make(map[string]*layoutEntry)
+	d.entityLayout = make(map[string]string)
+	d.activeLayout = "Model"
 
 	d.headerSection = header.New()
 	d.classesSection = class.New()
@@ -123,7 +135,13 @@ func New() (*Drawing, error) {
 
 // AddLayer adds a new layer to the drawing
 func (d *Drawing) AddLayer(name string, color color.ColorNumber, lineType *table.LineType) (*table.Layer, error) {
+	if l, exists := d.Layers[name]; exists {
+		return l, nil
+	}
 	layer := table.NewLayer(name, color, lineType)
+	if int(table.LAYER) < len(d.tablesSection) {
+		d.tablesSection[table.LAYER].Add(layer)
+	}
 	d.Layers[name] = layer
 	return layer, nil
 }
@@ -144,6 +162,17 @@ func (d *Drawing) RemoveLayer(name string) error {
 		return fmt.Errorf("layer '%s' does not exist", name)
 	}
 	delete(d.Layers, name)
+	if int(table.LAYER) < len(d.tablesSection) {
+		tbl := d.tablesSection[table.LAYER]
+		var kept []table.SymbolTable
+		for _, e := range tbl.Entries() {
+			if l, ok := e.(*table.Layer); ok && l.Name() == name {
+				continue
+			}
+			kept = append(kept, e)
+		}
+		tbl.SetEntries(kept)
+	}
 	return nil
 }
 
@@ -370,8 +399,19 @@ func (d *Drawing) DeleteEntity(handle string) error {
 		return err
 	}
 
-	// Note: We would need to implement removal from entitiesSection too
-	// This is a more complex operation requiring entity tracking
+	// Remove from the ENTITIES section and layout assignment.
+	if _, assigned := d.entityLayout[handle]; assigned {
+		delete(d.entityLayout, handle)
+	}
+	filtered := d.entitiesSection[:0]
+	for _, e := range d.entitiesSection {
+		if e.Handle() == handle {
+			continue
+		}
+		filtered = append(filtered, e)
+	}
+	d.entitiesSection = filtered
+	d.recordTransactionActivity(0, 1)
 	return nil
 }
 
@@ -639,6 +679,13 @@ func (d *Drawing) NewBlock(name string, description string) (*block.Block, error
 
 	// Add to blocks section
 	d.blocksSection = d.blocksSection.Add(newBlock)
+
+	// Register a BLOCK_RECORD entry so owners and reloads resolve the block.
+	if t := d.blockRecordTable(); t != nil {
+		if _, err := t.Lookup(name); err != nil {
+			t.Add(table.NewBlockRecord(name))
+		}
+	}
 	return newBlock, nil
 }
 
@@ -654,6 +701,11 @@ func (d *Drawing) DeleteBlock(name string) error {
 		if block.Name == name {
 			// Remove from slice
 			d.blocksSection = append(d.blocksSection[:i], d.blocksSection[i+1:]...)
+			if t := d.blockRecordTable(); t != nil {
+				if err := t.Remove(name); err != nil {
+					return fmt.Errorf("delete block record %q: %w", name, err)
+				}
+			}
 			return nil
 		}
 	}
@@ -735,6 +787,31 @@ func (d *Drawing) setHandle() {
 	d.objectsSection.SetHandle(d.handleGenarator)
 
 	d.headerSection.SetHandle(d.handleGenarator)
+
+	d.syncGroups()
+	d.assignOwners()
+}
+
+// syncGroups refreshes group member handles from the attached entities.
+func (d *Drawing) syncGroups() {
+	for _, g := range d.Groups {
+		hs := g.EntityHandles()
+		seen := make(map[string]bool, len(hs))
+		for _, h := range hs {
+			seen[h] = true
+		}
+		var added []string
+		for _, e := range g.Entities() {
+			h := e.Handle()
+			if h != "" && !seen[h] {
+				hs = append(hs, h)
+				seen[h] = true
+				added = append(added, h)
+			}
+		}
+		_ = added
+		g.SetEntityHandles(hs)
+	}
 }
 
 func (d *Drawing) Header() *header.Header {
@@ -967,7 +1044,7 @@ func (d *Drawing) AddObject(o object.Object) {
 func (d *Drawing) Group(name, desc string, es ...entity.Entity) (*object.Group, error) {
 	if g, exist := d.Groups[name]; exist {
 		g.AddEntity(es...)
-		return g, fmt.Errorf("group %s already exists", name)
+		return g, nil
 	}
 	g := object.NewGroup(name, desc, es...)
 	d.Groups[name] = g
@@ -982,10 +1059,12 @@ func (d *Drawing) Group(name, desc string, es ...entity.Entity) (*object.Group, 
 // AddToGroup adds given entities to the named group.
 // If the named group doesn't exist, returns error.
 func (d *Drawing) AddToGroup(name string, es ...entity.Entity) error {
-	if g, exist := d.Groups[name]; exist {
-		g.AddEntity(es...)
+	g, exist := d.Groups[name]
+	if !exist {
+		return fmt.Errorf("group %s doesn't exist", name)
 	}
-	return fmt.Errorf("group %s doesn't exist", name)
+	g.AddEntity(es...)
+	return nil
 }
 
 // writeSection is one section of a document write pass.
@@ -1266,29 +1345,29 @@ func (d *Drawing) RebuildSpatialIndex() interface{} {
 
 // Layout Management Methods
 
-// LayoutNames returns names of all layouts
-func (d *Drawing) LayoutNames() []string {
-	return []string{"Model"}
-}
-
 // ModelSpace returns the model space entities
 func (d *Drawing) ModelSpace() []entity.Entity {
 	return d.Entities()
 }
 
-// PaperSpace returns the paper space entities
+// PaperSpace returns the entities of the first paper-space layout.
 func (d *Drawing) PaperSpace() []entity.Entity {
+	for _, info := range d.Layouts() {
+		if info.Type == "PaperSpace" {
+			return d.LayoutEntities(info.Name)
+		}
+	}
 	return []entity.Entity{}
 }
 
 // CurrentLayout returns the current layout name
 func (d *Drawing) CurrentLayout() string {
-	return "Model"
+	return d.ActiveLayout()
 }
 
 // SetCurrentLayout sets the current layout
 func (d *Drawing) SetCurrentLayout(name string) error {
-	return nil
+	return d.SetActiveLayout(name)
 }
 
 // Block returns a block by name
@@ -1296,51 +1375,32 @@ func (d *Drawing) Block(name string) (*block.Block, error) {
 	return d.GetBlock(name)
 }
 
-// Layout management methods
-
-// LayoutInfo represents basic layout information
-type LayoutInfo struct {
-	Name        string
-	Type        string // "ModelSpace" or "PaperSpace"
-	TabOrder    int
-	EntityCount int
-}
-
 // GetLayouts returns information about all layouts
 func (d *Drawing) GetLayouts() []LayoutInfo {
-	return []LayoutInfo{
-		{
-			Name:        "Model",
-			Type:        "ModelSpace",
-			TabOrder:    0,
-			EntityCount: len(d.Entities()),
-		},
-	}
+	return d.Layouts()
 }
 
 // GetLayoutNames returns the names of all layouts
 func (d *Drawing) GetLayoutNames() []string {
-	return []string{"Model"}
+	return d.LayoutNames()
 }
 
 // GetModelSpace returns entities in model space
 func (d *Drawing) GetModelSpace() []entity.Entity {
-	return d.Entities()
+	return d.ModelSpace()
 }
 
-// GetPaperSpace returns entities in paper space (currently returns model space)
+// GetPaperSpace returns entities in the first paper-space layout
 func (d *Drawing) GetPaperSpace() []entity.Entity {
-	return []entity.Entity{}
+	return d.PaperSpace()
 }
 
 // GetLayoutByName returns layout information by name
 func (d *Drawing) GetLayoutByName(name string) *LayoutInfo {
-	if name == "Model" || name == "MODEL" {
-		return &LayoutInfo{
-			Name:        "Model",
-			Type:        "ModelSpace",
-			TabOrder:    0,
-			EntityCount: len(d.Entities()),
+	infos := d.Layouts()
+	for i := range infos {
+		if strings.EqualFold(infos[i].Name, name) {
+			return &infos[i]
 		}
 	}
 	return nil
@@ -1348,27 +1408,13 @@ func (d *Drawing) GetLayoutByName(name string) *LayoutInfo {
 
 // AddPaperSpace creates a new paper space layout
 func (d *Drawing) AddPaperSpace(name string) error {
-	// Paper space layouts are represented as blocks in this implementation
-	_, err := d.NewBlock(name, "Paper space layout")
+	_, err := d.NewLayout(name)
 	return err
-}
-
-// SetActiveLayout sets the current layout (for future use with multi-layout support)
-func (d *Drawing) SetActiveLayout(name string) error {
-	return nil
 }
 
 // GetActiveLayout returns the current active layout name
 func (d *Drawing) GetActiveLayout() string {
-	return "Model"
-}
-
-// LayoutEntityCount returns the number of entities in a specific layout
-func (d *Drawing) LayoutEntityCount(layoutName string) int {
-	if layoutName == "Model" || layoutName == "MODEL" {
-		return len(d.Entities())
-	}
-	return 0
+	return d.ActiveLayout()
 }
 
 // XREF Support Methods

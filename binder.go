@@ -380,6 +380,12 @@ func (b *documentBinder) readBlock(tags lldxf.Tags, i *int) *block.Block {
 				rawStream = append(rawStream, tags[start:*i]...)
 				continue // Unbuildable record: raw tags retained in stream.
 			}
+			if owner := entityOwnerHandle(entityTags); owner != "" {
+				if setter, ok := e.(interface{ SetOwner(handle.Handler) }); ok {
+					setter.SetOwner(handleRef{h: owner})
+					stripRawTag330(e)
+				}
+			}
 			blk.AddEntity(asBlockEntity(e))
 			if len(entityTags) == *i-start {
 				rawStream = append(rawStream, tags[start:*i]...)
@@ -472,6 +478,12 @@ func (b *documentBinder) bindEntities() {
 		if e == nil {
 			continue
 		}
+		if owner := entityOwnerHandle(entityTags); owner != "" {
+			if setter, ok := e.(interface{ SetOwner(handle.Handler) }); ok {
+				setter.SetOwner(handleRef{h: owner})
+				stripRawTag330(e)
+			}
+		}
 		if ins, ok := e.(*entity.Insert); ok {
 			// Consume the ATTRIB records (and trailing SEQEND) that belong to
 			// this INSERT so attributes are attached to the block reference.
@@ -523,6 +535,61 @@ func (b *documentBinder) bindEntities() {
 		b.entities++
 	}
 }
+
+// entityOwnerHandle returns the object-owned owner (code 330) of an entity
+// record, skipping the 330 handles inside ACAD_REACTORS sections.
+func entityOwnerHandle(tags lldxf.Tags) string {
+	inReactors := false
+	for _, tag := range tags {
+		code := int(tag.Code())
+		value := tagStringValue(tag)
+		if code == 102 {
+			trimmed := strings.Trim(value, "{}")
+			if strings.EqualFold(trimmed, "ACAD_REACTORS") {
+				inReactors = true
+			} else if trimmed == "" {
+				inReactors = false
+			}
+			continue
+		}
+		if code == 330 && !inReactors {
+			return value
+		}
+	}
+	return ""
+}
+
+// stripRawTag330 removes code-330 entries from rawTags on an entity so the
+// owner handle is not emitted twice (once by SetOwner, once by rawTags).
+func stripRawTag330(e entity.Entity) {
+	rt, ok := e.(interface {
+		RawTags() []entity.TagPair
+		SetRawTags([]entity.TagPair)
+	})
+	if !ok {
+		return
+	}
+	tags := rt.RawTags()
+	if len(tags) == 0 {
+		return
+	}
+	var kept []entity.TagPair
+	for _, t := range tags {
+		if t.Code != 330 {
+			kept = append(kept, t)
+		}
+	}
+	rt.SetRawTags(kept)
+}
+
+// handleRef pins a handle string captured at load time.
+type handleRef struct{ h string }
+
+// Handle returns the captured handle.
+func (r handleRef) Handle() string { return r.h }
+
+// SetHandle is a no-op; the handle was captured from the source stream.
+func (r handleRef) SetHandle(hg *handle.HandleGenerator) {}
 
 // resolveInsertBlock resolves an insert's block definition from the document
 // blocks so bbox and explode operations work on loaded documents.

@@ -42,6 +42,9 @@ func (g *Group) SetEntityHandles(hs []string) { g.entityHandles = hs }
 // EntityHandles returns the entity handles recorded for the group.
 func (g *Group) EntityHandles() []string { return g.entityHandles }
 
+// Entities returns the group member entities attached at runtime.
+func (g *Group) Entities() []entity.Entity { return g.entities }
+
 // Handle returns the group's handle.
 func (g *Group) Handle() string {
 	return g.handle
