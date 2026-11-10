@@ -18,6 +18,8 @@ import (
 	"github.com/edanko/dxf/object"
 	"github.com/edanko/dxf/table"
 	"github.com/edanko/dxf/xdata"
+
+	"github.com/edanko/dxf/color"
 )
 
 // LoadOptions controls document loading.
@@ -689,6 +691,7 @@ func (b *documentBinder) buildEntity(tags lldxf.Tags) entity.Entity {
 	// (no duplication on write).
 	wireXData(e, tags)
 	attachRawTags(e, tags)
+	b.validateEntityColor(e)
 	return e
 }
 
@@ -849,4 +852,17 @@ func sortedHandles(handles []string) []string {
 
 func tagStringValue(tag lldxf.Tag) string {
 	return lldxf.FormatValue(tag)
+}
+
+// validateEntityColor reports invalid ACI color values without mutating the
+// entity: the raw value is preserved and the issue is recorded on the binder
+// recovery report.
+func (b *documentBinder) validateEntityColor(e entity.Entity) {
+	c, ok := e.(interface{ Color() color.ColorNumber })
+	if !ok {
+		return
+	}
+	if err := color.ValidateACI(c.Color()); err != nil {
+		b.report.Issues = append(b.report.Issues, fmt.Sprintf("%v on %s [%s]: raw value preserved", err, e.DXFType(), e.Handle()))
+	}
 }

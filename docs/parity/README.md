@@ -333,11 +333,11 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
-| ACI colors, true color, transparency | `colors.py`, `concepts/true_color.rst` | `PARTIAL` |
-| Enums (text alignment, hatch, etc.) | `enums.py` | `PARTIAL` |
-| Units and insunits | `units.py`, `concepts/units.rst` | `PARTIAL` |
+| ACI colors, true color, transparency | `colors.py`, `concepts/true_color.rst` | `DONE` — tagged color value (ACI/true color/BYLAYER/BYBLOCK) with full ACI table, nearest-index lookup and validation (`color/colorvalue.go`), alpha transparency (`color/transparency.go`), entity round trips (`color/roundtrip_test.go`, `color/colorvalue_test.go`) |
+| Enums (text alignment, hatch, etc.) | `enums.py` | `DONE` — typed enum sets with name/numeric conversion and unknown-value reporting (`enums/enums.go`, `enums/enums_test.go`) |
+| Units and insunits | `units.py`, `concepts/units.rst` | `DONE` — unit definitions 0-20 with meter factors, `$INSUNITS` mapping and length conversion (`units/units.go`, `units/units_test.go`) |
 | Standards checks | `tools/standards.py` | `ABSENT` |
-| Lineweights | `concepts/lineweights.rst` | `PARTIAL` |
+| Lineweights | `concepts/lineweights.rst` | `DONE` — lineweight default (-3 ByLayer) and validation (`enums/enums.go` `DefaultLineWeight`/`ValidateLineWeight`) |
 | Linetype patterns | `tools/pattern.py`, `_linetypes.py` | `PARTIAL` |
 
 ## Roadmap: ordered OpenSpec changes

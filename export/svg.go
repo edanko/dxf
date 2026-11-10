@@ -7,6 +7,8 @@ import (
 
 	"github.com/edanko/dxf/drawing"
 	"github.com/edanko/dxf/entity"
+
+	"github.com/edanko/dxf/color"
 )
 
 type SVGExporter struct {
@@ -267,9 +269,14 @@ func (e *SVGExporter) writePoint(sb *strings.Builder, p *entity.Point, offsetX, 
 }
 
 func (e *SVGExporter) getColor(ent entity.Entity) string {
-	layer := ent.Layer()
-	if layer != nil {
-		return "black"
+	if c, ok := ent.(interface{ Color() color.ColorNumber }); ok {
+		n := c.Color()
+		if n >= 1 && n <= 249 {
+			rgb := color.IndexColor(uint8(n))
+			if len(rgb) >= 3 {
+				return fmt.Sprintf("#%02x%02x%02x", rgb[0], rgb[1], rgb[2])
+			}
+		}
 	}
 	return "black"
 }
