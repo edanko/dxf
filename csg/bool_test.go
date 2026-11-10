@@ -62,48 +62,30 @@ func TestMeshDifference(t *testing.T) {
 }
 
 func TestMeshXOR(t *testing.T) {
-	mesh1 := createTriangleMesh(
-		dxfmath.NewVec3(0, 0, 0),
-		dxfmath.NewVec3(1, 0, 0),
-		dxfmath.NewVec3(0, 1, 0),
-	)
-
-	mesh2 := createTriangleMesh(
-		dxfmath.NewVec3(0.5, 0, 0),
-		dxfmath.NewVec3(1.5, 0, 0),
-		dxfmath.NewVec3(0.5, 1, 0),
-	)
+	mesh1 := Box(dxfmath.NewVec3(0, 0, 0), 2)
+	mesh2 := Box(dxfmath.NewVec3(0.25, 0.25, 0.25), 1)
 
 	result := MeshXOR(mesh1, mesh2)
 
-	if result.Vertices == nil {
-		t.Error("MeshXOR should return non-nil vertices")
+	if len(result.Vertices) == 0 || len(result.Faces) == 0 {
+		t.Fatalf("MeshXOR empty: %d verts %d faces", len(result.Vertices), len(result.Faces))
 	}
-	if result.Faces == nil {
-		t.Error("MeshXOR should return non-nil faces")
+	if vol := Volume(result); vol < 6.9 || vol > 7.1 {
+		t.Errorf("MeshXOR volume = %v, want ~7", vol)
 	}
 }
 
 func TestMeshIntersect(t *testing.T) {
-	mesh1 := createTriangleMesh(
-		dxfmath.NewVec3(0, 0, 0),
-		dxfmath.NewVec3(2, 0, 0),
-		dxfmath.NewVec3(0, 2, 0),
-	)
-
-	mesh2 := createTriangleMesh(
-		dxfmath.NewVec3(1, 0, 0),
-		dxfmath.NewVec3(3, 0, 0),
-		dxfmath.NewVec3(1, 2, 0),
-	)
+	mesh1 := Box(dxfmath.NewVec3(0, 0, 0), 2)
+	mesh2 := Box(dxfmath.NewVec3(0.25, 0.25, 0.25), 1)
 
 	result := MeshIntersect(mesh1, mesh2)
 
-	if result.Vertices == nil {
-		t.Error("MeshIntersect should return non-nil vertices")
+	if len(result.Vertices) == 0 || len(result.Faces) == 0 {
+		t.Fatalf("MeshIntersect empty: %d verts %d faces", len(result.Vertices), len(result.Faces))
 	}
-	if result.Faces == nil {
-		t.Error("MeshIntersect should return non-nil faces")
+	if vol := Volume(result); vol < 0.9 || vol > 1.1 {
+		t.Errorf("MeshIntersect volume = %v, want ~1", vol)
 	}
 }
 
@@ -150,44 +132,32 @@ func TestCSGMeshDifference(t *testing.T) {
 }
 
 func TestCSGMeshXOR(t *testing.T) {
-	mesh1 := createTriangleMesh(
-		dxfmath.NewVec3(0, 0, 0),
-		dxfmath.NewVec3(1, 0, 0),
-		dxfmath.NewVec3(0, 1, 0),
-	)
+	mesh1 := Box(dxfmath.NewVec3(0, 0, 0), 2)
+	mesh2 := Box(dxfmath.NewVec3(0.25, 0.25, 0.25), 1)
 
-	mesh2 := createTriangleMesh(
-		dxfmath.NewVec3(0.5, 0, 0),
-		dxfmath.NewVec3(1.5, 0, 0),
-		dxfmath.NewVec3(0.5, 1, 0),
-	)
+	c := MeshToCSG(mesh1)
+	result := c.MeshXOR(mesh2)
 
-	csg := MeshToCSG(mesh1)
-	result := csg.MeshXOR(mesh2)
-
-	if result.Vertices == nil {
-		t.Error("CSG.MeshXOR should return non-nil vertices")
+	if len(result.Vertices) == 0 {
+		t.Fatal("CSG.MeshXOR should return non-nil vertices")
+	}
+	if vol := Volume(result); vol < 6.9 || vol > 7.1 {
+		t.Errorf("CSG.MeshXOR volume = %v, want ~7", vol)
 	}
 }
 
 func TestCSGMeshIntersect(t *testing.T) {
-	mesh1 := createTriangleMesh(
-		dxfmath.NewVec3(0, 0, 0),
-		dxfmath.NewVec3(2, 0, 0),
-		dxfmath.NewVec3(0, 2, 0),
-	)
+	mesh1 := Box(dxfmath.NewVec3(0, 0, 0), 2)
+	mesh2 := Box(dxfmath.NewVec3(0.25, 0.25, 0.25), 1)
 
-	mesh2 := createTriangleMesh(
-		dxfmath.NewVec3(1, 0, 0),
-		dxfmath.NewVec3(3, 0, 0),
-		dxfmath.NewVec3(1, 2, 0),
-	)
+	c := MeshToCSG(mesh1)
+	result := c.MeshIntersect(mesh2)
 
-	csg := MeshToCSG(mesh1)
-	result := csg.MeshIntersect(mesh2)
-
-	if result.Vertices == nil {
-		t.Error("CSG.MeshIntersect should return non-nil vertices")
+	if len(result.Vertices) == 0 {
+		t.Fatal("CSG.MeshIntersect should return non-nil vertices")
+	}
+	if vol := Volume(result); vol < 0.9 || vol > 1.1 {
+		t.Errorf("CSG.MeshIntersect volume = %v, want ~1", vol)
 	}
 }
 

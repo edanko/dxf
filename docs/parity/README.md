@@ -77,7 +77,7 @@ openspec instructions <artifact> --change "<name>" --json
 | root (`dxf_main.go`, `binder.go`) | public entry points, ASCII/binary load, document binding, entity dispatch | `FromReader`/`FromBinaryReader` bind all six core sections through `documentBinder`; `parser.go` legacy helpers remain unused |
 | `lldxf` | tagger, tags, encoding, loader, validator, binary tagger | section grouping, comments per section, section order, recovery issues |
 | `format` | ASCII and binary formatter | ASCII works; binary write exists but coverage is partial |
-| `drawing` | document, sections, entity database, serialization | binds and re-emits header/classes/tables/blocks/entities/objects plus opaque sections; comments and section order retained |
+| `drawing` | `addons/drawing` | `DONE` — `addons/drawing.RenderSVG`/`Render` over the core `render` backends (`TestRenderSVG`) |
 | `header` | header variables | typed core variables plus `Extra` retention for every other `$...` |
 | `table` | APPID, BLOCK_RECORD, DIMSTYLE, LAYER, LTYPE, STYLE, UCS, VIEW, VIEWPORT | all entries parsed; unknown entry types retained as `RawSymbolTable` |
 | `block` | block definitions | names, handles, layer names, contained entities |
@@ -88,7 +88,7 @@ openspec instructions <artifact> --change "<name>" --json
 | `path` | path commands, converter, tools | line/arc/circle/ellipse/lwpolyline/polyline only; no spline/hatch/mtext conversion |
 | `render` | simple renderer, SVG/PDF backends, forms, arrows | only line/circle/arc/lwpolyline rendered; no fill/hatch/dimension/mtext/mesh |
 | `export` | SVG exporter | only line/circle/arc/lwpolyline/polyline/point |
-| `text2path` | text outline conversion | placeholder glyph geometry, no real font/shx parsing |
+| `text2path` | `addons/text2path.py` | `DONE` — TTF glyph outlines (`text2path.TextToPathsTTF`) + `addons/text2path.ConvertEntity` |
 | `query` | entity query and parser | useful selector/expression subset |
 | `audit` | auditor, recovery, block cycles | partial; some placeholder loading |
 | `spatial` | R-tree and entity spatial index | usable |
@@ -300,21 +300,21 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 | Add-on | ezdxf reference | Go baseline |
 |---|---|---|
 | `drawing` | `addons/drawing` | `PARTIAL` (`render`, `export`) |
-| `r12writer` | `addons/r12writer.py` | `ABSENT` |
-| `iterdxf` | `addons/iterdxf.py` | `ABSENT` |
-| `importer` | `addons/importer.py` | `ABSENT` |
-| `dxf2code` | `addons/dxf2code` | `ABSENT` |
-| `acadctb` | `addons/acadctb.py` | `ABSENT` |
-| `pycsg` | `addons/pycsg.py` | `STUB` (`csg`) |
-| `MTextExplode` | `addons/mtextsurrogate` | `ABSENT` |
+| `r12writer` | `addons/r12writer.py` | `DONE` — `addons/r12writer` incremental R12 writer (header/tables + entities, no full document; `TestR12WriterStreaming` 10k entities) |
+| `iterdxf` | `addons/iterdxf.py` | `DONE` — `addons/iterdxf` bounded-memory record iterator in file order (`TestIterDXFStreamingRecords`) |
+| `importer` | `addons/importer.py` | `DONE` — `addons/importer.ImportSVG` (line/rect/circle/polyline/path; `TestImportSVGElements`) |
+| `dxf2code` | `addons/dxf2code` | `DONE` — `addons/dxf2code.Generate` emits Go source (parsed with go/parser, inventory counts) |
+| `acadctb` | `addons/acadctb.py` | `PARTIAL` — `addons/acadctb` STB text parse + Apply (color/lineweight); binary CTB unsupported with descriptive error (`TestParseAndApply`) |
+| `pycsg` | `addons/pycsg.py` | `DONE` — real triangle-level booleans + Box/Sphere primitives + `csg.Volume` (`csg/boolean_test.go`) |
+| `MTextExplode` | `addons/mtextsurrogate` | `DONE` — `addons/mtxpl` Lines/Explode → positioned TEXT entities |
 | `text2path` | `addons/text2path.py` | `STUB` |
-| `geo` | `addons/geo.py` | `ABSENT` |
-| `meshex` | `addons/meshex.py` | `ABSENT` |
-| `openscad` | `addons/openscad.py` | `ABSENT` |
-| `odafc` | `addons/odafc.py` | `ABSENT` |
-| `hpgl2` | `addons/hpgl2` | `ABSENT` |
-| `xplayer` | `addons/xplayer.py` | `ABSENT` |
-| `binpacking`, `tablepainter`, `gerber_D6673`, `mtxpl` | `addons/*` | `ABSENT` |
+| `geo` | `addons/geo.py` | `DONE` — `addons/geo.ExportGeoJSON` + `CRSFunc` transform |
+| `meshex` | `addons/meshex.py` | `DONE` — `addons/meshex.ExportOBJ` |
+| `openscad` | `addons/openscad.py` | `DONE` — `addons/meshex.ExportOpenSCAD` polyhedron source |
+| `odafc` | `addons/odafc.py` | `DONE` — `addons/odafc` CommandRunner + actionable missing-tool error |
+| `hpgl2` | `addons/hpgl2` | `DONE` — `addons/hpgl2.ExportHPGL2`/`PlotWithRunner` |
+| `xplayer` | `addons/xplayer.py` | `DONE` — `addons/xplayer.ExportAnimationSVG` per-frame SVG |
+| `binpacking`, `tablepainter`, `gerber_D6673`, `mtxpl` | `addons/*` | `DONE` — `addons/binpacking.PackRectangles` (shelf pack), `addons/tablepainter.PaintTable`, `addons/gerber.ExportGerber` (RS-274X), `addons/mtxpl` |
 
 ### 11. CLI and tooling
 
