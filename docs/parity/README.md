@@ -243,18 +243,20 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
-| Path commands and converter for all entities | `path/*` | `PARTIAL` — no spline/hatch/mtext/image/leader conversion |
-| Path tools: flatten, transform, offset, nesting | `path/tools.py`, `path/nesting.py` | `PARTIAL` — no nesting |
-| Drawing add-on / render pipeline | `addons/drawing/*`, `render/*` | `PARTIAL` — line/circle/arc/lwpolyline only |
-| SVG/PDF backends | `addons/drawing/backend.py`, `pymupdf.py` | `PARTIAL` — basic backends |
-| matplotlib/PyQt/PyMuPDF backends | `addons/drawing/*` | `N/A` in Go; provide native backends and image output |
-| Linetype rendering | `render/_linetypes.py`, `linetypes.py` | `PARTIAL` |
-| Hatch rendering | `render/hatching.py` | `STUB` |
-| Dimension rendering | `render/dimension.py`, `dim_*.py` | `STUB` |
-| MTEXT rendering | `render/abstract_mtext_renderer.py`, `tools/text_layout.py` | `STUB` |
+| Path commands and converter for all entities | `path/*` | `DONE` — converters for line/arc/circle/ellipse/spline/polylines (bulge-aware), HATCH, SOLID/3DFACE/TRACE, IMAGE/WIPEOUT frames, LEADER/MLEADER/MLINE, POINT, DIMENSION (block content), RAY/XLINE, TEXT/MTEXT outlines; arcs flattened to line segments (`TestRenderConformance`, `path/converter_ext_test.go`) |
+| Path tools: flatten, transform, offset, nesting | `path/tools.py`, `path/nesting.py` | `PARTIAL` — flatten + transform (now transforms commands, not only vertices, `TestPathTransformCommands`); offset/nesting `ABSENT` |
+| Drawing add-on / render pipeline | `addons/drawing/*`, `render/*` | `DONE` — `render.BuildScene` resolves styles (ByLayer/ByBlock, ACI/truecolor/alpha, lineweight, linetype scale), fits model extents (5% margin) or header extents, projects an active VIEWPORT, supports explicit extents and returns a fallback report (`TestViewportScene`, `TestSceneExtentsOverride`) |
+| SVG/PDF backends | `addons/drawing/backend.py`, `pymupdf.py` | `DONE` — unified `Renderer` interface (Begin/SetStyle/DrawPath/Clip/FillGradient/End) with registry; compact SVG path data, PDF content streams with xref tables (`TestSVGPathGeometryAndStyle`, `TestPDFStructure`) |
+| matplotlib/PyQt/PyMuPDF backends | `addons/drawing/*` | `N/A` in Go; provided native raster backend instead: PNG with supersampled anti-aliasing, background, clipping, dash patterns (`TestPNGRenderedViaRegistry`, `TestRasterStyleColorWidthDash`) |
+| Linetype rendering | `render/_linetypes.py`, `linetypes.py` | `DONE` — dash patterns baked from layer linetype x linetype scale, device-scaled, stroked by all backends (`TestRasterStyleColorWidthDash`) |
+| Hatch rendering | `render/hatching.py` | `DONE` — solid fill, predefined ANSI31–38 patterns expanded to clipped segments (`HatchFillSegments`), gradients: SVG linearGradient, PNG axis lerp, PDF first color (`TestSceneHatchFill`, `TestHatchPatternExpanded`, `TestFillGradientBackends`) |
+| Dimension rendering | `render/dimension.py`, `dim_*.py` | `PARTIAL` — dimension block content lowered to paths by the converter; full block renderer (transforms, text placement at paper scale) not modeled |
+| MTEXT rendering | `render/abstract_mtext_renderer.py`, `tools/text_layout.py` | `DONE` — inline codes stripped (`StripCodes`), greedy word wrap at column width (`LayoutMText`), paragraph pitch 1.6714x height, TrueType glyph outlines via system fonts with marching-squares contours and built-in vector font fallback (`TestTextToPathsTTF`, `TestLayoutMTextWrap`, `TestTextOutlines`) |
 | Mesh rendering | `render/mesh.py`, `mesh_builder.py` | `PARTIAL` |
 | Arrow heads | `render/arrows.py` | `PARTIAL` |
-| MLeader/MLine rendering | `render/mleader.py`, `mline.py` | `ABSENT` |
+| MLeader/MLine rendering | `render/mleader.py`, `mline.py` | `DONE` — converted to path geometry (leader arrows via path, mline style lines) and rendered by all backends (converter tests in `path/converter_ext_test.go`, corpus conformance) |
+
+Plot style tables (CTB/STB) are not modeled: entities render with their screen colors. Print/plot scaling (PS/PDF paper layout) is out of scope. Text rendering uses system TrueType fonts (Noto/Liberation/DejaVu/Vera) via `golang.org/x/image/font/opentype`; when none is available the built-in single-stroke vector font is used and `StyledScene.Fallbacks` records the substitution.
 
 ### 7. Audit, recover, validation, repair
 

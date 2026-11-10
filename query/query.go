@@ -276,7 +276,7 @@ func (q *EntityQuery) Bounds() (min, max math.Vec3, found bool) {
 	first := true
 	for _, ent := range q.entities {
 		minPoint, maxPoint := ent.BBox()
-		if minPoint == nil || maxPoint == nil {
+		if minPoint == nil || maxPoint == nil || len(minPoint) < 3 || len(maxPoint) < 3 {
 			continue
 		}
 

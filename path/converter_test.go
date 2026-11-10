@@ -109,10 +109,10 @@ func TestMakePathWithEllipse(t *testing.T) {
 }
 
 func TestMakePathUnsupported(t *testing.T) {
-	point := entity.NewPoint()
-	point.Coord = []float64{50, 50, 0}
+	insert := entity.NewInsert()
+	insert.SetBlockName("BLOCK")
 
-	_, err := MakePath(point)
+	_, err := MakePath(insert)
 	if err == nil {
 		t.Error("MakePath should fail for unsupported entity type")
 	}

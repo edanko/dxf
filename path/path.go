@@ -497,13 +497,48 @@ func (p *Path) SubPaths() []*Path {
 func (p *Path) Transform(matrix *dxfmath.Matrix44) *Path {
 	result := p.Clone()
 
-	// Transform all vertices
-	for i, vertex := range result.vertices {
-		// Convert Vec2 to Vec3 for transformation
-		v3 := dxfmath.NewVec3(vertex.X(), vertex.Y(), 0)
-		transformed := matrix.TransformVector(v3)
-		result.vertices[i] = dxfmath.NewVec2(transformed.X(), transformed.Y())
+	xform := func(v dxfmath.Vec2) dxfmath.Vec2 {
+		// point semantics: the translation column participates,
+		// so affine fit transforms apply fully.
+		v4 := dxfmath.Vec4{v.X(), v.Y(), 0, 1}
+		t := matrix.MulVec4(v4)
+		return dxfmath.NewVec2(t[0], t[1])
 	}
+
+	// Transform all vertices.
+	for i, vertex := range result.vertices {
+		result.vertices[i] = xform(vertex)
+	}
+
+	// Transform the command geometry. Clone() shares command pointers, so
+	// each command is copied before mutation to keep the source path intact.
+	cmds := make([]PathCommand, 0, len(result.commands))
+	for _, cmd := range result.commands {
+		switch c := cmd.(type) {
+		case *PathMoveTo:
+			nc := *c
+			nc.End = xform(c.End)
+			cmds = append(cmds, &nc)
+		case *PathLineTo:
+			nc := *c
+			nc.End = xform(c.End)
+			cmds = append(cmds, &nc)
+		case *PathCurve3To:
+			nc := *c
+			nc.Ctrl = xform(c.Ctrl)
+			nc.End = xform(c.End)
+			cmds = append(cmds, &nc)
+		case *PathCurve4To:
+			nc := *c
+			nc.Ctrl1 = xform(c.Ctrl1)
+			nc.Ctrl2 = xform(c.Ctrl2)
+			nc.End = xform(c.End)
+			cmds = append(cmds, &nc)
+		default:
+			cmds = append(cmds, cmd)
+		}
+	}
+	result.commands = cmds
 
 	return result
 }

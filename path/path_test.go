@@ -155,6 +155,45 @@ func TestPathTransform(t *testing.T) {
 	}
 }
 
+func TestPathTransformCommands(t *testing.T) {
+	p := NewPath()
+	p.MoveTo(0, 0)
+	p.LineTo(10, 0)
+	p.Curve3To(20, 0, 15, 5)
+	p.Curve4To(30, 0, 22, 5, 26, 5)
+
+	m := dxfmath.Translation(5, 7, 0)
+	got := p.Transform(&m)
+
+	wantCmds := []*struct{ x, y float64 }{
+		{5, 7}, {15, 7}, {25, 7}, {35, 7},
+	}
+	cmds := got.Commands()
+	if len(cmds) != 4 {
+		t.Fatalf("want 4 commands, got %d", len(cmds))
+	}
+	for i, cmd := range cmds {
+		if math.Abs(cmd.EndVertex().X()-wantCmds[i].x) > 1e-6 ||
+			math.Abs(cmd.EndVertex().Y()-wantCmds[i].y) > 1e-6 {
+			t.Errorf("cmd %d end = (%.3f, %.3f), want (%.3f, %.3f)",
+				i, cmd.EndVertex().X(), cmd.EndVertex().Y(), wantCmds[i].x, wantCmds[i].y)
+		}
+	}
+	// Control points must move with the same translation.
+	c3, ok := cmds[2].(*PathCurve3To)
+	if !ok || math.Abs(c3.Ctrl.X()-20) > 1e-6 || math.Abs(c3.Ctrl.Y()-12) > 1e-6 {
+		t.Errorf("Curve3To ctrl not transformed: %+v", cmds[2])
+	}
+	c4, ok := cmds[3].(*PathCurve4To)
+	if !ok || math.Abs(c4.Ctrl1.X()-27) > 1e-6 || math.Abs(c4.Ctrl2.Y()-12) > 1e-6 {
+		t.Errorf("Curve4To ctrl not transformed: %+v", cmds[3])
+	}
+	// Source path must stay untouched (Clone must deep-copy commands).
+	if math.Abs(p.Commands()[0].EndVertex().X()-0) > 1e-6 {
+		t.Error("Transform mutated source path commands")
+	}
+}
+
 func TestPathClone(t *testing.T) {
 	original := NewPath()
 	original.MoveTo(1, 2)

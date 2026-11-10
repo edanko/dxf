@@ -64,6 +64,34 @@ func MakePath(ent entity.Entity, opts ...Option) (*Path, error) {
 		return arcToPath(e, options)
 	case *entity.Ellipse:
 		return ellipseToPath(e, options)
+	case *entity.Spline:
+		return splineToPath(e, options)
+	case *entity.Hatch:
+		return hatchToPath(e, options)
+	case *entity.Solid:
+		return solidToPath(e, options)
+	case *entity.Trace:
+		return traceToPath(e, options)
+	case *entity.ThreeDFace:
+		return face3DToPath(e, options)
+	case *entity.Image:
+		return imageToPath(e, options)
+	case *entity.Wipeout:
+		return wipeoutToPath(e, options)
+	case *entity.Leader:
+		return leaderToPath(e, options)
+	case *entity.MLeader:
+		return mleaderToPath(e, options)
+	case *entity.MLine:
+		return mlineToPath(e, options)
+	case *entity.Point:
+		return pointToPath(e, options)
+	case *entity.Dimension:
+		return dimensionToPath(e, options)
+	case infiniteLine:
+		return infiniteLineToPath(e, options)
+	case *entity.Text, *entity.MText:
+		return nil, fmt.Errorf("%T is rendered through the text2path glyph pipeline, not MakePath", ent)
 	default:
 		return nil, fmt.Errorf("unsupported entity type for path conversion: %T", ent)
 	}
@@ -96,17 +124,11 @@ func lwpolylineToPath(lwpolyline *entity.LwPolyline, options *Options) (*Path, e
 		return path, nil
 	}
 
-	// Convert first vertex
-	path.MoveTo(vertices[0][0], vertices[0][1])
-	for i := 1; i < len(vertices); i++ {
-		path.LineTo(vertices[i][0], vertices[i][1])
+	coords := make([][2]float64, 0, len(vertices))
+	for _, v := range vertices {
+		coords = append(coords, [2]float64{getCoord(v, 0), getCoord(v, 1)})
 	}
-
-	// Close if specified
-	if lwpolyline.Closed {
-		path.Close()
-	}
-
+	appendBulgeChain(path, coords, lwpolyline.Bulges, lwpolyline.Closed, options)
 	return path, nil
 }
 
@@ -119,15 +141,13 @@ func polylineToPath(polyline *entity.Polyline, options *Options) (*Path, error) 
 		return path, nil
 	}
 
-	path.MoveTo(vertices[0].Coord[0], vertices[0].Coord[1])
-	for i := 1; i < len(vertices); i++ {
-		path.LineTo(vertices[i].Coord[0], vertices[i].Coord[1])
+	coords := make([][2]float64, 0, len(vertices))
+	bulges := make([]float64, 0, len(vertices))
+	for _, v := range vertices {
+		coords = append(coords, [2]float64{getCoord(v.Coord, 0), getCoord(v.Coord, 1)})
+		bulges = append(bulges, v.Bulge)
 	}
-
-	// Close if specified
-	if polyline.Flag&1 != 0 {
-		path.Close()
-	}
+	appendBulgeChain(path, coords, bulges, polyline.Flag&1 != 0, options)
 
 	return path, nil
 }
@@ -199,34 +219,42 @@ func arcToPath(arc *entity.Arc, options *Options) (*Path, error) {
 	return path, nil
 }
 
-// ellipseToPath converts an ellipse entity to a path
+// ellipseToPath converts an ellipse entity to a path. Start/End are parametric
+// angles in degrees; a full ellipse closes the path, an elliptical arc does not.
 func ellipseToPath(ellipse *entity.Ellipse, options *Options) (*Path, error) {
 	path := NewPath()
-	center := dxfmath.NewVec3(
-		getCoord(ellipse.Center, 0),
-		getCoord(ellipse.Center, 1),
-		getCoord(ellipse.Center, 2))
+	cx := getCoord(ellipse.Center, 0)
+	cy := getCoord(ellipse.Center, 1)
 	majorRadius := ellipse.Major
 	minorRadius := ellipse.Minor
 
-	// Approximate ellipse with segments
-	segments := options.Segments
-	if segments <= 0 {
-		segments = 32 // Default
+	startDeg := ellipse.Start
+	endDeg := ellipse.End
+	if endDeg < startDeg {
+		endDeg += 360
+	}
+	span := endDeg - startDeg
+
+	segments := int(math.Ceil(span / 7.5))
+	if segments < 16 {
+		segments = 16
+	}
+	if segments > 256 {
+		segments = 256
+	}
+	if options.Segments > 0 {
+		segments = options.Segments
 	}
 
-	startX := center.X() + majorRadius
-	startY := center.Y()
-	path.MoveTo(startX, startY)
-
+	startAngle := startDeg * math.Pi / 180.0
+	path.MoveTo(cx+majorRadius*math.Cos(startAngle), cy+minorRadius*math.Sin(startAngle))
 	for i := 1; i <= segments; i++ {
-		angle := 2.0 * math.Pi * float64(i) / float64(segments)
-		x := center.X() + majorRadius*math.Cos(angle)
-		y := center.Y() + minorRadius*math.Sin(angle)
-		path.LineTo(x, y)
+		angle := (startDeg + span*float64(i)/float64(segments)) * math.Pi / 180.0
+		path.LineTo(cx+majorRadius*math.Cos(angle), cy+minorRadius*math.Sin(angle))
 	}
-
-	path.Close()
+	if ellipse.IsFull() {
+		path.Close()
+	}
 	return path, nil
 }
 
