@@ -52,7 +52,7 @@ func (s *SpatialFilter) BBox() ([]float64, []float64) {
 
 func (s *SpatialFilter) Copy() Entity {
 	sf := NewSpatialFilter()
-	sf.entity = s.entity
+	sf.entity = s.entity.clone()
 	sf.Name = s.Name
 	sf.ClippingPoints = make([]dxfmath.Vec2, len(s.ClippingPoints))
 	for i, pt := range s.ClippingPoints {

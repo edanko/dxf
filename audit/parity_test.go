@@ -630,6 +630,13 @@ type beAdapter struct {
 func (a beAdapter) RawTags() []block.TagPair      { return a.raw }
 func (a *beAdapter) SetRawTags(t []block.TagPair) { a.raw = t }
 
+func (a beAdapter) BlockName() string {
+	if r, ok := a.Entity.(interface{ BlockName() string }); ok {
+		return r.BlockName()
+	}
+	return ""
+}
+
 func TestDuplicateHandleNamesBothObjects(t *testing.T) {
 	doc := mustLoad(t, baseDXF)
 	l2 := entity.NewLine()
@@ -651,19 +658,23 @@ func TestDuplicateHandleNamesBothObjects(t *testing.T) {
 			}
 		}
 	}
-	// Unsafe: fix mode must not touch it and must leave the document unchanged.
+	// Fix mode assigns a fresh handle to the later duplicate.
 	rep2 := Run(doc, &Options{Fix: true})
+	fixed := false
 	for _, is := range rep2.Issues {
 		if is.Code == CodeDuplicateHandle && is.Fixed {
-			t.Errorf("duplicate handle must not be auto-fixed")
+			fixed = true
 		}
+	}
+	if !fixed {
+		t.Errorf("duplicate handle was not repaired: %s", rep2)
 	}
 	hs := []string{}
 	for _, e := range NewContext(doc).AllEntities() {
 		hs = append(hs, EntityHandle(e))
 	}
-	if len(hs) != 2 || hs[0] != "41" || hs[1] != "41" {
-		t.Errorf("fix mode changed document for unsafe issue: %v", hs)
+	if len(hs) != 2 || hs[0] != "41" || hs[1] == "41" || hs[1] == "" {
+		t.Errorf("fix mode did not make handles unique: %v", hs)
 	}
 }
 

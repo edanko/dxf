@@ -99,6 +99,20 @@ def _records(tags: list[tuple[int, str]]) -> list[tuple[str, list[tuple[int, str
     return records
 
 
+def _after_marker(
+    record: list[tuple[int, str]], marker: str, code: int
+) -> str:
+    """Return the first value with `code` after the given 100 subclass marker."""
+    seen = False
+    for tag_code, value in record:
+        if tag_code == 100:
+            seen = value.strip().lower() == marker.lower()
+            continue
+        if seen and tag_code == code:
+            return value.strip()
+    return ""
+
+
 def _first(record: list[tuple[int, str]], code: int) -> str:
     for tag_code, value in record:
         if tag_code == code:
@@ -106,9 +120,9 @@ def _first(record: list[tuple[int, str]], code: int) -> str:
     return ""
 
 
-def _source_tables(tags: list[tuple[int, str]], version: str) -> dict[str, list[dict[str, str]]]:
+def _source_tables(tags: list[tuple[int, str]], version: str) -> dict[str, list[dict[str, object]]]:
     """Extract table entries from the source TABLES section."""
-    tables: dict[str, list[dict[str, str]]] = {}
+    tables: dict[str, list[dict[str, object]]] = {}
     current: str | None = None
 
     for record_type, body in _records(_section(tags, "TABLES")):
@@ -125,7 +139,11 @@ def _source_tables(tags: list[tuple[int, str]], version: str) -> dict[str, list[
 
         name = _first(body, 2)
         tables[current].append(
-            {"name": name, "handle": _normalize_handle(version, _first(body, 5))}
+            {
+                "name": name,
+                "handle": _normalize_handle(version, _first(body, 5)),
+                "fields": {"flags": _first(body, 70) or "0"},
+            }
         )
 
     for entries in tables.values():
@@ -135,16 +153,16 @@ def _source_tables(tags: list[tuple[int, str]], version: str) -> dict[str, list[
 
 def _tables_with_ezdxf_handles(
     doc: object,
-    source: dict[str, list[dict[str, str]]],
+    source: dict[str, list[dict[str, object]]],
     version: str,
-) -> dict[str, list[dict[str, str]]]:
+) -> dict[str, list[dict[str, object]]]:
     """Use ezdxf handles where available, filtered to source table entries.
 
     ezdxf auto-creates missing tables and default entries; the source names keep
     those out. ezdxf also assigns handles to entries that omit code 5, which is
     the same behavior the Go loader has.
     """
-    tables: dict[str, list[dict[str, str]]] = {}
+    tables: dict[str, list[dict[str, object]]] = {}
     for table_name, source_entries in source.items():
         attr = TABLE_ATTRS.get(table_name)
         table = getattr(doc.tables, attr, None) if attr else None
@@ -157,7 +175,13 @@ def _tables_with_ezdxf_handles(
             name = source_entry["name"]
             entry = by_name.get(name)
             handle = _handle(entry, version) if entry is not None else source_entry["handle"]
-            entries.append({"name": name, "handle": handle})
+            entries.append(
+                {
+                    "name": name,
+                    "handle": handle,
+                    "fields": source_entry["fields"],
+                }
+            )
         entries.sort(key=lambda item: (item["name"], item["handle"]))
         tables[table_name] = entries
     return tables
@@ -188,6 +212,21 @@ def _root_dictionary_handle(doc: object) -> str:
         return doc.rootdict.dxf.handle or ""
     except Exception:
         return ""
+
+
+def _object_fields(record_type: str, body: list[tuple[int, str]]) -> dict[str, str]:
+    """Stable typed-field projection. Keys mirror the Go test helper."""
+    if record_type in {"DICTIONARY", "DICTIONARYWDFLT", "ACDBDICTIONARYWDFLT"}:
+        return {"entry_count": str(sum(1 for code, _ in body if code == 3))}
+    if record_type == "LAYOUT":
+        return {"flags": _after_marker(body, "AcDbLayout", 70) or "0"}
+    if record_type == "MLINESTYLE":
+        return {"flags": _first(body, 70) or "0"}
+    if record_type == "MLEADERSTYLE":
+        return {"flags": _first(body, 179) or "0"}
+    if record_type == "GROUP":
+        return {"entities": str(sum(1 for code, _ in body if code == 340))}
+    return {}
 
 
 def _source_objects(
@@ -236,6 +275,11 @@ def _source_objects(
                 "handle": _normalize_handle(version, raw_handle),
                 "typed_type": typed_type,
                 "members": members,
+                "fields": (
+                    {}
+                    if typed_type in COLLECTION_TYPES
+                    else _object_fields(record_type, body)
+                ),
             }
         )
     objects.sort(key=lambda item: (item["type"], item["handle"]))
@@ -262,15 +306,74 @@ def _layer(entity: object) -> str:
         return "0"
 
 
-def _entity_dump(entity: object, version: str) -> dict[str, str]:
+def _float(value: object) -> str:
+    try:
+        return f"{float(value):.4f}"
+    except (TypeError, ValueError):
+        return "0.0000"
+
+
+def _point(value: object) -> str:
+    parts = list(value) if value is not None else []
+    while len(parts) < 3:
+        parts.append(0.0)
+    return ",".join(_float(v) for v in parts[:3])
+
+
+def _entity_fields(entity: object) -> dict[str, str]:
+    """Stable typed-field projection. Keys mirror the Go test helper."""
+    kind = entity.dxftype()
+    dxf = entity.dxf
+    if kind == "LINE":
+        return {"start": _point(dxf.start), "end": _point(dxf.end)}
+    if kind == "CIRCLE":
+        return {"center": _point(dxf.center), "radius": _float(dxf.radius)}
+    if kind == "ARC":
+        return {
+            "center": _point(dxf.center),
+            "radius": _float(dxf.radius),
+            "start_angle": _float(dxf.start_angle),
+            "end_angle": _float(dxf.end_angle),
+        }
+    if kind == "POINT":
+        return {"location": _point(dxf.location)}
+    if kind == "TEXT":
+        return {
+            "text": dxf.text or "",
+            "height": _float(dxf.height),
+            "rotation": _float(dxf.rotation),
+        }
+    if kind == "MTEXT":
+        # MTEXT text assembly differs for column fragments and leading-space
+        # normalization; inventory already covers the record.
+        return {}
+    if kind == "INSERT":
+        return {"block_name": dxf.name or "", "insert": _point(dxf.insert)}
+    if kind == "LWPOLYLINE":
+        return {"vertex_count": str(len(list(entity.get_points())))}
+    if kind == "SPLINE":
+        return {
+            "degree": str(int(dxf.degree)),
+            "control_count": str(len(entity.control_points)),
+            "knot_count": str(len(entity.knots)),
+        }
+    if kind == "ELLIPSE":
+        return {"center": _point(dxf.center)}
+    if kind == "HATCH":
+        return {"pattern_name": dxf.pattern_name or ""}
+    return {}
+
+
+def _entity_dump(entity: object, version: str) -> dict[str, object]:
     return {
         "type": entity.dxftype(),
         "handle": _handle(entity, version),
         "layer": _layer(entity),
+        "fields": _entity_fields(entity),
     }
 
 
-def _entities_dump(entities: object, version: str) -> list[dict[str, str]]:
+def _entities_dump(entities: object, version: str) -> list[dict[str, object]]:
     return sorted(
         (
             _entity_dump(entity, version)
@@ -301,6 +404,7 @@ def _source_only_entities(tags: list[tuple[int, str]], version: str) -> list[dic
                     "type": "MESHVERTEXCACHE",
                     "handle": _normalize_handle(version, _first(body, 5)),
                     "layer": _first(body, 8) or "0",
+                    "fields": {},
                 }
             )
     return out

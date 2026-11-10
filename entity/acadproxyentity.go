@@ -108,12 +108,60 @@ func (a *AcadProxyEntity) BBox() ([]float64, []float64) {
 	if a.HasBBox {
 		return []float64{a.BBoxMinX, a.BBoxMinY, 0}, []float64{a.BBoxMaxX, a.BBoxMaxY, 0}
 	}
-	return []float64{0, 0, 0}, []float64{0, 0, 0}
+	// No stored extents: derive them from the decodable proxy graphics. A
+	// proxy whose payload cannot be decoded has no geometry, so it keeps the
+	// documented empty representation instead of a zero-origin box.
+	children, err := ExtractProxyGraphics(a)
+	if err != nil || len(children) == 0 {
+		return []float64{0, 0, 0}, []float64{0, 0, 0}
+	}
+	var min, max []float64
+	for _, child := range children {
+		bounder, ok := child.(Bounder)
+		if !ok {
+			continue
+		}
+		cmin, cmax := bounder.BBox()
+		if len(cmin) < 2 || len(cmax) < 2 || allZeroBox(cmin, cmax) {
+			continue
+		}
+		if min == nil {
+			min = []float64{cmin[0], cmin[1], 0}
+			max = []float64{cmax[0], cmax[1], 0}
+			continue
+		}
+		for i := 0; i < 3; i++ {
+			if cmin[i] < min[i] {
+				min[i] = cmin[i]
+			}
+			if cmax[i] > max[i] {
+				max[i] = cmax[i]
+			}
+		}
+	}
+	if min == nil {
+		return []float64{0, 0, 0}, []float64{0, 0, 0}
+	}
+	return min, max
+}
+
+func allZeroBox(min, max []float64) bool {
+	for _, v := range min {
+		if v != 0 {
+			return false
+		}
+	}
+	for _, v := range max {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *AcadProxyEntity) Copy() Entity {
 	proxy := NewAcadProxyEntity()
-	proxy.entity = a.entity
+	proxy.entity = a.entity.clone()
 	proxy.ClassID = a.ClassID
 	proxy.ApplicationID = a.ApplicationID
 	proxy.GraphicsDataSize = a.GraphicsDataSize

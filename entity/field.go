@@ -84,7 +84,7 @@ func (f *Field) BBox() ([]float64, []float64) {
 
 func (f *Field) Copy() Entity {
 	field := NewField()
-	field.entity = f.entity
+	field.entity = f.entity.clone()
 	field.EvaluatorID = f.EvaluatorID
 	field.FieldCode = f.FieldCode
 	field.FieldCodeOverflow = f.FieldCodeOverflow

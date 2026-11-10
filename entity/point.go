@@ -68,6 +68,6 @@ func (p *Point) Transform(m dxfmath.Matrix44) error {
 // Copy creates a deep copy of the Point entity
 func (p *Point) Copy() Entity {
 	point := NewPoint(p.Coord[0], p.Coord[1], p.Coord[2])
-	point.entity = p.entity
+	point.entity = p.entity.clone()
 	return point
 }

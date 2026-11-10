@@ -58,7 +58,7 @@ func (a *AppID) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the AppID entity
 func (a *AppID) Copy() Entity {
 	app := NewAppID()
-	app.entity = a.entity
+	app.entity = a.entity.clone()
 	app.Name = a.Name
 	app.Flags = a.Flags
 	return app

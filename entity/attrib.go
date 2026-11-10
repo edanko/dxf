@@ -269,7 +269,7 @@ func (a *Attrib) String() string {
 // Copy creates a deep copy of the Attrib entity
 func (a *Attrib) Copy() Entity {
 	attrib := NewAttrib()
-	attrib.entity = a.entity
+	attrib.entity = a.entity.clone()
 	attrib.tag = a.tag
 	attrib.textValue = a.textValue
 	attrib.insertPoint = []float64{a.insertPoint[0], a.insertPoint[1], a.insertPoint[2]}

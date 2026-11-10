@@ -95,7 +95,7 @@ func (m *MeshVertexCache) BBox() ([]float64, []float64) {
 
 func (m *MeshVertexCache) Copy() Entity {
 	mvc := NewMeshVertexCache()
-	mvc.entity = m.entity
+	mvc.entity = m.entity.clone()
 	mvc.Vertices = make([]math.Vec3, len(m.Vertices))
 	for i, v := range m.Vertices {
 		mvc.Vertices[i] = v

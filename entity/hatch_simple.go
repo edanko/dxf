@@ -533,7 +533,7 @@ func (h *Hatch) PatternType() int { return h.patternType }
 // Copy creates a deep copy of the Hatch entity.
 func (h *Hatch) Copy() Entity {
 	hatch := NewHatch()
-	hatch.entity = h.entity
+	hatch.entity = h.entity.clone()
 	hatch.patternType = h.patternType
 	hatch.patternName = h.patternName
 	hatch.patternLines = make([]HatchPatternLine, len(h.patternLines))

@@ -57,7 +57,7 @@ func (d *DXFGroups) BBox() ([]float64, []float64) {
 
 func (d *DXFGroups) Copy() Entity {
 	groups := NewDXFGroups()
-	groups.entity = d.entity
+	groups.entity = d.entity.clone()
 	groups.Name = d.Name
 	groups.Description = d.Description
 	groups.Unnamed = d.Unnamed

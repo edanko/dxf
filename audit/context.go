@@ -120,6 +120,15 @@ func (c *Context) Resolve(h string) (any, bool) {
 
 // Objects returns every object registered under handle h (len > 1 means the
 // handle is duplicated).
+// hasHandle reports whether a handle is already used by any audited record.
+func (c *Context) hasHandle(h string) bool {
+	if h == "" {
+		return true
+	}
+	_, ok := c.objs[h]
+	return ok
+}
+
 func (c *Context) Objects(h string) []any {
 	return c.objs[h]
 }

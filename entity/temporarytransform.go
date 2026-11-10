@@ -43,7 +43,7 @@ func (t *TemporaryTransform) BBox() ([]float64, []float64) {
 
 func (t *TemporaryTransform) Copy() Entity {
 	transform := NewTemporaryTransform()
-	transform.entity = t.entity
+	transform.entity = t.entity.clone()
 	transform.TransformationMatrix = t.TransformationMatrix
 	transform.OperationType = t.OperationType
 	transform.AffectedEntity = t.AffectedEntity

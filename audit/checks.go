@@ -59,7 +59,7 @@ var requiredEntries = []struct{ table, entry string }{
 }
 
 func init() {
-	RegisterCheck(Check{Code: CodeDuplicateHandle, Severity: SeverityError, Safe: false, Fn: checkDuplicateHandles})
+	RegisterCheck(Check{Code: CodeDuplicateHandle, Severity: SeverityError, Safe: true, Fn: checkDuplicateHandles})
 	RegisterCheck(Check{Code: CodeInvalidOwner, Severity: SeverityError, Safe: true, Fn: checkOwners})
 	RegisterCheck(Check{Code: CodeEmptyTableName, Severity: SeverityWarning, Safe: false, Fn: checkTableIntegrity})
 	RegisterCheck(Check{Code: CodeDuplicateTableEntry, Severity: SeverityError, Safe: false, Fn: checkTableIntegrity})

@@ -91,7 +91,7 @@ func (l *LwPolyline) Transform(m dxfmath.Matrix44) error {
 // Copy creates a deep copy of the LwPolyline entity
 func (l *LwPolyline) Copy() Entity {
 	lwpolyline := NewLwPolyline(l.Num)
-	lwpolyline.entity = l.entity
+	lwpolyline.entity = l.entity.clone()
 	lwpolyline.Closed = l.Closed
 	lwpolyline.ConstantWidth = l.ConstantWidth
 	lwpolyline.Bulges = make([]float64, len(l.Bulges))

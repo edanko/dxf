@@ -161,7 +161,7 @@ func (m *Material) Transform(mt *math.Matrix44) error {
 // Copy creates a deep copy of the Material entity
 func (m *Material) Copy() Entity {
 	mat := NewMaterial()
-	mat.entity = m.entity
+	mat.entity = m.entity.clone()
 	mat.Name = m.Name
 	mat.Description = m.Description
 	mat.AmbientColorMethod = m.AmbientColorMethod

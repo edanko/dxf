@@ -59,6 +59,21 @@ type entity struct {
 	typeNameOverride string // explicit code 0 name for retained records
 }
 
+// clone returns a deep copy of the shared entity base. Mutable slices and the
+// XDATA map are copied so a copy never mutates its source. References such as
+// the layer and owner handlers stay shared because they identify records.
+func (e *entity) clone() *entity {
+	if e == nil {
+		return nil
+	}
+	c := *e
+	c.rawTags = append([]TagPair(nil), e.rawTags...)
+	c.reactors = append([]string(nil), e.reactors...)
+	c.extrusion = append([]float64(nil), e.extrusion...)
+	c.xdata = e.xdata.Clone()
+	return &c
+}
+
 // SetRawWholeRecord marks the raw tags as the complete DXF record
 // (whole-record retention). The record's type name and handle are emitted from
 // the base fields, and every other retained tag is written verbatim.
@@ -141,11 +156,15 @@ func (e *entity) Format(f format.Formatter) {
 		f.WriteFloat(48, e.ltscale)
 	}
 	f.WriteInt(62, int(e.color))
-	if e.trueColor != 0 {
-		f.WriteInt(420, e.trueColor)
-	}
-	if e.transparency != 0 {
-		f.WriteInt(440, int(e.transparency*100+0.5))
+	// True color and transparency were introduced after R12. Omit them when
+	// the writer targets R12 instead of emitting unsupported group codes.
+	if f.Version() != format.AC1009 {
+		if e.trueColor != 0 {
+			f.WriteInt(420, e.trueColor)
+		}
+		if e.transparency != 0 {
+			f.WriteInt(440, int(e.transparency*100+0.5))
+		}
 	}
 	if e.invisible {
 		f.WriteInt(60, 1)

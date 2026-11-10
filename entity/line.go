@@ -108,7 +108,7 @@ func (l *Line) Transform(m dxfmath.Matrix44) error {
 // Copy creates a deep copy of the Line entity
 func (l *Line) Copy() Entity {
 	line := NewLine()
-	line.entity = l.entity
+	line.entity = l.entity.clone()
 	if len(l.Start) >= 3 {
 		line.Start = []float64{l.Start[0], l.Start[1], l.Start[2]}
 	}

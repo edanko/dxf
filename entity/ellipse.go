@@ -231,7 +231,7 @@ func (e *Ellipse) Transform(m dxfmath.Matrix44) error {
 // Copy creates a deep copy of the Ellipse entity
 func (e *Ellipse) Copy() Entity {
 	ellipse := NewEllipse()
-	ellipse.entity = e.entity
+	ellipse.entity = e.entity.clone()
 	ellipse.Center = []float64{e.Center[0], e.Center[1], e.Center[2]}
 	ellipse.Major = e.Major
 	ellipse.Minor = e.Minor

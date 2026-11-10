@@ -15,6 +15,9 @@ type AcDbDictionaryWDFLT struct {
 	defaulthandle handle.Handler
 }
 
+// SetHandleString sets an explicit handle, used by deterministic repair.
+func (d *AcDbDictionaryWDFLT) SetHandleString(h string) { d.handle = h }
+
 // IsObject is for Object interface.
 func (d *AcDbDictionaryWDFLT) IsObject() bool {
 	return true

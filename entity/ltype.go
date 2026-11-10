@@ -132,7 +132,7 @@ func (l *Linetype) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the Linetype entity
 func (l *Linetype) Copy() Entity {
 	lt := NewLinetype()
-	lt.entity = l.entity
+	lt.entity = l.entity.clone()
 	lt.Name = l.Name
 	lt.Description = l.Description
 	lt.Flags = l.Flags

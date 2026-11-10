@@ -164,8 +164,24 @@ func (d *Drawing) SetSectionOrder(order []string) { d.sectionOrder = order }
 // SectionOrder returns the source section order.
 func (d *Drawing) SectionOrder() []string { return d.sectionOrder }
 
-// SetComments records code 999 comments per section.
-func (d *Drawing) SetComments(comments map[string][]string) { d.comments = comments }
+// SetComments records code 999 comments per section. It replaces any
+// positioned comments loaded from a file; use SetPositionedComments to restore
+// exact positions.
+func (d *Drawing) SetComments(comments map[string][]string) {
+	d.comments = comments
+	d.positionedComments = nil
+}
+
+// SetPositionedComments records code 999 comments anchored to record positions
+// inside their sections.
+func (d *Drawing) SetPositionedComments(comments []lldxf.PositionedComment) {
+	d.positionedComments = append([]lldxf.PositionedComment(nil), comments...)
+}
+
+// PositionedComments returns the positioned comments currently retained.
+func (d *Drawing) PositionedComments() []lldxf.PositionedComment {
+	return append([]lldxf.PositionedComment(nil), d.positionedComments...)
+}
 
 // Comments returns code 999 comments per section.
 func (d *Drawing) Comments() map[string][]string { return d.comments }

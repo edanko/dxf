@@ -52,7 +52,7 @@ func (v *VBAProject) BBox() ([]float64, []float64) {
 
 func (v *VBAProject) Copy() Entity {
 	proj := NewVBAProject()
-	proj.entity = v.entity
+	proj.entity = v.entity.clone()
 	proj.Data = make([]byte, len(v.Data))
 	for i, b := range v.Data {
 		proj.Data[i] = b

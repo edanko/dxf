@@ -27,6 +27,9 @@ func (b *BaseObject) SetHandle(hg *handle.HandleGenerator) {
 	}
 }
 
+// SetHandleString sets an explicit handle, used by deterministic repair.
+func (b *BaseObject) SetHandleString(h string) { b.handle = h }
+
 // WireType returns the code-0 marker Format emits for this object. Models
 // that do not pin a wire type (DICTIONARY) report an empty string and their
 // Format methods emit the conventional marker.

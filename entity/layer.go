@@ -89,7 +89,7 @@ func (l *Layer) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the Layer entity
 func (l *Layer) Copy() Entity {
 	layer := NewLayer()
-	layer.entity = l.entity
+	layer.entity = l.entity.clone()
 	layer.Name = l.Name
 	layer.Flags = l.Flags
 	layer.Color = l.Color

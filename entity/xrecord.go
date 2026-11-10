@@ -75,7 +75,7 @@ func (x *XRecord) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the XRecord entity
 func (x *XRecord) Copy() Entity {
 	xr := NewXRecord()
-	xr.entity = x.entity
+	xr.entity = x.entity.clone()
 	xr.Cloning = x.Cloning
 	xr.Tags = append(xr.Tags, x.Tags...)
 	return xr

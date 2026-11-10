@@ -34,7 +34,7 @@ func (b *IDBuffer) BBox() ([]float64, []float64) {
 
 func (b *IDBuffer) Copy() Entity {
 	buf := NewIDBuffer()
-	buf.entity = b.entity
+	buf.entity = b.entity.clone()
 	buf.Handles = make([]string, len(b.Handles))
 	for i, h := range b.Handles {
 		buf.Handles[i] = h

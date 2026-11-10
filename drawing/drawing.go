@@ -16,6 +16,7 @@ import (
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
 	"github.com/edanko/dxf/header"
+	"github.com/edanko/dxf/lldxf"
 	"github.com/edanko/dxf/object"
 	"github.com/edanko/dxf/query"
 	"github.com/edanko/dxf/table"
@@ -47,11 +48,12 @@ type Drawing struct {
 	entitiesSection entity.Entities
 	objectsSection  object.Objects
 
-	opaqueSections map[string][]RawTag
-	sectionOrder   []string
-	comments       map[string][]string
-	recoveryReport *RecoveryReport
-	xrefCycles     [][]string
+	opaqueSections     map[string][]RawTag
+	sectionOrder       []string
+	comments           map[string][]string
+	positionedComments []lldxf.PositionedComment
+	recoveryReport     *RecoveryReport
+	xrefCycles         [][]string
 
 	sourceVersion     string
 	normalizedVersion string
@@ -357,8 +359,7 @@ func (d *Drawing) WriteBinaryTo(w io.Writer) (n int64, err error) {
 		if r12 && sec.sanitize != nil {
 			emit = sec.sanitize(&dropped)
 		}
-		d.writeCommentsTo(binaryFormatter, sec.name)
-		emit(binaryFormatter)
+		d.writeSectionWithComments(binaryFormatter, sec.name, emit)
 	}
 	d.writeOpaqueSectionsTo(binaryFormatter)
 
@@ -1219,8 +1220,7 @@ func (d *Drawing) WriteTo(w io.Writer) (n int64, err error) {
 		if r12 && sec.sanitize != nil {
 			emit = sec.sanitize(&dropped)
 		}
-		d.writeCommentsTo(f, sec.name)
-		emit(f)
+		d.writeSectionWithComments(f, sec.name, emit)
 	}
 	d.writeOpaqueSectionsTo(f)
 

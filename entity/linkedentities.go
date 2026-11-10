@@ -52,7 +52,7 @@ func (l *LinkedEntities) BBox() ([]float64, []float64) {
 
 func (l *LinkedEntities) Copy() Entity {
 	linked := NewLinkedEntities()
-	linked.entity = l.entity
+	linked.entity = l.entity.clone()
 	linked.Name = l.Name
 	linked.Description = l.Description
 	linked.ParentID = l.ParentID

@@ -77,7 +77,7 @@ func (s *Solid) Transform(m dxfmath.Matrix44) error {
 // Copy creates a deep copy of the Solid entity
 func (s *Solid) Copy() Entity {
 	solid := NewSolid()
-	solid.entity = s.entity
+	solid.entity = s.entity.clone()
 	solid.FirstPoint = []float64{s.FirstPoint[0], s.FirstPoint[1], s.FirstPoint[2]}
 	solid.SecondPoint = []float64{s.SecondPoint[0], s.SecondPoint[1], s.SecondPoint[2]}
 	solid.ThirdPoint = []float64{s.ThirdPoint[0], s.ThirdPoint[1], s.ThirdPoint[2]}

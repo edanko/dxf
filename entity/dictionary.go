@@ -61,7 +61,7 @@ func (d *Dictionary) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the Dictionary entity
 func (d *Dictionary) Copy() Entity {
 	dict := NewDictionary()
-	dict.entity = d.entity
+	dict.entity = d.entity.clone()
 	dict.HardOwned = d.HardOwned
 	dict.Cloning = d.Cloning
 	dict.Entries = append(dict.Entries, d.Entries...)
@@ -180,7 +180,7 @@ func (d *DictionaryWithDefault) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the DictionaryWithDefault entity
 func (d *DictionaryWithDefault) Copy() Entity {
 	dict := NewDictionaryWithDefault()
-	dict.entity = d.entity
+	dict.entity = d.entity.clone()
 	dict.HardOwned = d.HardOwned
 	dict.Cloning = d.Cloning
 	dict.Entries = append(dict.Entries, d.Entries...)

@@ -32,6 +32,9 @@ func (b *EntryBase) Handle() string { return b.handle }
 // SetHandleValue sets an explicit handle loaded from a file.
 func (b *EntryBase) SetHandleValue(h string) { b.handle = h }
 
+// SetHandleString sets an explicit handle, used by deterministic repair.
+func (b *EntryBase) SetHandleString(h string) { b.handle = h }
+
 // SetHandle assigns a generated handle when the entry has none.
 func (b *EntryBase) SetHandle(hg *handle.HandleGenerator) {
 	if b.handle == "" {

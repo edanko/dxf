@@ -54,6 +54,22 @@ func NewXData() *XData {
 	}
 }
 
+// Clone returns a deep copy. The returned XData shares no map, application
+// entry, or tag slice with the source.
+func (x *XData) Clone() *XData {
+	if x == nil {
+		return nil
+	}
+	c := NewXData()
+	for id, app := range x.Apps {
+		c.Apps[id] = AppData{
+			AppID: app.AppID,
+			Tags:  append([]Tag(nil), app.Tags...),
+		}
+	}
+	return c
+}
+
 func (x *XData) HasAppID(appID string) bool {
 	_, ok := x.Apps[appID]
 	return ok

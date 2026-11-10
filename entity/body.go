@@ -136,6 +136,20 @@ func (r *Region) Format(f format.Formatter) {
 	f.WriteString(100, "AcDbRegion")
 }
 
+// Copy returns an independent copy of the region, including its ACIS payload.
+func (r *Region) Copy() Entity {
+	if r == nil {
+		return (*Region)(nil)
+	}
+	c := *r
+	c.entity = r.entity.clone()
+	c.OuterLoop = r.OuterLoop // loop geometry is immutable topology metadata
+	c.satLines = append([]string(nil), r.satLines...)
+	c.satCodes = append([]int(nil), r.satCodes...)
+	c.sabData = append([]byte(nil), r.sabData...)
+	return &c
+}
+
 // NewRegion creates a new region
 func NewRegion() *Region {
 	return &Region{
@@ -346,6 +360,61 @@ type Body struct {
 	SubBodies []*Body
 	Regions   []*Region
 	Surfaces  []*Surface
+}
+
+// Copy returns an independent copy of the body, including ACIS payloads,
+// transform matrices, caches, and nested sub-entities.
+func (b *Body) Copy() Entity {
+	if b == nil {
+		return (*Body)(nil)
+	}
+	c := *b
+	c.entity = b.entity.clone()
+	if b.Pattern != nil {
+		p := *b.Pattern
+		c.Pattern = &p
+	}
+	if b.Lump != nil {
+		l := *b.Lump
+		c.Lump = &l
+	}
+	if b.TransientLump != nil {
+		l := *b.TransientLump
+		c.TransientLump = &l
+	}
+	if b.Transform != nil {
+		t := *b.Transform
+		c.Transform = &t
+	}
+	if b.InverseTransform != nil {
+		t := *b.InverseTransform
+		c.InverseTransform = &t
+	}
+	if b.boundingBox != nil {
+		bb := *b.boundingBox
+		c.boundingBox = &bb
+	}
+	c.SATData = append([]byte(nil), b.SATData...)
+	c.satLines = append([]string(nil), b.satLines...)
+	c.satCodes = append([]int(nil), b.satCodes...)
+	c.SubBodies = make([]*Body, len(b.SubBodies))
+	for i, sub := range b.SubBodies {
+		c.SubBodies[i] = sub.Copy().(*Body)
+	}
+	c.Regions = make([]*Region, len(b.Regions))
+	for i, region := range b.Regions {
+		c.Regions[i] = region.Copy().(*Region)
+	}
+	c.Surfaces = make([]*Surface, len(b.Surfaces))
+	for i, surface := range b.Surfaces {
+		if surface == nil {
+			continue
+		}
+		s := *surface
+		s.entity = surface.entity.clone()
+		c.Surfaces[i] = &s
+	}
+	return &c
 }
 
 // NewBody creates a new Body entity

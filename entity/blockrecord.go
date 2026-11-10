@@ -69,7 +69,7 @@ func (b *BlockRecord) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the BlockRecord entity
 func (b *BlockRecord) Copy() Entity {
 	br := NewBlockRecord()
-	br.entity = b.entity
+	br.entity = b.entity.clone()
 	br.Name = b.Name
 	br.LayoutHandle = b.LayoutHandle
 	br.Explode = b.Explode

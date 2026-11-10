@@ -63,7 +63,7 @@ func (f *ThreeDFace) BBox() ([]float64, []float64) {
 // Copy creates a deep copy of the ThreeDFace entity
 func (f *ThreeDFace) Copy() Entity {
 	face := New3DFace()
-	face.entity = f.entity
+	face.entity = f.entity.clone()
 	face.Flag = f.Flag
 	face.Points = make([][]float64, len(f.Points))
 	for i, p := range f.Points {

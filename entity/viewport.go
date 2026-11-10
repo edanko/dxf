@@ -198,7 +198,7 @@ func (v *Viewport) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the Viewport entity
 func (v *Viewport) Copy() Entity {
 	vp := NewViewport()
-	vp.entity = v.entity
+	vp.entity = v.entity.clone()
 	vp.Center = v.Center
 	vp.Width = v.Width
 	vp.Height = v.Height

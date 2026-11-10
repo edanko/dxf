@@ -170,7 +170,7 @@ func abs64(v float64) float64 {
 // Copy creates a deep copy of the Circle entity
 func (c *Circle) Copy() Entity {
 	circle := NewCircle()
-	circle.entity = c.entity
+	circle.entity = c.entity.clone()
 	if len(c.Center) >= 3 {
 		circle.Center = []float64{c.Center[0], c.Center[1], c.Center[2]}
 	}

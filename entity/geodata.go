@@ -123,7 +123,7 @@ func (g *GeoData) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the GeoData entity
 func (g *GeoData) Copy() Entity {
 	geo := NewGeoData()
-	geo.entity = g.entity
+	geo.entity = g.entity.clone()
 	geo.Version = g.Version
 	geo.BlockRecordHandle = g.BlockRecordHandle
 	geo.CoordinateType = g.CoordinateType

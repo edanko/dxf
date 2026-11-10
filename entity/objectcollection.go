@@ -46,7 +46,7 @@ func (o *ObjectCollection) BBox() ([]float64, []float64) {
 
 func (o *ObjectCollection) Copy() Entity {
 	coll := NewObjectCollection()
-	coll.entity = o.entity
+	coll.entity = o.entity.clone()
 	coll.Name = o.Name
 	coll.Description = o.Description
 	coll.ObjectTypes = make([]string, len(o.ObjectTypes))

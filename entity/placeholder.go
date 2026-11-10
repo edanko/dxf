@@ -29,7 +29,7 @@ func (p *Placeholder) BBox() ([]float64, []float64) {
 
 func (p *Placeholder) Copy() Entity {
 	ph := NewPlaceholder()
-	ph.entity = p.entity
+	ph.entity = p.entity.clone()
 	return ph
 }
 

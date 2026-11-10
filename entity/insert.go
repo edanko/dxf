@@ -610,7 +610,7 @@ func (i *Insert) Explode() ([]Entity, error) {
 // Copy creates a deep copy of the Insert entity
 func (i *Insert) Copy() Entity {
 	insert := NewInsert()
-	insert.entity = i.entity
+	insert.entity = i.entity.clone()
 	insert.blockName = i.blockName
 	insert.insertPoint = i.insertPoint
 	insert.layerOverride = i.layerOverride

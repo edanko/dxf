@@ -40,7 +40,7 @@ func (n *Network) BBox() ([]float64, []float64) {
 
 func (n *Network) Copy() Entity {
 	net := NewNetwork()
-	net.entity = n.entity
+	net.entity = n.entity.clone()
 	net.Name = n.Name
 	net.Flags = n.Flags
 	net.Classes = make([]string, len(n.Classes))

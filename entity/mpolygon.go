@@ -360,7 +360,7 @@ func (m *MPolygonEntity) Clone() *MPolygonEntity {
 	}
 
 	return &MPolygonEntity{
-		entity:   m.entity, // TODO: Implement Clone method for entity
+		entity:   m.entity.clone(),
 		dxf:      &dxfCopy,
 		paths:    pathsCopy,
 		pattern:  patternCopy,
@@ -368,3 +368,7 @@ func (m *MPolygonEntity) Clone() *MPolygonEntity {
 		seeds:    seedsCopy,
 	}
 }
+
+// Copy returns an independent copy of the MPOLYGON, including its boundary
+// paths, fill pattern, gradient, and seed points.
+func (m *MPolygonEntity) Copy() Entity { return m.Clone() }

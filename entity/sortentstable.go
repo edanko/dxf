@@ -40,7 +40,7 @@ func (s *SortEntsTable) BBox() ([]float64, []float64) {
 
 func (s *SortEntsTable) Copy() Entity {
 	tbl := NewSortEntsTable()
-	tbl.entity = s.entity
+	tbl.entity = s.entity.clone()
 	tbl.BlockRecordHandle = s.BlockRecordHandle
 	tbl.Table = make(map[string]string)
 	maps.Copy(tbl.Table, s.Table)

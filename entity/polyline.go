@@ -241,7 +241,7 @@ func (p *Polyline) Transform(m dxfmath.Matrix44) error {
 // Copy creates a deep copy of the Polyline entity
 func (p *Polyline) Copy() Entity {
 	polyline := NewPolyline()
-	polyline.entity = p.entity
+	polyline.entity = p.entity.clone()
 	polyline.Flag = p.Flag
 	polyline.size = p.size
 	polyline.endhandle = p.endhandle

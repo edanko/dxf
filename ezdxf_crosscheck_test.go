@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/object"
+	"github.com/edanko/dxf/table"
 )
 
 // parityDump is the canonical cross-check payload. Keep the field order and
@@ -26,9 +28,10 @@ type parityDump struct {
 }
 
 type parityEntity struct {
-	Type   string `json:"type"`
-	Handle string `json:"handle"`
-	Layer  string `json:"layer"`
+	Type   string            `json:"type"`
+	Handle string            `json:"handle"`
+	Layer  string            `json:"layer"`
+	Fields map[string]string `json:"fields"`
 }
 
 type parityBlock struct {
@@ -37,15 +40,17 @@ type parityBlock struct {
 }
 
 type parityTableEntry struct {
-	Name   string `json:"name"`
-	Handle string `json:"handle"`
+	Name   string            `json:"name"`
+	Handle string            `json:"handle"`
+	Fields map[string]string `json:"fields"`
 }
 
 type parityObject struct {
-	Type      string   `json:"type"`
-	Handle    string   `json:"handle"`
-	TypedType string   `json:"typed_type"`
-	Members   []string `json:"members"`
+	Type      string            `json:"type"`
+	Handle    string            `json:"handle"`
+	TypedType string            `json:"typed_type"`
+	Members   []string          `json:"members"`
+	Fields    map[string]string `json:"fields"`
 }
 
 // TestEzdxfCrossCheck compares the Go loader against an ezdxf dump for every
@@ -152,7 +157,7 @@ func goParityDump(t *testing.T, path string) parityDump {
 			Entities: make([]parityEntity, 0, len(b.Entities())),
 		}
 		for _, e := range b.Entities() {
-			pe := newParityEntity(e.DXFType(), e.Handle(), entityLayerName(e), version)
+			pe := newParityEntity(e, entityLayerName(e), version)
 			// ezdxf detaches MTEXT column fragments from the block that
 			// physically contains them; the union inventory still includes them.
 			if !isSubentityType(pe.Type) && !(pe.Type == "MTEXT" && columnRefs[pe.Handle]) {
@@ -185,6 +190,7 @@ func goParityDump(t *testing.T, path string) parityDump {
 			entries = append(entries, parityTableEntry{
 				Name:   e.Name(),
 				Handle: normalizeHandle(version, e.Handle()),
+				Fields: tableEntryProjection(e),
 			})
 		}
 		sort.Slice(entries, func(i, j int) bool {
@@ -202,6 +208,7 @@ func goParityDump(t *testing.T, path string) parityDump {
 			Handle:    normalizeHandle(version, o.Handle()),
 			TypedType: object.TypeName(o),
 			Members:   make([]string, 0),
+			Fields:    objectFieldProjection(o),
 		}
 		if collection, ok := o.(interface{ MemberHandles() []string }); ok {
 			for _, h := range collection.MemberHandles() {
@@ -221,6 +228,91 @@ func goParityDump(t *testing.T, path string) parityDump {
 	return dump
 }
 
+// entityFieldProjection is the stable typed-field subset compared across
+// loaders. Keys and formatting must match scripts/ezdxf_dump.py.
+func entityFieldProjection(v any) map[string]string {
+	fields := map[string]string{}
+	switch e := v.(type) {
+	case *entity.Line:
+		fields["start"] = pointString(e.Start)
+		fields["end"] = pointString(e.End)
+	case *entity.Circle:
+		fields["center"] = pointString(e.Center)
+		fields["radius"] = floatString(e.Radius)
+	case *entity.Arc:
+		fields["center"] = pointString(e.Center)
+		fields["radius"] = floatString(e.Radius)
+		if len(e.Angle) >= 2 {
+			fields["start_angle"] = floatString(e.Angle[0])
+			fields["end_angle"] = floatString(e.Angle[1])
+		}
+	case *entity.Point:
+		fields["location"] = pointString(e.Coord)
+	case *entity.Text:
+		fields["text"] = e.Value
+		fields["height"] = floatString(e.Height)
+		fields["rotation"] = floatString(e.Rotation)
+	case *entity.MText:
+		// MTEXT text assembly differs for column fragments and leading-space
+		// normalization; inventory already covers the record.
+	case *entity.Insert:
+		fields["block_name"] = e.BlockName()
+		fields["insert"] = pointString(e.InsertPoint().ToSlice())
+	case *entity.LwPolyline:
+		fields["vertex_count"] = strconv.Itoa(len(e.Vertices))
+	case *entity.Spline:
+		fields["degree"] = strconv.Itoa(e.Degree)
+		fields["control_count"] = strconv.Itoa(len(e.Controls))
+		fields["knot_count"] = strconv.Itoa(len(e.Knots))
+	case *entity.Ellipse:
+		fields["center"] = pointString(e.Center)
+	case *entity.Hatch:
+		fields["pattern_name"] = e.PatternName()
+	}
+	return fields
+}
+
+func tableEntryProjection(e table.SymbolTable) map[string]string {
+	fields := map[string]string{"flags": "0"}
+	if f, ok := e.(interface{ Flags() int }); ok {
+		fields["flags"] = strconv.Itoa(f.Flags())
+	}
+	return fields
+}
+
+func objectFieldProjection(o object.Object) map[string]string {
+	fields := map[string]string{}
+	switch v := o.(type) {
+	case *object.Dictionary:
+		fields["entry_count"] = strconv.Itoa(len(v.GetEntries()))
+	case *object.DictionaryWithDefault:
+		fields["entry_count"] = strconv.Itoa(len(v.GetEntries()))
+	case *object.Layout:
+		fields["flags"] = strconv.Itoa(v.Flags())
+	case *object.MLineStyle:
+		fields["flags"] = strconv.Itoa(v.Flags())
+	case *object.MLeaderStyle:
+		fields["flags"] = strconv.Itoa(v.Flags())
+	case *object.Group:
+		fields["entities"] = strconv.Itoa(len(v.EntityHandles()))
+	}
+	return fields
+}
+
+func floatString(v float64) string { return strconv.FormatFloat(v, 'f', 4, 64) }
+
+func pointString(p []float64) string {
+	parts := make([]string, 3)
+	for i := 0; i < 3; i++ {
+		if i < len(p) {
+			parts[i] = floatString(p[i])
+		} else {
+			parts[i] = floatString(0)
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
 // parityObjectWireType reports the code-0 marker the object writes, which can
 // differ from the typed model name for dictionaries reclassified as typed
 // collections.
@@ -236,18 +328,29 @@ func parityObjectWireType(o object.Object) string {
 	return object.TypeName(o)
 }
 
-func newParityEntity(dxfType, handle, layer, version string) parityEntity {
+func newParityEntity(e interface {
+	DXFType() string
+	Handle() string
+}, layer, version string) parityEntity {
 	return parityEntity{
-		Type:   dxfType,
-		Handle: normalizeHandle(version, handle),
+		Type:   e.DXFType(),
+		Handle: normalizeHandle(version, e.Handle()),
 		Layer:  layer,
+		Fields: entityFieldProjection(underlyingEntity(e)),
 	}
+}
+
+func underlyingEntity(v any) any {
+	if u, ok := v.(interface{ Unwrap() entity.Entity }); ok {
+		return u.Unwrap()
+	}
+	return v
 }
 
 // addEntityTree adds an entity and its owned subentities (POLYLINE vertices,
 // INSERT attributes, and similar composite records) to the inventory.
 func addEntityTree(e entity.Entity, add func(parityEntity), version string) {
-	add(newParityEntity(e.DXFType(), e.Handle(), entityLayerName(e), version))
+	add(newParityEntity(e, entityLayerName(e), version))
 	owner, ok := e.(entity.SubentityOwner)
 	if !ok {
 		return
@@ -263,7 +366,7 @@ func addBlockEntityTree(e interface {
 	DXFType() string
 	Handle() string
 }, add func(parityEntity), version string) {
-	add(newParityEntity(e.DXFType(), e.Handle(), entityLayerName(e), version))
+	add(newParityEntity(e, entityLayerName(e), version))
 
 	var underlying entity.Entity
 	switch value := e.(type) {

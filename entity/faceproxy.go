@@ -86,7 +86,7 @@ func (f *FaceProxy) BBox() ([]float64, []float64) {
 
 func (f *FaceProxy) Copy() Entity {
 	fp := NewFaceProxy()
-	fp.entity = f.entity
+	fp.entity = f.entity.clone()
 	fp.OriginalType = f.OriginalType
 	fp.Flags = f.Flags
 	fp.Color = f.Color

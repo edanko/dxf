@@ -66,7 +66,7 @@ func (p *Polygon) BBox() ([]float64, []float64) {
 
 func (p *Polygon) Copy() Entity {
 	pg := NewPolygon()
-	pg.entity = p.entity
+	pg.entity = p.entity.clone()
 	pg.Vertices = make([]math.Vec3, len(p.Vertices))
 	for i, v := range p.Vertices {
 		pg.Vertices[i] = v

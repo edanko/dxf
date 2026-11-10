@@ -161,7 +161,7 @@ func (v *Vertex) BBox() ([]float64, []float64) {
 // Copy creates a deep copy of the Vertex entity
 func (v *Vertex) Copy() Entity {
 	vertex := NewVertex(v.Coord[0], v.Coord[1], v.Coord[2])
-	vertex.entity = v.entity
+	vertex.entity = v.entity.clone()
 	vertex.Flag = v.Flag
 	vertex.Bulge = v.Bulge
 	vertex.StartWidth = v.StartWidth

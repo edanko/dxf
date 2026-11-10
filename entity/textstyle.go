@@ -80,7 +80,7 @@ func (t *Textstyle) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the Textstyle entity
 func (t *Textstyle) Copy() Entity {
 	ts := NewTextstyle()
-	ts.entity = t.entity
+	ts.entity = t.entity.clone()
 	ts.Name = t.Name
 	ts.Flags = t.Flags
 	ts.Height = t.Height

@@ -262,7 +262,7 @@ func (t *Text) Transform(m dxfmath.Matrix44) error {
 // Copy creates a deep copy of the Text entity
 func (t *Text) Copy() Entity {
 	text := NewText()
-	text.entity = t.entity
+	text.entity = t.entity.clone()
 	text.Coord1 = []float64{t.Coord1[0], t.Coord1[1], t.Coord1[2]}
 	text.Coord2 = []float64{t.Coord2[0], t.Coord2[1], t.Coord2[2]}
 	text.Height = t.Height

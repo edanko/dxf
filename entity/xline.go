@@ -148,7 +148,7 @@ func (x *XLine) Transform(matrix dxfmath.Matrix44) error {
 // Copy produces a deep copy (Copy interface).
 func (x *XLine) Copy() Entity {
 	clone := NewXLineFromPointDirection(x.start, x.unitVector)
-	clone.entity = x.entity
+	clone.entity = x.entity.clone()
 	return clone
 }
 

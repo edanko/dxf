@@ -15,6 +15,7 @@ type Loader struct {
 	objects      map[string]Tags
 	options      *LoaderOptions
 	comments     map[string][]string
+	positioned   []PositionedComment
 	sectionOrder []string
 	issues       []string
 }
@@ -90,6 +91,7 @@ func (l *Loader) groupSections() error {
 	var inSection bool
 	var sectionTags Tags
 	var pendingComments []string
+	sectionRecords := 0
 
 	closeSection := func() {
 		if currentSection != "" {
@@ -99,6 +101,7 @@ func (l *Loader) groupSections() error {
 		inSection = false
 		currentSection = ""
 		sectionTags = nil
+		sectionRecords = 0
 	}
 
 	for _, tag := range l.tags {
@@ -110,6 +113,15 @@ func (l *Loader) groupSections() error {
 			if !l.options.SkipComments {
 				if inSection {
 					l.comments[currentSection] = append(l.comments[currentSection], value)
+					if currentSection != "" {
+						l.positioned = append(l.positioned, PositionedComment{
+							Section: currentSection,
+							Index:   sectionRecords,
+							Text:    value,
+						})
+					} else {
+						pendingComments = append(pendingComments, value)
+					}
 				} else {
 					pendingComments = append(pendingComments, value)
 				}
@@ -129,6 +141,7 @@ func (l *Loader) groupSections() error {
 			}
 			inSection = true
 			sectionTags = NewTags()
+			sectionRecords = 0
 
 		case code == 0 && value == "ENDSEC":
 			if !inSection {
@@ -142,13 +155,21 @@ func (l *Loader) groupSections() error {
 
 		case code == 2 && inSection && currentSection == "":
 			currentSection = value
-			if len(pendingComments) > 0 {
-				l.comments[currentSection] = append(l.comments[currentSection], pendingComments...)
-				pendingComments = nil
+			for _, comment := range pendingComments {
+				l.comments[currentSection] = append(l.comments[currentSection], comment)
+				l.positioned = append(l.positioned, PositionedComment{
+					Section: currentSection,
+					Index:   0,
+					Text:    comment,
+				})
 			}
+			pendingComments = nil
 
 		case inSection:
 			sectionTags = append(sectionTags, tag)
+			if code == 0 {
+				sectionRecords++
+			}
 		}
 	}
 
@@ -346,6 +367,12 @@ func (l *Loader) GetSection(name string) Tags {
 // GetComments returns code 999 comments grouped by section name.
 func (l *Loader) GetComments() map[string][]string {
 	return l.comments
+}
+
+// GetPositionedComments returns code 999 comments with their original section
+// record position.
+func (l *Loader) GetPositionedComments() []PositionedComment {
+	return l.positioned
 }
 
 // GetSectionOrder returns the section names in file order.
@@ -568,6 +595,7 @@ func (l *Loader) Reload(options *LoaderOptions) error {
 	l.blocks = make(map[string]Tags)
 	l.objects = make(map[string]Tags)
 	l.comments = make(map[string][]string)
+	l.positioned = nil
 	l.sectionOrder = nil
 	l.issues = nil
 

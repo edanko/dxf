@@ -80,7 +80,7 @@ func (u *UCSTableEntry) Transform(m *math.Matrix44) error {
 // Copy creates a deep copy of the UCSTableEntry entity
 func (u *UCSTableEntry) Copy() Entity {
 	ucs := NewUCSTableEntry()
-	ucs.entity = u.entity
+	ucs.entity = u.entity.clone()
 	ucs.Origin = u.Origin
 	ucs.XAxis = u.XAxis
 	ucs.YAxis = u.YAxis

@@ -90,7 +90,7 @@ openspec instructions <artifact> --change "<name>" --json
 | `export` | SVG exporter | legacy exporter subset; use `render`/`addons/drawing` for full output |
 | `text2path` | `addons/text2path.py` | `DONE` — TTF glyph outlines (`addons/text2path`) plus built-in vector fallback |
 | `query` | entity query and parser | expression language, selections, grouping, transforms, explode, traversal |
-| `audit` | auditor, recovery, block cycles | audit/fix/recover/r12strict implemented; duplicate-handle repair and cycle repair remain partial |
+| `audit` | auditor, recovery, block cycles | `DONE` — audit/fix/recover/r12strict, deterministic duplicate-handle repair, and block-cycle repair (`audit/duplicate_handle_fix.go`, `audit/block_cycle_check.go`) |
 | `spatial` | R-tree and entity spatial index | usable |
 | `layouts` | model/paper layouts and viewports | create/rename/delete/activate; block purge absent |
 | `xref` | xref manager and loader | `DONE` — attach/detach/bind/reload, relative paths + search paths, nested loading with cycle detection, BLOCK_RECORD xref flags (`xref_parity_e2e_test.go`) |
@@ -125,10 +125,10 @@ must be verified before implementation starts.
 | OBJECTS section | `sections/objects.py`, `dxfobjects/*` | `PARTIAL` — standard object types typed, unknown retained raw, retrieval by handle (`TestObjectsRetrievableByHandle`) |
 | THUMBNAILIMAGE section | `document.py` | `DONE` — retained opaque and re-emitted (`TestOpaqueSectionsAreRetained`) |
 | ACDSDATA section | `sections/acdsdata.py` | `DONE` — retained opaque and re-emitted |
-| Unknown tag retention | `entities/dxfentity.py` | `PARTIAL` — known entities keep unhandled codes; unknown table entries/blocks/typed objects still drop some tags |
+| Unknown tag retention | `entities/dxfentity.py` | `DONE` — typed entities, table entries, blocks, and objects keep an ordered per-record ledger of unhandled source tags and re-emit them in source order (`TestUnknownEntityCodeRetained`, `TestUnknownTableAndObjectCodesRetained`) |
 | Load/save round trip | `document.py` | `DONE` — all 54 `testdata/*.dxf` round-trip with matching inventories (`TestCorpusRoundTrip`) |
 | Recover mode | `recover.py` | `DONE` — missing ENDSEC/EOF and tagger errors recovered with a report; malformed entity records are skipped and counted; `RecoverFile`/`RecoverReader` add a merged audit pass (`TestRecoveryLoadsTruncatedDocument`, `TestRecoverMalformedEntity`, `audit/recover.go`) |
-| Comments (`999`) | `comments.py` | `PARTIAL` — preserved per section and re-emitted at section start; original position is not retained (`TestCommentsArePreservedUnlessStripped`) |
+| Comments (`999`) | `comments.py` | `DONE` — stored as positioned tokens anchored to the preceding code-0 record count and replayed at the same boundary; `StripComments` clears both maps and positions (`TestCommentsKeepInterEntityPosition`, `TestCommentsArePreservedUnlessStripped`) |
 | R12 strict mode | `r12strict.py` | `DONE` — sanitizer drops non-R12 tables/entities/layers, true-color header variables, records conversion report (`TestR12Downgrade`, `drawing/r12strict.go`) |
 | Binary DXF read/write | `lldxf/tagger.py`, `tagwriter.py` | `DONE` — binary writer emits all sections + EOF with per-code int16/int32/int64/float/raw sizing; ASCII/binary tag streams are value-identical (`TestBinaryASCIIEquivalence`) |
 | Encoding/codepage handling | `lldxf/encoding.py`, `tools/codepage.py` | `DONE` — codepage-aware decode on load (ANSI_1252 etc.), UTF-8 for R2007+, codepage output for older targets (`TestCodepageDecoding`, `TestUTF8AndCodepageOutput`) |
@@ -263,8 +263,8 @@ Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB f
 | Audit protocol and fixers | `audit.py` | `DONE` — pluggable check registry (handles, owners, tables, references, xdata, reactors, extension dictionaries, extents, entity invariant hooks), safe fixers with re-audit, bounded report with severity counts and JSON (`TestRegistryCodes`, `TestCleanDocumentZeroErrors`, `TestReferenceIntegrity`, `TestTableIntegrity`, `audit/parity_test.go`) |
 | Recover damaged files | `recover.py` | `DONE` — `RecoverFile`/`RecoverReader` merge loader recovery (truncated sections, skipped malformed records) with a full audit pass; report attached to the document (`TestRecoverTruncatedFile`, `TestRecoverMalformedEntity`, `audit/recover.go`) |
 | R12 strict checker | `r12strict.py` | `DONE` — strict R12 audit flags OBJECTS/CLASSES sections and opaque object sections against the version profile (`TestStrictR12RejectsObjects`); the sanitizing mode is `drawing/r12strict.go` |
-| Tag/validator checks | `lldxf/validator.py`, `lldxf/repair.py` | `PARTIAL` — loader recovers truncated sections and skips malformed records with a report (`TestRecoverTruncatedFile`); tag-level rewriting is not modeled |
-| Orphan/cycle repair | `audit.py` | `PARTIAL` — missing/dangling entity owners resolved to *Model_Space block record, missing table entries created (`TestMissingOwnerReportedAndFixed`, `TestMissingLayerZeroReportedAndFixed`); duplicate handles are reported, not repaired; cycle detection is not modeled |
+| Tag/validator checks | `lldxf/validator.py`, `lldxf/repair.py` | `DONE` — pre-bind validation reports section terminators, required handles, numeric ranges, and duplicate handles with code/value/handle; recover mode inserts missing ENDBLK/ENDSEC and assigns fresh handles, then re-validates (`TestTagValidationReportsCodeValueHandle`, `TestRepairInsertsMissingBlockTerminator`) |
+| Orphan/cycle repair | `audit.py` | `DONE` — missing/dangling owners and missing table entries fixed; duplicate handles repaired deterministically with references left untouched when ambiguous; INSERT cycles broken by removing the closing edge while retaining block definitions (`TestDuplicateHandleNamesBothObjects`, `TestBlockCycleRepair`) |
 | Header/table/block/object consistency | `audit.py` | `DONE` — required default entries, duplicate/empty entry names, owner mismatches, block record/layout links, dictionary entries, header extents (`TestTableIntegrity`, `TestDictionaryEntryUnresolved`, `TestExtentsAndSplineHook`) |
 
 ### 8. Query, selection, transformation, decomposition
@@ -276,7 +276,7 @@ Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB f
 | `groupby` | `groupby.py` | `DONE` — `query.GroupByAttribute`/`GroupHandles` over layer, type, color, linetype, text and `attr:TAG` INSERT attributes; grouping tests in `query/parity_test.go` |
 | Transform entities/layouts | `transform.py` | `DONE` — matrix builders (`RotationMatrix`, `ScaleMatrix`, `NonUniformScaleMatrix`) plus `Selection.ApplyM` and `Drawing.TransformSelection`/`TransformBlock`/`TransformDrawing`; `TestTransformBlockAndDrawingE2E` |
 | Explode INSERT/POLYLINE/MTEXT/etc. | `explode.py`, `addons/mtextsurrogate` | `DONE` — INSERT, POLYLINE, HATCH, LEADER, MLEADER and DIMENSION (extension lines, dimension line, arrow ticks, text); MText surrogate formatting is not modelled (MText explodes to itself); `TestExplodeDimension` and the dimension test in `query/parity_test.go` |
-| Bounding box of entities/layouts | `bbox.py` | `PARTIAL` — per-entity `BBox()` feeds `query.EntityContext`/`Selection.Bounds` and layout extents (`Drawing.Extents`, `LayoutExtents`); exotic placeholder entities keep degenerate boxes |
+| Bounding box of entities/layouts | `bbox.py` | `DONE` — per-entity `BBox()` feeds `query.EntityContext`/`Selection.Bounds` and layout extents (`Drawing.Extents`, `LayoutExtents`); decoded proxy geometry contributes its real box, and geometry-less records report no extents rather than zero-origin bounds (`TestProxyBBoxFromDecodedGraphics`, `TestEmptySelectionBounds`) |
 | Disassemble to primitives | `disassemble.py` | `DONE` — `query.Disassemble` flattens nested inserts through composed insert matrices, clears handles and reports cycles; `Drawing.DisassembleModel`; nested/cycle tests in `query/parity_test.go` |
 | Upright/rotate-to-view | `upright.py` | `DONE` — `entity.MakeUpright` for TEXT, MTEXT (attachment corner mirroring) and ATTRIB, `Drawing.MakeUprightAll`; `TestQuerySelectionsAndTransformsE2E` |
 | Reorder/seqend repair | `reorder.py` | `DONE` — `Drawing.DrawOrder`/`SendToBack`/`BringToFront`/`SetDrawOrder` persisted as `SORTENTSTABLE` (`object.NewSortEntsTable`, applied on load by `Drawing.ApplySortEntsTables`); pre-R13 drawings fall back to physical entity order; `TestDrawOrderRoundTripE2E`, `TestDrawOrderR12Fallback`; SEQEND repair is not applicable (no SEQEND model) |
@@ -407,10 +407,12 @@ on complete data; add-ons and CLI depend on everything.
    go test -run TestEzdxfCrossCheck .
    ```
 
-   It compares version, entity/block/subentity inventory, source TABLES entries,
-   and typed OBJECTS records for every `testdata/*.dxf`. Object records expose
-   both the source wire type and the typed model, including collection member
-   handles; `MESHVERTEXCACHE` records are read from the source stream because
+   It compares version, entity/block/subentity inventory and a stable typed-field
+   projection (entity geometry/text, table flags, dictionary/layout/group
+   fields) for every `testdata/*.dxf`, in addition to source TABLES entries and
+   typed OBJECTS records. Object records expose both the source wire type and
+   the typed model, including collection member handles; `MESHVERTEXCACHE`
+   records are read from the source stream because
    ezdxf does not expose them as graphics. Table/object expectations come from
    raw source records so ezdxf auto-created defaults (layers, dictionaries,
    layouts) do not create false diffs. Set
@@ -430,8 +432,10 @@ on complete data; add-ons and CLI depend on everything.
 - Rendering gaps closed by change 16: DIMENSION block content with measured
   text, mesh/polyface face rendering, all arrow heads, CTB/STB plot-style
   overrides, SHX loading/metrics, and ISO hatch patterns.
-- Audit gaps: duplicate handles are reported, not repaired; cycle repair is not
-  modeled.
+- Audit remaining limitation: ambiguous references to a repaired duplicate
+  handle are left unchanged (the target is ambiguous by construction); the
+  original duplicate issue and any unresolved owner/reactor issues stay in the
+  report for manual follow-up.
 - Add-on/tool gaps: none from changes 16 and 17; `xqt` is intentionally not
   ported because the Go package has no Qt dependency.
 - The repository has a large untracked `.agents/`, `.dsh/`, `.zcode/` skill
@@ -464,5 +468,6 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-10 | change 17 `addons-remaining-parity` | done | GUI-free browser and ACIS browser extraction; external DWG converter with actionable missing-tool errors and atomic output; streaming R12 exporter converting splines/ellipses/LWPolylines/MTEXT/meshes; linear and angular dimension-line generators; genetic algorithm engine; Menger sponge and Sierpinski pyramid generators; `SubscriptAttributes` mixin. Tests: `addons/browser/browser_test.go`, `addons/acisbrowser/acisbrowser_test.go`, `addons/dwg/dwg_test.go`, `addons/r12export/r12export_test.go`, `addons/dimlines/dimlines_test.go`, `addons/genetic/genetic_test.go`, `addons/fractals/fractals_test.go`, `addons/mixins/mixins_test.go`. |
 | 2026-11-10 | change 18 `dev-tools-parity` | done | `dxf analyze` tag/entity/table/block/object statistics; `dxf difftags` structural added/removed/changed tag paths with non-zero exit on differences; `dxf debug` version/encoding/section/loader/recovery diagnostics; reusable `standards` rule engine with structured violations, configurable severities and `dxf standards`; ZIP manager with atomic creation/extraction, per-entry path traversal and symlink rejection, plus `dxf zip`/`dxf unzip`. Tests: `cmd/dxf/devtools_test.go`, `cmd/dxf/zip_test.go`, `standards/standards_test.go`, `filemanagement/zip_test.go`. |
 | 2026-11-11 | change 16 `render-plot-font-parity` | done | DIMENSION entities render referenced dimension blocks fully with measured text fallback; MESH and POLYFACE/POLYMESH faces emit closed filled or wireframe paths; all arrow-head styles (closed/open, arch tick, oblique, box, diamond, circle, dot) implemented; shared STB/binary CTB plot-style model with color, true color, lineweight and screening overrides applied during scene building; SHX shape/unifont loader with glyph metrics and TTF advance/ascent/descent metrics API; ISO `ACAD_ISO02W100`–`ACAD_ISO15W100` hatch patterns with lookup and render expansion. Tests: `render/entities_parity_test.go`, `render/render_test.go`, `addons/acadctb/binary_test.go`, `addons/acadctb/stb_test.go`, `text2path/shx_test.go`, `text2path/metrics_test.go`, `patterns/patterns_test.go`. |
+| 2026-11-11 | change `core-fidelity-parity` | done | Ordered per-record retention for entities/tables/blocks/objects; positioned comments; per-type entity/table/object conformance matrices and golden round trips; deep-copy isolation for base tags/XDATA, ACIS bodies/regions, and MPolygon state; decoded proxy bounding boxes and empty-selection bounds; pre-bind tag validation and recover repair (terminators, handles, ranges); deterministic duplicate-handle and block-cycle repair. Remaining limitation: ambiguous references to a repaired duplicate handle are left unresolved and reported. Tests: `retention_comments_test.go`, `conformance_test.go`, `table_object_conformance_test.go`, `entity/copy_isolation_test.go`, `entity/proxy_bbox_test.go`, `query/empty_bounds_test.go`, `tag_validation_test.go`, `audit/block_cycle_fix_test.go`. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

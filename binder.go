@@ -95,6 +95,8 @@ func FromReaderWithOptions(r io.Reader, options *LoadOptions) (*drawing.Drawing,
 		}
 		report.Issues = append(report.Issues, err.Error())
 	}
+	allTags, validationIssues := applyTagValidation(allTags, options.Recover)
+	report.Issues = append(report.Issues, validationIssues...)
 
 	loader := lldxf.NewLoader(&lldxf.LoaderOptions{
 		LoadAllSections: true,
@@ -184,6 +186,8 @@ func FromBinaryReaderWithOptions(r io.Reader, options *LoadOptions) (*drawing.Dr
 		}
 		report.Issues = append(report.Issues, err.Error())
 	}
+	allTags, validationIssues := applyTagValidation(allTags, options.Recover)
+	report.Issues = append(report.Issues, validationIssues...)
 
 	loader := lldxf.NewLoader(&lldxf.LoaderOptions{
 		LoadAllSections: true,
@@ -280,6 +284,7 @@ func (b *documentBinder) bind() error {
 	b.observeAllHandles()
 	b.d.SetSectionOrder(b.loader.GetSectionOrder())
 	b.d.SetComments(b.loader.GetComments())
+	b.d.SetPositionedComments(b.loader.GetPositionedComments())
 
 	b.bindHeader()
 	b.bindClasses()

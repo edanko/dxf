@@ -319,7 +319,7 @@ func (s *Spline) Transform(m math.Matrix44) error {
 // Copy creates a deep copy of the Spline entity
 func (s *Spline) Copy() Entity {
 	spline := NewSpline(s.Degree)
-	spline.entity = s.entity
+	spline.entity = s.entity.clone()
 	spline.Normal = []float64{s.Normal[0], s.Normal[1], s.Normal[2]}
 	spline.Flag = s.Flag
 	spline.Knots = make([]float64, len(s.Knots))

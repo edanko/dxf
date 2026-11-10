@@ -91,7 +91,7 @@ func (o *OLE2Frame) BBox() ([]float64, []float64) {
 
 func (o *OLE2Frame) Copy() Entity {
 	ole := NewOLE2Frame()
-	ole.entity = o.entity
+	ole.entity = o.entity.clone()
 	ole.BinaryData = make([]byte, len(o.BinaryData))
 	for i, b := range o.BinaryData {
 		ole.BinaryData[i] = b

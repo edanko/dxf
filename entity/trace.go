@@ -199,6 +199,6 @@ func (t *Trace) Transform(m dxfmath.Matrix44) error {
 // Copy creates a deep copy of the Trace entity
 func (t *Trace) Copy() Entity {
 	trace := NewTrace(t.Points, t.Plane, t.Thickness)
-	trace.entity = t.entity
+	trace.entity = t.entity.clone()
 	return trace
 }
