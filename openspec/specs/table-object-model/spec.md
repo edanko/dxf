@@ -1,7 +1,6 @@
 # table-object-model Specification
 
 ## Purpose
-
 Defines the document's symbol tables, table entries, and objects, including
 their typed fields, ownership relationships, and lookup behavior.
 

@@ -1,7 +1,6 @@
 # geometry-math Specification
 
 ## Purpose
-
 Defines the geometric and linear-algebra primitives the library exposes, their
 coordinate conventions, and the numeric tolerance guarantees callers can rely on.
 

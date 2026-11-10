@@ -1,7 +1,6 @@
 # path-render Specification
 
 ## Purpose
-
 Defines how entities become drawable paths and how those paths are rendered to
 vector and raster backends with correct styling and layout placement.
 

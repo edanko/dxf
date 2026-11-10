@@ -1,7 +1,6 @@
 # dxf-version-encoding Specification
 
 ## Purpose
-
 Defines how the library detects, normalizes, converts, and writes DXF releases
 and how it encodes text in ASCII and binary files across those releases.
 

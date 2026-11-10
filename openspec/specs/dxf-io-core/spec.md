@@ -1,7 +1,6 @@
 # dxf-io-core Specification
 
 ## Purpose
-
 Defines how the library loads, binds, preserves, and writes a complete DXF
 document so that real-world drawings can be read and modified without data loss.
 

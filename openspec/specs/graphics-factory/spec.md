@@ -1,7 +1,6 @@
 # graphics-factory Specification
 
 ## Purpose
-
 Defines the high-level document authoring API: spaces, factories, blocks,
 layouts, groups, the entity database, and selection helpers.
 

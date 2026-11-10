@@ -1,7 +1,6 @@
 # audit-recover Specification
 
 ## Purpose
-
 Defines how the library validates a document, reports integrity problems, repairs
 safe defects, and recovers usable content from damaged files.
 

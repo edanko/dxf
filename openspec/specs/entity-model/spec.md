@@ -1,7 +1,6 @@
 # entity-model Specification
 
 ## Purpose
-
 Defines the typed entity model, the attributes every entity shares, and the
 operations the library provides on entities regardless of their concrete type.
 
