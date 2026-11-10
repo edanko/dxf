@@ -420,10 +420,9 @@ func (d *Dimension) Transform(m math.Matrix44) error {
 	return nil
 }
 
-// Explode decomposes the dimension into LINE segments along its definition
-// geometry: extension lines from the extension points to the definition point
-// and the dimension line between the extension-point projections. Text is not
-// exploded.
+// Explode decomposes the dimension into its constituent entities: extension
+// lines, the dimension line, arrow ticks at the extension points, and the
+// dimension text when present.
 func (d *Dimension) Explode() ([]Entity, error) {
 	var out []Entity
 	addLine := func(a, b math.Vec3) {
@@ -441,6 +440,32 @@ func (d *Dimension) Explode() ([]Entity, error) {
 	}
 	if !d.extensionPoint1.IsEqual(d.extensionPoint2, 1e-9) {
 		addLine(d.extensionPoint1, d.extensionPoint2)
+		// Arrow ticks at both ends along the dimension line direction.
+		size := 0.18
+		height := 0.18
+		if d.dimStyle != nil {
+			if d.dimStyle.ArrowSize > 0 {
+				size = d.dimStyle.ArrowSize
+			}
+			if d.dimStyle.TextHeight > 0 {
+				height = d.dimStyle.TextHeight
+			}
+		}
+		dir := d.extensionPoint2.Sub(d.extensionPoint1)
+		if ln := dir.Length(); ln > 1e-12 {
+			unit := dir.Mul(1.0 / ln)
+			t1 := d.extensionPoint1.Sub(unit.Mul(size))
+			addLine(t1, d.extensionPoint1)
+			t2 := d.extensionPoint2.Add(unit.Mul(size))
+			addLine(d.extensionPoint2, t2)
+		}
+		if d.text != "" {
+			tx := NewText()
+			tx.Coord1 = []float64{d.textMidpoint.X(), d.textMidpoint.Y(), d.textMidpoint.Z()}
+			tx.Height = height
+			tx.Value = d.text
+			out = append(out, tx)
+		}
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("dimension: no definition geometry to explode")

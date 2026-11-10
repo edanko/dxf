@@ -67,6 +67,7 @@ type Drawing struct {
 	layouts      map[string]*layoutEntry
 	entityLayout map[string]string
 	activeLayout string
+	selectionSets map[string]*query.Selection
 	transaction  *DrawingTransaction
 	xrefManager  *xref.XRefManager
 	xrefLoader   *xref.Loader

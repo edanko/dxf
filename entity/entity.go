@@ -225,6 +225,9 @@ func (e *entity) Linetype() string { return e.linetype }
 func (e *entity) SetLinetype(name string) { e.linetype = name }
 
 // ColorRGB returns the true color RGB value (code 420), 0 when unset.
+// Color returns the color index (group code 62).
+func (e *entity) Color() color.ColorNumber { return e.color }
+
 func (e *entity) ColorRGB() int { return e.trueColor }
 
 // SetColorRGB sets the true color RGB value (code 420).

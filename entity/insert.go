@@ -481,6 +481,11 @@ func (i *Insert) Transform(m dxfmath.Matrix44) error {
 // insertMatrix composes the block-to-world transform: scale, Z rotation,
 // then translation to the insertion point (plus the block definition base
 // point offset).
+// InsertMatrix returns the composed insert placement matrix (base point,
+// scale, rotation, insertion point) mapping block-definition coordinates to
+// the insert coordinate system.
+func (i *Insert) InsertMatrix() dxfmath.Matrix44 { return i.insertMatrix() }
+
 func (i *Insert) insertMatrix() dxfmath.Matrix44 {
 	m := dxfmath.NewMatrix44()
 	scl := dxfmath.Scale(i.xScale, i.yScale, i.zScale)

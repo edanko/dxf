@@ -705,6 +705,8 @@ func (b *documentBinder) bindObjects() {
 		objects = objects.Add(o)
 	}
 	b.d.SetObjects(objects)
+	// Model-space draw order: SORTENTSTABLE records reorder the entities.
+	b.d.ApplySortEntsTables()
 }
 
 func (b *documentBinder) bindOpaqueSections() {

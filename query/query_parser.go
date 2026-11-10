@@ -7,7 +7,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/entity"
 )
 
@@ -36,6 +35,7 @@ const (
 	TokenContains
 	TokenMatches
 	TokenIn
+	TokenMinus
 )
 
 type Token struct {
@@ -95,6 +95,8 @@ func tokenTypeName(t TokenType) string {
 		return "MATCHES"
 	case TokenIn:
 		return "IN"
+	case TokenMinus:
+		return "-"
 	default:
 		return fmt.Sprintf("Token(%d)", t)
 	}
@@ -163,6 +165,10 @@ func (l *Lexer) Lex() ([]Token, error) {
 
 		case ch == ',':
 			l.tokens = append(l.tokens, Token{Type: TokenComma, Value: ",", Pos: l.position})
+			l.position++
+
+		case ch == '-':
+			l.tokens = append(l.tokens, Token{Type: TokenMinus, Value: "-", Pos: l.position})
 			l.position++
 
 		default:
@@ -328,6 +334,42 @@ type ComparisonExpression struct {
 	Property string
 	Operator Operator
 	Value    interface{}
+	Pos      int
+}
+
+// CallExpression is a bare function-call predicate such as
+// bbox_intersects(0, 0, 10, 10) or has_xdata('MYAPP').
+type CallExpression struct {
+	Fn   string
+	Args []interface{}
+	Pos  int
+}
+
+func (e *CallExpression) Match(ent entity.Entity) bool {
+	r, ok := ContextOf(ent).Call(e.Fn, e.Args).(bool)
+	return ok && r
+}
+
+func (e *CallExpression) String() string {
+	return fmt.Sprintf("%s(%v)", e.Fn, e.Args)
+}
+
+// FuncComparison compares the value of a query function such as
+// attr('SIZE') == '10'.
+type FuncComparison struct {
+	Fn       string
+	Args     []interface{}
+	Operator Operator
+	Value    interface{}
+	Pos      int
+}
+
+func (e *FuncComparison) Match(ent entity.Entity) bool {
+	return compareValues(ContextOf(ent).Call(e.Fn, e.Args), e.Value, e.Operator)
+}
+
+func (e *FuncComparison) String() string {
+	return fmt.Sprintf("%s(%v) %s %v", e.Fn, e.Args, operatorString(e.Operator), e.Value)
 }
 
 type Operator int
@@ -345,8 +387,7 @@ const (
 )
 
 func (e *ComparisonExpression) Match(ent entity.Entity) bool {
-	propValue := getEntityProperty(ent, e.Property)
-	return compareValues(propValue, e.Value, e.Operator)
+	return compareValues(ContextOf(ent).Property(e.Property), e.Value, e.Operator)
 }
 
 func (e *ComparisonExpression) String() string {
@@ -520,9 +561,33 @@ func (p *Parser) parseNot() (Expression, error) {
 }
 
 func (p *Parser) parseComparison() (Expression, error) {
-	property, err := p.parseProperty()
+	property, propPos, err := p.parseProperty()
 	if err != nil {
 		return nil, err
+	}
+
+	// property(...) -> function call predicate or function comparison
+	if p.check(TokenLParen) {
+		p.pos++
+		args, err := p.parseArgs()
+		if err != nil {
+			return nil, err
+		}
+		if !p.consume(TokenRParen) {
+			return nil, p.unexpected(")")
+		}
+		if p.checkOperator() {
+			op, err := p.parseOperator()
+			if err != nil {
+				return nil, err
+			}
+			value, err := p.parseValue()
+			if err != nil {
+				return nil, err
+			}
+			return &FuncComparison{Fn: property, Args: args, Operator: op, Value: value, Pos: propPos}, nil
+		}
+		return &CallExpression{Fn: property, Args: args, Pos: propPos}, nil
 	}
 
 	op, err := p.parseOperator()
@@ -539,16 +604,76 @@ func (p *Parser) parseComparison() (Expression, error) {
 		Property: property,
 		Operator: op,
 		Value:    value,
+		Pos:      propPos,
 	}, nil
 }
 
-func (p *Parser) parseProperty() (string, error) {
+func (p *Parser) parseProperty() (string, int, error) {
 	token := p.current()
 	if token.Type != TokenIdentifier {
-		return "", p.unexpected("property name")
+		return "", 0, p.unexpected("property name")
 	}
 	p.pos++
-	return token.Value, nil
+	return token.Value, token.Pos, nil
+}
+
+// parseArgs parses a comma-separated argument list (numbers, strings,
+// identifiers used as bare values).
+func (p *Parser) parseArgs() ([]interface{}, error) {
+	var args []interface{}
+	if p.check(TokenRParen) {
+		return args, nil
+	}
+	for {
+		token := p.current()
+		switch token.Type {
+		case TokenNumber:
+			p.pos++
+			if strings.Contains(token.Value, ".") {
+				f, err := strconv.ParseFloat(token.Value, 64)
+				if err != nil {
+					return nil, p.unexpected("number")
+				}
+				args = append(args, f)
+			} else {
+				i, err := strconv.ParseInt(token.Value, 10, 64)
+				if err != nil {
+					return nil, p.unexpected("number")
+				}
+				args = append(args, int(i))
+			}
+		case TokenString:
+			p.pos++
+			args = append(args, strings.Trim(token.Value, "\"'"))
+		case TokenMinus:
+			p.pos++
+			num := p.current()
+			if num.Type != TokenNumber {
+				return nil, p.unexpected("number after '-'")
+			}
+			p.pos++
+			f, err := strconv.ParseFloat("-"+num.Value, 64)
+			if err != nil {
+				return nil, p.unexpected("number after '-'")
+			}
+			args = append(args, f)
+		default:
+			return nil, p.unexpected("argument")
+		}
+		if p.consume(TokenComma) {
+			continue
+		}
+		return args, nil
+	}
+}
+
+func (p *Parser) checkOperator() bool {
+	switch p.current().Type {
+	case TokenEquals, TokenNotEquals, TokenGreaterThan, TokenGreaterEquals,
+		TokenLessThan, TokenLessEquals, TokenContains, TokenMatches, TokenIn:
+		return true
+	}
+	return false
 }
 
 func (p *Parser) parseOperator() (Operator, error) {
@@ -665,8 +790,8 @@ func getEntityProperty(ent entity.Entity, propName string) interface{} {
 	case "handle":
 		return ent.Handle()
 	case "color":
-		if colorable, ok := ent.(interface{ Color() color.ColorNumber }); ok {
-			return int(colorable.Color())
+		if col, ok := colorValue(ent); ok {
+			return col
 		}
 	case "linetype":
 		if l, ok := ent.(interface{ Linetype() string }); ok {

@@ -273,16 +273,17 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
-| Query language | `query.py`, `queryparser.py` | `PARTIAL` |
-| `select` filters | `select.py` | `PARTIAL` |
-| `groupby` | `groupby.py` | `ABSENT` |
-| Transform entities/layouts | `transform.py` | `PARTIAL` |
-| Explode INSERT/POLYLINE/MTEXT/etc. | `explode.py`, `addons/mtextsurrogate` | `PARTIAL` |
-| Bounding box of entities/layouts | `bbox.py` | `PARTIAL` |
-| Disassemble to primitives | `disassemble.py` | `ABSENT` |
-| Upright/rotate-to-view | `upright.py` | `ABSENT` |
-| Reorder/seqend repair | `reorder.py` | `ABSENT` |
-| Block reference traversal | `blkrefs.py` | `PARTIAL` |
+| Query language | `query.py`, `queryparser.py` | `DONE` — expression lexer plus function predicates (`bbox_intersects`, `bbox_within`, `near`, `has_xdata`, `xdata_value`, `attr`), compiled predicates with position-carrying errors, spatial pre-filtering (`query.ExecuteWithFilter`) and document-level `Drawing.QueryExpression`; tests in `query/parity_test.go` |
+| `select` filters | `select.py` | `DONE` — `query.EntitySelector` filters plus handle-based `query.Selection` sets with union/intersection/difference and named sets on the drawing (`SetSelectionSet`); `TestQuerySelectionsAndTransformsE2E` |
+| `groupby` | `groupby.py` | `DONE` — `query.GroupByAttribute`/`GroupHandles` over layer, type, color, linetype, text and `attr:TAG` INSERT attributes; grouping tests in `query/parity_test.go` |
+| Transform entities/layouts | `transform.py` | `DONE` — matrix builders (`RotationMatrix`, `ScaleMatrix`, `NonUniformScaleMatrix`) plus `Selection.ApplyM` and `Drawing.TransformSelection`/`TransformBlock`/`TransformDrawing`; `TestTransformBlockAndDrawingE2E` |
+| Explode INSERT/POLYLINE/MTEXT/etc. | `explode.py`, `addons/mtextsurrogate` | `DONE` — INSERT, POLYLINE, HATCH, LEADER, MLEADER and DIMENSION (extension lines, dimension line, arrow ticks, text); MText surrogate formatting is not modelled (MText explodes to itself); `TestExplodeDimension` and the dimension test in `query/parity_test.go` |
+| Bounding box of entities/layouts | `bbox.py` | `PARTIAL` — per-entity `BBox()` feeds `query.EntityContext`/`Selection.Bounds` and layout extents (`Drawing.Extents`, `LayoutExtents`); exotic placeholder entities keep degenerate boxes |
+| Disassemble to primitives | `disassemble.py` | `DONE` — `query.Disassemble` flattens nested inserts through composed insert matrices, clears handles and reports cycles; `Drawing.DisassembleModel`; nested/cycle tests in `query/parity_test.go` |
+| Upright/rotate-to-view | `upright.py` | `DONE` — `entity.MakeUpright` for TEXT, MTEXT (attachment corner mirroring) and ATTRIB, `Drawing.MakeUprightAll`; `TestQuerySelectionsAndTransformsE2E` |
+| Reorder/seqend repair | `reorder.py` | `DONE` — `Drawing.DrawOrder`/`SendToBack`/`BringToFront`/`SetDrawOrder` persisted as `SORTENTSTABLE` (`object.NewSortEntsTable`, applied on load by `Drawing.ApplySortEntsTables`); pre-R13 drawings fall back to physical entity order; `TestDrawOrderRoundTripE2E`, `TestDrawOrderR12Fallback`; SEQEND repair is not applicable (no SEQEND model) |
+| Block reference traversal | `blkrefs.py` | `DONE` — `query.TraverseBlockRefs` depth-first insert walk with cycle reporting, exposed as `Drawing.TraverseBlockRefs`; traversal/cycle tests in `query/parity_test.go` |
+| Zoom/extents fitting | view fitting (CLI `zoom`) | `DONE` — `drawing.FitExtentsToViewport`, `Drawing.FitView`/`FitLayoutView` (aspect ratio + margin, zoom factor); `TestQuerySelectionsAndTransformsE2E` |
 
 ### 9. XRef, images, underlays, clipping
 
@@ -324,8 +325,8 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 | Comments | `comments.py` | `PARTIAL` |
 | Fonts, SHX/TTF, text metrics | `fonts/*`, `tools/text*.py` | `STUB` |
 | ISO hatch patterns / standards | `tools/_iso_pattern.py`, `standards.py` | `PARTIAL` |
-| Revcloud | `revcloud.py` | `ABSENT` |
-| Zoom/extents helpers | `zoom.py` | `ABSENT` |
+| Revcloud | `revcloud.py` | `DONE` — `query.RevCloudRectangle`/`RevCloudArcs` (closed bulged LWPOLYLINE, configurable arc chord and bulge) plus `Space.AddRevCloud`/`Drawing.AddRevCloud`; revcloud tests in `query/parity_test.go` and `TestQuerySelectionsAndTransformsE2E` |
+| Zoom/extents helpers | `zoom.py` | `DONE` — `drawing.FitExtentsToViewport` and `Drawing.FitView`/`FitLayoutView`; `TestQuerySelectionsAndTransformsE2E` |
 | Analyze/difftags/debug tools | `tools/analyze.py`, `difftags.py` | `ABSENT` |
 
 ### 12. Colors, enums, units, standards
