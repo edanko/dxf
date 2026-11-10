@@ -72,16 +72,50 @@ type Region struct {
 	// Geometry
 	OuterLoop *Loop
 
-	// satLines carries the retained ACIS text payload (code 90 count, then
-	// code 10 lines). Payload-bearing records re-emit verbatim.
+	// Version is the AcDbModelerGeometry version (code 70).
+	Version int
+
+	// satLines carries the retained ACIS text payload. satCodes records the
+	// wire code for each line (10 for legacy records, 1 for SAT records).
 	satLines []string
+	satCodes []int
+	sabData  []byte
+	acisInfo ACISMetadata
 }
 
 // SATLines returns the stored ACIS text payload lines.
 func (r *Region) SATLines() []string { return r.satLines }
 
 // SetSATLines replaces the ACIS text payload.
-func (r *Region) SetSATLines(lines []string) { r.satLines = lines }
+func (r *Region) SetSATLines(lines []string) {
+	r.satLines = append([]string(nil), lines...)
+	r.satCodes = normalizeSATCodes(r.satLines, nil)
+}
+
+// SetSATPayload replaces the ACIS text payload and preserves each line's wire
+// group code.
+func (r *Region) SetSATPayload(lines []string, codes []int) {
+	r.satLines = append([]string(nil), lines...)
+	r.satCodes = normalizeSATCodes(r.satLines, codes)
+}
+
+// ACISInfo returns the shallow ACIS metadata parsed from the payload.
+func (r *Region) ACISInfo() ACISMetadata { return r.acisInfo }
+
+// SetACISInfo replaces the ACIS metadata.
+func (r *Region) SetACISInfo(m ACISMetadata) { r.acisInfo = m }
+
+// SetACISBinaryData attaches a SAB payload and updates its metadata.
+func (r *Region) SetACISBinaryData(data []byte) {
+	r.sabData = append([]byte(nil), data...)
+	r.acisInfo = ParseSABMetadata(r.sabData)
+}
+
+// ACISBinaryData returns a copy of the retained SAB payload.
+func (r *Region) ACISBinaryData() []byte { return append([]byte(nil), r.sabData...) }
+
+// HasBinaryACIS reports whether the record carries SAB data.
+func (r *Region) HasBinaryACIS() bool { return r.acisInfo.IsBinary() || len(r.sabData) > 0 }
 
 // RawWholeRecord reports whole-record retention for payload-bearing records.
 func (r *Region) RawWholeRecord() bool { return len(r.satLines) > 0 }
@@ -94,9 +128,11 @@ func (r *Region) BBox() ([]float64, []float64) { return []float64{0, 0, 0}, []fl
 // retained tags verbatim; an empty region writes the subclass markers only.
 func (r *Region) Format(f format.Formatter) {
 	r.entity.Format(f)
-	if len(r.satLines) > 0 {
-		return
+	f.WriteString(100, "AcDbModelerGeometry")
+	if r.Version != 0 {
+		f.WriteInt(70, r.Version)
 	}
+	writeSATPayload(f, r.satLines, r.satCodes)
 	f.WriteString(100, "AcDbRegion")
 }
 
@@ -302,7 +338,9 @@ type Body struct {
 	// SAT data (if loaded from file)
 	SATData    []byte
 	SATVersion int
-	satLines   []string // retained ACIS text payload (90 count, 10 lines)
+	satLines   []string // retained ACIS text payload
+	satCodes   []int    // wire code per SAT line
+	acisInfo   ACISMetadata
 
 	// Sub-entities (for complex bodies)
 	SubBodies []*Body
@@ -449,17 +487,50 @@ func (b *Body) IsEntity() bool {
 func (b *Body) SATLines() []string { return b.satLines }
 
 // SetSATLines replaces the ACIS text payload.
-func (b *Body) SetSATLines(lines []string) { b.satLines = lines }
+func (b *Body) SetSATLines(lines []string) {
+	b.satLines = append([]string(nil), lines...)
+	b.satCodes = normalizeSATCodes(b.satLines, nil)
+}
+
+// SetSATPayload replaces the ACIS text payload and preserves each line's wire
+// group code.
+func (b *Body) SetSATPayload(lines []string, codes []int) {
+	b.satLines = append([]string(nil), lines...)
+	b.satCodes = normalizeSATCodes(b.satLines, codes)
+}
+
+// ACISInfo returns the shallow ACIS metadata parsed from the payload.
+func (b *Body) ACISInfo() ACISMetadata { return b.acisInfo }
+
+// SetACISInfo replaces the ACIS metadata.
+func (b *Body) SetACISInfo(m ACISMetadata) { b.acisInfo = m }
+
+// SetACISBinaryData attaches a SAB payload and updates its metadata.
+func (b *Body) SetACISBinaryData(data []byte) {
+	b.SATData = append([]byte(nil), data...)
+	b.acisInfo = ParseSABMetadata(b.SATData)
+}
+
+// ACISBinaryData returns a copy of the retained SAB payload.
+func (b *Body) ACISBinaryData() []byte { return append([]byte(nil), b.SATData...) }
+
+// HasBinaryACIS reports whether the record carries SAB data.
+func (b *Body) HasBinaryACIS() bool { return b.acisInfo.IsBinary() || len(b.SATData) > 0 }
 
 // RawWholeRecord reports whole-record retention for payload-bearing records.
-func (b *Body) RawWholeRecord() bool { return len(b.satLines) > 0 }
+func (b *Body) RawWholeRecord() bool { return len(b.satLines) > 0 || len(b.SATData) > 0 }
 
 func (b *Body) Format(f format.Formatter) {
 	b.entity.Format(f)
-	if len(b.satLines) > 0 {
-		return // retained tags carry the complete record verbatim
-	}
 	f.WriteString(100, "AcDbModelerGeometry")
+	if len(b.satLines) > 0 {
+		if b.Version != 0 {
+			f.WriteInt(70, b.Version)
+		}
+		writeSATPayload(f, b.satLines, b.satCodes)
+		f.WriteString(100, "AcDbBody")
+		return
+	}
 
 	// Write ACIS version
 	if b.Version != 0 {

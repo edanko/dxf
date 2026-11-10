@@ -16,9 +16,23 @@ type AcadTable struct {
 	Direction   int       // 70 - Table direction (0=Up, 1=Down, 2=Left, 3=Right)
 	RowHeight   float64   // 40 - Row height
 	ColWidth    float64   // 41 - Column width
-	RowCount    int       // 75 - Number of rows
-	ColCount    int       // 76 - Number of columns
-	Flags       int       // 280 - Table flags
+	RowCount    int       // 91 - Number of rows
+	ColCount    int       // 92 - Number of columns
+	Flags       int       // legacy table flags (not emitted)
+
+	// ACAD_TABLE wire layout
+	BlockName                    string    // 2 - anonymous table block name (*T...)
+	TableStyleHandle             string    // 342 - TABLESTYLE object handle
+	BlockRecordHandle            string    // 343 - associated block record handle
+	HorizontalDirection          []float64 // 11, 21, 31 - horizontal direction vector
+	TableValue                   int       // 90 - table value flag
+	Version                      int       // 280 - table data version
+	OverrideFlag                 int       // 93
+	BorderColorOverrideFlag      int       // 94
+	BorderLineweightOverrideFlag int       // 95
+	BorderVisibilityOverrideFlag int       // 96
+	RowHeights                   []float64 // 141 - per-row heights
+	ColWidths                    []float64 // 142 - per-column widths
 
 	// Table content
 	Rows               []*TableRow // Row data
@@ -40,8 +54,8 @@ type TableRow struct {
 // TableCell represents a single cell in a table
 type TableCell struct {
 	Text       string        // Cell text content
-	CellType   CellType      // Type of cell
-	Alignment  CellAlignment // Text alignment
+	CellType   CellType      // Type of cell (171)
+	Alignment  CellAlignment // Text alignment (170)
 	TextColor  int           // Text color
 	BgColor    int           // Background color
 	GridColor  int           // Grid line color
@@ -49,6 +63,28 @@ type TableCell struct {
 	MergedCell *MergedCell   // Merged cell information
 	CellStyle  *CellStyle    // Cell style override
 	DataValue  any           // Data value for binding
+
+	// Cell coordinates and raw wire attributes
+	Row          int     // zero-based row index
+	Col          int     // zero-based column index
+	Flags        int     // 172 - cell flags
+	Merged       bool    // 173 - cell is covered by a merged master
+	AutoFit      bool    // 174 - autofit option
+	BorderWidth  int     // 175 - merged cell width (column span)
+	BorderHeight int     // 176 - merged cell height (row span)
+	OverrideFlag int     // 91 - cell override flag
+	VirtualEdge  int     // 178 - virtual edge flag
+	ExtendedFlag int     // 92 - extended cell flags
+	ValueType    int     // 93 - cell value type
+	DataType     int     // 90 - cell data type
+	ValueFlag    int     // 94 - value block flag
+	Rotation     float64 // 145 - rotation for block/text cells
+
+	TextStyleName string  // 7 - cell text style override
+	TextHeight    float64 // 140 - cell text height override
+
+	BlockRecordHandle string  // 340 - block table record handle (block cells)
+	BlockScale        float64 // 144 - block scale (block cells)
 }
 
 // CellType represents the type of table cell
@@ -115,26 +151,27 @@ type RowFormat struct {
 
 // TableStyle represents table style
 type TableStyle struct {
-	Name            string  // Style name
-	TextStyle       string  // Default text style
-	TextHeight      float64 // Default text height
-	TextColor       int     // Default text color
-	BgColor         int     // Default background color
-	GridColor       int     // Default grid color
-	GridWeight      int     // Default grid weight
-	HeaderRowHeight float64 // Header row height
-	HeaderBgColor   int     // Header background color
-	HeaderTextColor int     // Header text color
-	RowHeight       float64 // Data row height
-	MinRowHeight    float64 // Minimum row height
-	CellMarginH     float64 // Horizontal cell margin
-	CellMarginV     float64 // Vertical cell margin
-	FlowDirection   int     // 0=Down, 1=Up, 2=Left, 3=Right
-	BreakOnPage     bool    // Break table across pages
-	RepeatTopLabels bool    // Repeat top row labels
-	BottomLabels    bool    // Bottom row labels
-	TitleRow        bool    // Title row
-	TitleSuppressed bool    // Title row suppression
+	Name                string  // Style name
+	TextStyle           string  // Default text style
+	TextHeight          float64 // Default text height
+	TextColor           int     // Default text color
+	BgColor             int     // Default background color
+	GridColor           int     // Default grid color
+	GridWeight          int     // Default grid weight
+	HeaderRowHeight     float64 // Header row height
+	HeaderBgColor       int     // Header background color
+	HeaderTextColor     int     // Header text color
+	RowHeight           float64 // Data row height
+	MinRowHeight        float64 // Minimum row height
+	CellMarginH         float64 // Horizontal cell margin
+	CellMarginV         float64 // Vertical cell margin
+	FlowDirection       int     // 0=Down, 1=Up, 2=Left, 3=Right
+	BreakOnPage         bool    // Break table across pages
+	RepeatTopLabels     bool    // Repeat top row labels
+	BottomLabels        bool    // Bottom row labels
+	TitleRow            bool    // Title row
+	TitleSuppressed     bool    // Title row suppression
+	HeaderRowSuppressed bool    // Column header suppression
 }
 
 // IsEntity is for Entity interface
@@ -144,22 +181,25 @@ func (t *AcadTable) IsEntity() bool {
 
 // NewAcadTable creates a new AcadTable entity
 func NewAcadTable() *AcadTable {
-	return &AcadTable{
-		entity:      NewEntity(ACADTABLE),
-		InsertPoint: []float64{0.0, 0.0, 0.0},
-		TableName:   "",
-		StyleName:   "",
-		Direction:   0, // Up
-		RowHeight:   1.0,
-		ColWidth:    1.0,
-		RowCount:    0,
-		ColCount:    0,
-		Flags:       0,
-		Rows:        make([]*TableRow, 0),
-		Extrusion:   []float64{0.0, 0.0, 1.0},
-		Normal:      []float64{0.0, 0.0, 1.0},
-		Scale:       []float64{1.0, 1.0, 1.0},
+	t := &AcadTable{
+		entity:              NewEntity(ACADTABLE),
+		InsertPoint:         []float64{0.0, 0.0, 0.0},
+		TableName:           "",
+		StyleName:           "",
+		Direction:           0, // Up
+		RowHeight:           1.0,
+		ColWidth:            1.0,
+		RowCount:            0,
+		ColCount:            0,
+		Flags:               0,
+		Rows:                make([]*TableRow, 0),
+		HorizontalDirection: []float64{1.0, 0.0, 0.0},
+		Extrusion:           []float64{0.0, 0.0, 1.0},
+		Normal:              []float64{0.0, 0.0, 1.0},
+		Scale:               []float64{1.0, 1.0, 1.0},
 	}
+	t.SetRecordTypeName("ACAD_TABLE")
+	return t
 }
 
 // SetInsertPoint sets the insertion point
@@ -312,9 +352,23 @@ func (t *AcadTable) BBox() ([]float64, []float64) {
 
 	x, y, z := t.InsertPoint[0], t.InsertPoint[1], t.InsertPoint[2]
 
-	// Calculate table width and height
-	width := float64(t.ColCount) * t.ColWidth
-	height := float64(t.RowCount) * t.RowHeight
+	// Calculate table width and height from per-row/column sizes when present.
+	width := 0.0
+	if len(t.ColWidths) > 0 {
+		for _, w := range t.ColWidths {
+			width += w
+		}
+	} else {
+		width = float64(t.ColCount) * t.ColWidth
+	}
+	height := 0.0
+	if len(t.RowHeights) > 0 {
+		for _, h := range t.RowHeights {
+			height += h
+		}
+	} else {
+		height = float64(t.RowCount) * t.RowHeight
+	}
 
 	// Return min and max corners
 	return []float64{x, y, z}, []float64{x + width, y + height, z}
@@ -323,103 +377,88 @@ func (t *AcadTable) BBox() ([]float64, []float64) {
 // Format writes data to formatter
 func (t *AcadTable) Format(f format.Formatter) {
 	t.entity.Format(f)
-	f.WriteString(100, "AcDbTable")
 
-	// Insertion point
+	// ACAD_TABLE reuses the block reference subclass for placement.
+	f.WriteString(100, "AcDbBlockReference")
+	if t.BlockName != "" {
+		f.WriteString(2, t.BlockName)
+	}
 	for i := range 3 {
-		f.WriteFloat(10+i*10, t.InsertPoint[i])
+		val := 0.0
+		if i < len(t.InsertPoint) {
+			val = t.InsertPoint[i]
+		}
+		f.WriteFloat(10+i*10, val)
 	}
 
-	// Table name
-	if t.TableName != "" {
-		f.WriteString(1, t.TableName)
+	f.WriteString(100, "AcDbTable")
+	f.WriteInt(280, t.Version)
+	if t.TableStyleHandle != "" {
+		f.WriteString(342, t.TableStyleHandle)
+	}
+	if t.BlockRecordHandle != "" {
+		f.WriteString(343, t.BlockRecordHandle)
+	}
+	for i := range 3 {
+		val := 0.0
+		if i < len(t.HorizontalDirection) {
+			val = t.HorizontalDirection[i]
+		} else if i == 0 {
+			val = 1.0
+		}
+		f.WriteFloat(11+i*10, val)
+	}
+	if t.TableValue != 0 {
+		f.WriteInt(90, t.TableValue)
+	}
+	f.WriteInt(91, t.RowCount)
+	f.WriteInt(92, t.ColCount)
+	if t.OverrideFlag != 0 {
+		f.WriteInt(93, t.OverrideFlag)
+	}
+	if t.BorderColorOverrideFlag != 0 {
+		f.WriteInt(94, t.BorderColorOverrideFlag)
+	}
+	if t.BorderLineweightOverrideFlag != 0 {
+		f.WriteInt(95, t.BorderLineweightOverrideFlag)
+	}
+	if t.BorderVisibilityOverrideFlag != 0 {
+		f.WriteInt(96, t.BorderVisibilityOverrideFlag)
+	}
+	for _, h := range t.RowHeights {
+		f.WriteFloat(141, h)
+	}
+	for _, w := range t.ColWidths {
+		f.WriteFloat(142, w)
 	}
 
-	// Style name
-	if t.StyleName != "" {
-		f.WriteString(7, t.StyleName)
-	}
-
-	// Table direction
-	if t.Direction != 0 {
-		f.WriteInt(70, t.Direction)
-	}
-
-	// Row height
-	if t.RowHeight != 0 {
-		f.WriteFloat(40, t.RowHeight)
-	}
-
-	// Column width
-	if t.ColWidth != 0 {
-		f.WriteFloat(41, t.ColWidth)
-	}
-
-	// Row count
-	if t.RowCount != 0 {
-		f.WriteInt(75, t.RowCount)
-	}
-
-	// Column count
-	if t.ColCount != 0 {
-		f.WriteInt(76, t.ColCount)
-	}
-
-	// Table flags
-	if t.Flags != 0 {
-		f.WriteInt(280, t.Flags)
-	}
-
-	// Write table content
-	for rowIdx, row := range t.Rows {
-		// Row header
-		f.WriteInt(141, rowIdx)
-
-		for colIdx, cell := range row.Cells {
+	for _, row := range t.Rows {
+		for _, cell := range row.Cells {
 			if cell != nil {
-				// Cell header
-				f.WriteInt(142, colIdx)
-
-				// Cell type
-				f.WriteInt(170, int(cell.CellType))
-
-				// Cell text content
-				if cell != nil && cell.Text != "" {
-					f.WriteString(1, cell.Text)
-				}
-
-				// Cell formatting
-				if cell.Alignment != CellAlignTopLeft {
-					f.WriteInt(171, int(cell.Alignment))
-				}
-
-				if cell.TextColor != 0 {
-					f.WriteInt(62, cell.TextColor)
-				}
-
-				if cell.BgColor != 0 {
-					f.WriteInt(63, cell.BgColor)
-				}
-
-				if cell.GridColor != 0 {
-					f.WriteInt(64, cell.GridColor)
-				}
-
-				if cell.GridWeight != 0 {
-					f.WriteInt(65, cell.GridWeight)
-				}
-
-				// Merged cell information
-				if cell.MergedCell != nil {
-					f.WriteInt(173, cell.MergedCell.RowSpan)
-					f.WriteInt(174, cell.MergedCell.ColSpan)
-				}
-
-				// Cell style override
-				if cell.CellStyle != nil {
-					// Write style XDATA here
-				}
+				t.formatCell(f, cell)
 			}
+		}
+	}
+
+	// Table-level style overrides.
+	if style := t.TableStyleOverride; style != nil {
+		if style.FlowDirection != 0 {
+			f.WriteInt(70, style.FlowDirection)
+		}
+		if style.CellMarginH != 0 {
+			f.WriteFloat(40, style.CellMarginH)
+		}
+		if style.CellMarginV != 0 {
+			f.WriteFloat(41, style.CellMarginV)
+		}
+		if style.TitleSuppressed {
+			f.WriteInt(280, 1)
+		}
+		if style.TextStyle != "" {
+			f.WriteString(7, style.TextStyle)
+		}
+		if style.TextHeight != 0 {
+			f.WriteFloat(140, style.TextHeight)
 		}
 	}
 
@@ -429,20 +468,91 @@ func (t *AcadTable) Format(f format.Formatter) {
 			f.WriteFloat(210+i, t.Extrusion[i])
 		}
 	}
-
 	if len(t.Normal) == 3 {
 		for i := range 3 {
 			f.WriteFloat(210+i, t.Normal[i])
 		}
 	}
-
 	if len(t.Scale) == 3 {
 		for i := range 3 {
 			f.WriteFloat(40+i, t.Scale[i])
 		}
 	}
+}
 
-	f.WriteString(100, "AcDbTable")
+// formatCell writes one ACAD_TABLE cell record.
+func (t *AcadTable) formatCell(f format.Formatter, cell *TableCell) {
+	typeCode := 1
+	if cell.CellType == CellTypeBlock {
+		typeCode = 2
+	}
+	f.WriteInt(171, typeCode)
+	f.WriteInt(172, cell.Flags)
+	if cell.Merged {
+		f.WriteInt(173, 1)
+	} else {
+		f.WriteInt(173, 0)
+	}
+	if cell.AutoFit {
+		f.WriteInt(174, 1)
+	} else {
+		f.WriteInt(174, 0)
+	}
+	width := cell.BorderWidth
+	if width == 0 {
+		width = 1
+	}
+	height := cell.BorderHeight
+	if height == 0 {
+		height = 1
+	}
+	f.WriteInt(175, width)
+	f.WriteInt(176, height)
+	f.WriteInt(91, cell.OverrideFlag)
+	f.WriteInt(178, cell.VirtualEdge)
+	f.WriteFloat(145, cell.Rotation)
+
+	if cell.CellType == CellTypeBlock {
+		if cell.BlockRecordHandle != "" {
+			f.WriteString(340, cell.BlockRecordHandle)
+		}
+		f.WriteFloat(144, cell.BlockScale)
+		f.WriteInt(170, int(cell.Alignment))
+	}
+	f.WriteInt(92, cell.ExtendedFlag)
+	f.WriteString(301, "CELL_VALUE")
+	valueType := cell.ValueType
+	dataType := cell.DataType
+	if valueType == 0 {
+		if cell.Text != "" {
+			valueType, dataType = 2, 4
+		} else {
+			valueType, dataType = 3, 0
+		}
+	}
+	f.WriteInt(93, valueType)
+	f.WriteInt(90, dataType)
+	if cell.Text != "" {
+		writeCellText(f, cell.Text)
+	}
+	f.WriteInt(94, cell.ValueFlag)
+	f.WriteString(300, "")
+	f.WriteString(302, cell.Text)
+	f.WriteString(304, "ACVALUE_END")
+}
+
+// writeCellText emits the code 1/2/3 text chunks used by ACAD_TABLE cells.
+func writeCellText(f format.Formatter, text string) {
+	const chunkSize = 250
+	if len(text) <= chunkSize {
+		f.WriteString(1, text)
+		return
+	}
+	for len(text) > chunkSize {
+		f.WriteString(2, text[:chunkSize])
+		text = text[chunkSize:]
+	}
+	f.WriteString(1, text)
 }
 
 // String outputs data using default formatter

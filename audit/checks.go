@@ -234,9 +234,14 @@ func tagValues(e any, code int) []string {
 	return out
 }
 
-// entityReactorHandles extracts reactor handles from the {ACAD_REACTORS
-// group embedded in an entity's raw tags.
+// entityReactorHandles extracts reactor handles from the typed reactor field
+// or the {ACAD_REACTORS group embedded in an entity's raw tags.
 func entityReactorHandles(e any) []string {
+	if r, ok := e.(entity.ReactorReader); ok {
+		if hs := r.ReactorHandles(); len(hs) > 0 {
+			return append([]string(nil), hs...)
+		}
+	}
 	var out []string
 	inGroup := false
 	for _, t := range rawTagsOf(e) {
@@ -450,7 +455,11 @@ func checkReactors(ctx *Context) []Issue {
 func checkExtensionDictionaries(ctx *Context) []Issue {
 	var out []Issue
 	for _, e := range ctx.AllEntities() {
-		for _, h := range tagValues(e, 360) {
+		handles := tagValues(e, 360)
+		if x, ok := e.(entity.ExtDictReader); ok && x.ExtDictHandle() != "" {
+			handles = []string{x.ExtDictHandle()}
+		}
+		for _, h := range handles {
 			if h == "" || h == "0" {
 				continue
 			}
@@ -475,6 +484,22 @@ func checkExtensionDictionaries(ctx *Context) []Issue {
 			out = append(out, Issue{
 				Severity: SeverityWarning, Code: CodeExtDictUnresolved, Handle: en.Handle(),
 				Message: fmt.Sprintf("%s extension dictionary handle %s not found", Describe(en), h),
+			})
+		}
+	}
+	for _, o := range ctx.Doc.Objects() {
+		x, ok := o.(object.ExtDictReader)
+		if !ok {
+			continue
+		}
+		h := x.ExtDictHandle()
+		if h == "" || h == "0" {
+			continue
+		}
+		if _, ok := ctx.Resolve(h); !ok {
+			out = append(out, Issue{
+				Severity: SeverityWarning, Code: CodeExtDictUnresolved, Handle: o.Handle(),
+				Message: fmt.Sprintf("%s extension dictionary handle %s not found", Describe(o), h),
 			})
 		}
 	}

@@ -14,13 +14,15 @@ type MeshVertexCache struct {
 }
 
 func NewMeshVertexCache() *MeshVertexCache {
-	return &MeshVertexCache{
+	cache := &MeshVertexCache{
 		entity:      NewEntity(MESHVERTEXCACHE),
 		Vertices:    make([]math.Vec3, 0),
 		Normals:     make([]math.Vec3, 0),
 		TexCoords:   make([]math.Vec2, 0),
 		FaceIndices: make([][]int, 0),
 	}
+	cache.SetRecordTypeName("MESHVERTEXCACHE")
+	return cache
 }
 
 func (m *MeshVertexCache) IsEntity() bool {
@@ -139,6 +141,18 @@ func (m *MeshVertexCache) AddFace(indices []int) {
 	}
 	m.FaceIndices = append(m.FaceIndices, face)
 }
+
+// VertexCount returns the number of cached vertex positions.
+func (m *MeshVertexCache) VertexCount() int { return len(m.Vertices) }
+
+// NormalCount returns the number of cached vertex normals.
+func (m *MeshVertexCache) NormalCount() int { return len(m.Normals) }
+
+// TexCoordCount returns the number of cached texture coordinates.
+func (m *MeshVertexCache) TexCoordCount() int { return len(m.TexCoords) }
+
+// FaceCount returns the number of cached face index groups.
+func (m *MeshVertexCache) FaceCount() int { return len(m.FaceIndices) }
 
 func (m *MeshVertexCache) Clear() {
 	m.Vertices = make([]math.Vec3, 0)

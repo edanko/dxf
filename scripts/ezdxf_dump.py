@@ -163,16 +163,81 @@ def _tables_with_ezdxf_handles(
     return tables
 
 
-def _source_objects(tags: list[tuple[int, str]], version: str) -> list[dict[str, str]]:
-    """Extract object types and handles from the source OBJECTS section."""
-    objects = [
-        {
-            "type": record_type,
-            "handle": _normalize_handle(version, _first(body, 5)),
-        }
+COLLECTION_KEYS = {
+    "ACAD_MLEADERSTYLE": "MLEADERSTYLECOLLECTION",
+    "ACAD_MLINESTYLE": "MLINESTYLECOLLECTION",
+}
+COLLECTION_TYPES = {"MLEADERSTYLECOLLECTION", "MLINESTYLECOLLECTION"}
+
+
+def _dictionary_entries(body: list[tuple[int, str]]) -> dict[str, str]:
+    """Return key -> value handle pairs from a DICTIONARY record."""
+    entries: dict[str, str] = {}
+    key = ""
+    for code, value in body:
+        if code == 3:
+            key = value.strip()
+        elif code in (350, 360) and key:
+            entries[key] = value.strip()
+            key = ""
+    return entries
+
+
+def _root_dictionary_handle(doc: object) -> str:
+    try:
+        return doc.rootdict.dxf.handle or ""
+    except Exception:
+        return ""
+
+
+def _source_objects(
+    tags: list[tuple[int, str]], version: str, doc: object
+) -> list[dict[str, object]]:
+    """Extract source object types, typed collection inventory, and handles.
+
+    Dictionaries referenced by the root dictionary's ACAD_MLEADERSTYLE and
+    ACAD_MLINESTYLE entries are reported as typed collections without changing
+    their source wire type or handle.
+    """
+    records = [
+        (record_type, body)
         for record_type, body in _records(_section(tags, "OBJECTS"))
         if record_type not in {"ENDSEC", "EOF"}
     ]
+    by_handle = {_first(body, 5): (record_type, body) for record_type, body in records}
+
+    collection_for: dict[str, str] = {}
+    root = by_handle.get(_root_dictionary_handle(doc))
+    if root is not None and root[0] == "DICTIONARY":
+        for key, target in _dictionary_entries(root[1]).items():
+            collection = COLLECTION_KEYS.get(key)
+            if collection:
+                collection_for[target] = collection
+
+    objects: list[dict[str, object]] = []
+    for record_type, body in records:
+        raw_handle = _first(body, 5)
+        typed_type = record_type
+        members: list[str] = []
+        if record_type == "DICTIONARY" and raw_handle in collection_for:
+            typed_type = collection_for[raw_handle]
+            members = sorted(
+                _normalize_handle(version, handle)
+                for handle in _dictionary_entries(body).values()
+            )
+        elif record_type in COLLECTION_TYPES:
+            members = sorted(
+                _normalize_handle(version, handle)
+                for handle in _dictionary_entries(body).values()
+            )
+        objects.append(
+            {
+                "type": record_type,
+                "handle": _normalize_handle(version, raw_handle),
+                "typed_type": typed_type,
+                "members": members,
+            }
+        )
     objects.sort(key=lambda item: (item["type"], item["handle"]))
     return objects
 
@@ -226,6 +291,21 @@ def _is_layout_block(name: str) -> bool:
     return name.startswith("*")
 
 
+def _source_only_entities(tags: list[tuple[int, str]], version: str) -> list[dict[str, str]]:
+    """Include source records ezdxf does not expose as DXFGraphic entities."""
+    out = []
+    for record_type, body in _records(_section(tags, "ENTITIES")):
+        if record_type == "MESHVERTEXCACHE":
+            out.append(
+                {
+                    "type": "MESHVERTEXCACHE",
+                    "handle": _normalize_handle(version, _first(body, 5)),
+                    "layer": _first(body, 8) or "0",
+                }
+            )
+    return out
+
+
 def dump(path: str) -> dict[str, object]:
     source_tags = _read_tags(path)
     doc = ezdxf.readfile(path)
@@ -239,6 +319,9 @@ def dump(path: str) -> dict[str, object]:
         if (isinstance(entity, DXFGraphic) or entity.dxftype() == "ACAD_TABLE")
         and entity.dxftype() != "SEQEND"
     ]
+    entity_dump = _entities_dump(entities, version)
+    entity_dump.extend(_source_only_entities(source_tags, version))
+    entity_dump.sort(key=lambda item: (item["type"], item["handle"], item["layer"]))
 
     blocks = sorted(
         (
@@ -253,7 +336,7 @@ def dump(path: str) -> dict[str, object]:
 
     return {
         "version": version,
-        "entities": _entities_dump(entities, version),
+        "entities": entity_dump,
         "blocks": blocks,
         # A missing TABLES section means the loader may synthesize the standard
         # defaults; there is no source inventory to compare against.
@@ -262,7 +345,7 @@ def dump(path: str) -> dict[str, object]:
             if _has_section(source_tags, "TABLES")
             else None
         ),
-        "objects": _source_objects(source_tags, version),
+        "objects": _source_objects(source_tags, version, doc),
     }
 
 

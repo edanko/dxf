@@ -35,6 +35,10 @@ type StdObject struct {
 	sortOrder []string          // entity handles in source order
 	sortBy    map[string]string // entity handle -> sort handle
 	page      int               // underlay definition page (code 300)
+
+	layerHandles      []string // LAYER_FILTER layer handles (330)
+	layerNames        []string // LAYER_FILTER names (code 1)
+	filterExpressions []string // LAYER_FILTER expressions (code 3)
 }
 
 // IsObject is for the Object interface.
@@ -66,6 +70,15 @@ func (s *StdObject) BlockRecordHandle() string { return s.blockRec }
 // EntityHandles returns the entity links recorded by IDBUFFER/FIELDLIST.
 func (s *StdObject) EntityHandles() []string { return s.entityRefs }
 
+// LayerHandles returns the layer handles referenced by a LAYER_FILTER.
+func (s *StdObject) LayerHandles() []string { return s.layerHandles }
+
+// LayerNames returns the names exposed by a LAYER_FILTER.
+func (s *StdObject) LayerNames() []string { return s.layerNames }
+
+// FilterExpressions returns the filter expressions exposed by a LAYER_FILTER.
+func (s *StdObject) FilterExpressions() []string { return s.filterExpressions }
+
 // ImageSize returns the source image size in pixels.
 func (s *StdObject) ImageSize() (float64, float64) { return s.imageSizeX, s.imageSizeY }
 
@@ -78,6 +91,9 @@ func (s *StdObject) SortOrder() map[string]string { return s.sortBy }
 
 // ExtDictHandle returns the retained extension-dictionary link (code 350).
 func (s *StdObject) ExtDictHandle() string {
+	if h := s.BaseObject.ExtDictHandle(); h != "" {
+		return h
+	}
 	for _, tag := range s.RetainedTags() {
 		if int(tag.Code()) == 350 {
 			return lldxf.FormatValue(tag)
@@ -137,6 +153,7 @@ func newStdObject(typeName string, tags lldxf.Tags) *StdObject {
 	}
 	s.SetWireType(typeName)
 	s.BaseObject.handle = tags.GetHandle()
+	s.SetExtDictHandle(extDictOfRecord(tags))
 	if reactors, _ := reactorsOfRecord(tags); len(reactors) > 0 {
 		s.SetReactorHandles(reactors)
 	}
@@ -179,6 +196,13 @@ func newStdObject(typeName string, tags lldxf.Tags) *StdObject {
 		s.pixelSizeY = floatAfterMarker(tags, "AcDbRasterImageDef", 21)
 	case "IMAGEDEF_REACTOR":
 		s.blockRec = handleAfterMarker(tags, "AcDbRasterImageDefReactor", 330)
+	case "LAYER_FILTER":
+		s.layerHandles = handlesAfterMarker(tags, "AcDbLayerFilter", 330)
+		s.entityRefs = s.layerHandles
+		s.layerNames = stringsByCode(tags, 1)
+		s.filterExpressions = stringsByCode(tags, 3)
+	case "VBA_PROJECT":
+		// Payload and declared size are parsed by newVBAProject.
 	case "UNDERLAYDEFINITION", "PDFDEFINITION", "DWFDEFINITION", "DGNDEFINITION":
 		s.path = tagStringByCode(tags, 1)
 		s.name = tagStringByCode(tags, 2)
@@ -334,6 +358,8 @@ type SortEntsTable struct{ *StdObject }
 
 type IDBuffer struct{ *StdObject }
 
+type LayerFilter struct{ *StdObject }
+
 type Field struct{ *StdObject }
 
 type FieldList struct{ *StdObject }
@@ -364,10 +390,10 @@ type DgnDefinition struct{ *StdObject }
 func isStdObjectType(typeName string) bool {
 	switch typeName {
 	case "LAYOUT", "PLOTSETTINGS", "MLINESTYLE", "MLEADERSTYLE", "MATERIAL",
-		"VISUALSTYLE", "TABLESTYLE", "SORTENTSTABLE", "IDBUFFER", "FIELD",
+		"VISUALSTYLE", "TABLESTYLE", "SORTENTSTABLE", "IDBUFFER", "LAYER_FILTER", "FIELD",
 		"FIELDLIST", "GEODATA", "SUN", "SPATIAL_FILTER", "RASTERVARIABLES",
 		"WIPEOUTVARIABLES", "IMAGEDEF", "IMAGEDEF_REACTOR", "UNDERLAYDEFINITION",
-		"PDFDEFINITION", "DWFDEFINITION", "DGNDEFINITION":
+		"PDFDEFINITION", "DWFDEFINITION", "DGNDEFINITION", "VBA_PROJECT":
 		return true
 	}
 	return false
@@ -395,6 +421,8 @@ func wrapStd(typeName string, tags lldxf.Tags) Object {
 		return &SortEntsTable{s}
 	case "IDBUFFER":
 		return &IDBuffer{s}
+	case "LAYER_FILTER":
+		return &LayerFilter{s}
 	case "FIELD":
 		return &Field{s}
 	case "FIELDLIST":
@@ -421,6 +449,8 @@ func wrapStd(typeName string, tags lldxf.Tags) Object {
 		return &DwfDefinition{s}
 	case "DGNDEFINITION":
 		return &DgnDefinition{s}
+	case "VBA_PROJECT":
+		return newVBAProject(tags)
 	}
 	return s
 }

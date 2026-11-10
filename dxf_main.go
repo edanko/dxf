@@ -3,6 +3,7 @@
 package dxf
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math"
@@ -154,47 +155,58 @@ func init() {
 	entity.SetDefaultLoader(entity.NewRetainedLoader)
 	drawing.RegisterDocumentLoader(FromReader)
 	loaders := map[string]func(lldxf.Tags) (entity.Entity, error){
-		"POINT":            func(t lldxf.Tags) (entity.Entity, error) { return loadPoint(t), nil },
-		"LINE":             func(t lldxf.Tags) (entity.Entity, error) { return loadLine(t), nil },
-		"CIRCLE":           func(t lldxf.Tags) (entity.Entity, error) { return loadCircle(t), nil },
-		"ARC":              func(t lldxf.Tags) (entity.Entity, error) { return loadArc(t), nil },
-		"TEXT":             func(t lldxf.Tags) (entity.Entity, error) { return loadText(t), nil },
-		"MTEXT":            func(t lldxf.Tags) (entity.Entity, error) { return loadMText(t), nil },
-		"SOLID":            func(t lldxf.Tags) (entity.Entity, error) { return loadSolid(t), nil },
-		"TRACE":            func(t lldxf.Tags) (entity.Entity, error) { return loadTrace(t), nil },
-		"3DFACE":           func(t lldxf.Tags) (entity.Entity, error) { return load3DFace(t), nil },
-		"LWPOLYLINE":       func(t lldxf.Tags) (entity.Entity, error) { return loadLwPolyline(t), nil },
-		"POLYLINE":         func(t lldxf.Tags) (entity.Entity, error) { return loadPolyline(t), nil },
-		"VERTEX":           func(t lldxf.Tags) (entity.Entity, error) { return loadVertex(t), nil },
-		"INSERT":           func(t lldxf.Tags) (entity.Entity, error) { return loadInsert(t), nil },
-		"ELLIPSE":          func(t lldxf.Tags) (entity.Entity, error) { return loadEllipse(t), nil },
-		"SPLINE":           func(t lldxf.Tags) (entity.Entity, error) { return loadSpline(t), nil },
-		"LEADER":           func(t lldxf.Tags) (entity.Entity, error) { return loadLeader(t), nil },
-		"HATCH":            func(t lldxf.Tags) (entity.Entity, error) { return loadHatch(t), nil },
-		"MPOLYGON":         func(t lldxf.Tags) (entity.Entity, error) { return loadHatch(t), nil },
-		"IMAGE":            func(t lldxf.Tags) (entity.Entity, error) { return loadImage(t), nil },
-		"MLEADER":          func(t lldxf.Tags) (entity.Entity, error) { return loadMLeader(t), nil },
-		"MULTILEADER":      func(t lldxf.Tags) (entity.Entity, error) { return loadMLeader(t), nil },
-		"DIMENSION":        func(t lldxf.Tags) (entity.Entity, error) { return loadDimension(t), nil },
-		"SHAPE":            func(t lldxf.Tags) (entity.Entity, error) { return loadShape(t), nil },
-		"XLINE":            func(t lldxf.Tags) (entity.Entity, error) { return loadXLine(t), nil },
-		"RAY":              func(t lldxf.Tags) (entity.Entity, error) { return loadRay(t), nil },
-		"WIPEOUT":          func(t lldxf.Tags) (entity.Entity, error) { return loadWipeout(t), nil },
-		"UNDERLAY":         func(t lldxf.Tags) (entity.Entity, error) { return loadUnderlay(t), nil },
-		"MLINE":            func(t lldxf.Tags) (entity.Entity, error) { return loadMLine(t), nil },
-		"ATTDEF":           func(t lldxf.Tags) (entity.Entity, error) { return loadAttdef(t), nil },
-		"ATTRIB":           func(t lldxf.Tags) (entity.Entity, error) { return loadAttrib(t), nil },
-		"TOLERANCE":        func(t lldxf.Tags) (entity.Entity, error) { return loadTolerance(t), nil },
-		"3DSOLID":          func(t lldxf.Tags) (entity.Entity, error) { return loadSolid3d(t), nil },
-		"REGION":           func(t lldxf.Tags) (entity.Entity, error) { return loadRegion(t), nil },
-		"BODY":             func(t lldxf.Tags) (entity.Entity, error) { return loadBody(t), nil },
-		"MESH":             func(t lldxf.Tags) (entity.Entity, error) { return loadMesh(t), nil },
-		"HELIX":            func(t lldxf.Tags) (entity.Entity, error) { return loadHelix(t), nil },
-		"EXTRUDED_SURFACE": func(t lldxf.Tags) (entity.Entity, error) { return loadExtrudedSurface(t), nil },
-		"LOFTED_SURFACE":   func(t lldxf.Tags) (entity.Entity, error) { return loadLoftedSurface(t), nil },
-		"REVOLVED_SURFACE": func(t lldxf.Tags) (entity.Entity, error) { return loadRevolvedSurface(t), nil },
-		"SWEPT_SURFACE":    func(t lldxf.Tags) (entity.Entity, error) { return loadSweptSurface(t), nil },
-		"PLANESURFACE":     func(t lldxf.Tags) (entity.Entity, error) { return loadPlaneSurface(t), nil },
+		"POINT":             func(t lldxf.Tags) (entity.Entity, error) { return loadPoint(t), nil },
+		"LINE":              func(t lldxf.Tags) (entity.Entity, error) { return loadLine(t), nil },
+		"CIRCLE":            func(t lldxf.Tags) (entity.Entity, error) { return loadCircle(t), nil },
+		"ARC":               func(t lldxf.Tags) (entity.Entity, error) { return loadArc(t), nil },
+		"TEXT":              func(t lldxf.Tags) (entity.Entity, error) { return loadText(t), nil },
+		"MTEXT":             func(t lldxf.Tags) (entity.Entity, error) { return loadMText(t), nil },
+		"SOLID":             func(t lldxf.Tags) (entity.Entity, error) { return loadSolid(t), nil },
+		"TRACE":             func(t lldxf.Tags) (entity.Entity, error) { return loadTrace(t), nil },
+		"3DFACE":            func(t lldxf.Tags) (entity.Entity, error) { return load3DFace(t), nil },
+		"LWPOLYLINE":        func(t lldxf.Tags) (entity.Entity, error) { return loadLwPolyline(t), nil },
+		"POLYLINE":          func(t lldxf.Tags) (entity.Entity, error) { return loadPolyline(t), nil },
+		"VERTEX":            func(t lldxf.Tags) (entity.Entity, error) { return loadVertex(t), nil },
+		"INSERT":            func(t lldxf.Tags) (entity.Entity, error) { return loadInsert(t), nil },
+		"ELLIPSE":           func(t lldxf.Tags) (entity.Entity, error) { return loadEllipse(t), nil },
+		"SPLINE":            func(t lldxf.Tags) (entity.Entity, error) { return loadSpline(t), nil },
+		"LEADER":            func(t lldxf.Tags) (entity.Entity, error) { return loadLeader(t), nil },
+		"HATCH":             func(t lldxf.Tags) (entity.Entity, error) { return loadHatch(t), nil },
+		"MPOLYGON":          func(t lldxf.Tags) (entity.Entity, error) { return loadHatch(t), nil },
+		"IMAGE":             func(t lldxf.Tags) (entity.Entity, error) { return loadImage(t), nil },
+		"MLEADER":           func(t lldxf.Tags) (entity.Entity, error) { return loadMLeader(t), nil },
+		"MULTILEADER":       func(t lldxf.Tags) (entity.Entity, error) { return loadMLeader(t), nil },
+		"DIMENSION":         func(t lldxf.Tags) (entity.Entity, error) { return loadDimension(t), nil },
+		"SHAPE":             func(t lldxf.Tags) (entity.Entity, error) { return loadShape(t), nil },
+		"XLINE":             func(t lldxf.Tags) (entity.Entity, error) { return loadXLine(t), nil },
+		"RAY":               func(t lldxf.Tags) (entity.Entity, error) { return loadRay(t), nil },
+		"WIPEOUT":           func(t lldxf.Tags) (entity.Entity, error) { return loadWipeout(t), nil },
+		"UNDERLAY":          func(t lldxf.Tags) (entity.Entity, error) { return loadUnderlay(t), nil },
+		"MLINE":             func(t lldxf.Tags) (entity.Entity, error) { return loadMLine(t), nil },
+		"ATTDEF":            func(t lldxf.Tags) (entity.Entity, error) { return loadAttdef(t), nil },
+		"ATTRIB":            func(t lldxf.Tags) (entity.Entity, error) { return loadAttrib(t), nil },
+		"TOLERANCE":         func(t lldxf.Tags) (entity.Entity, error) { return loadTolerance(t), nil },
+		"3DSOLID":           func(t lldxf.Tags) (entity.Entity, error) { return loadSolid3d(t), nil },
+		"REGION":            func(t lldxf.Tags) (entity.Entity, error) { return loadRegion(t), nil },
+		"BODY":              func(t lldxf.Tags) (entity.Entity, error) { return loadBody(t), nil },
+		"MESH":              func(t lldxf.Tags) (entity.Entity, error) { return loadMesh(t), nil },
+		"MESHVERTEXCACHE":   func(t lldxf.Tags) (entity.Entity, error) { return loadMeshVertexCache(t), nil },
+		"MESH_VERTEX_CACHE": func(t lldxf.Tags) (entity.Entity, error) { return loadMeshVertexCache(t), nil },
+		"HELIX":             func(t lldxf.Tags) (entity.Entity, error) { return loadHelix(t), nil },
+		"EXTRUDED_SURFACE":  func(t lldxf.Tags) (entity.Entity, error) { return loadExtrudedSurface(t), nil },
+		"LOFTED_SURFACE":    func(t lldxf.Tags) (entity.Entity, error) { return loadLoftedSurface(t), nil },
+		"REVOLVED_SURFACE":  func(t lldxf.Tags) (entity.Entity, error) { return loadRevolvedSurface(t), nil },
+		"SWEPT_SURFACE":     func(t lldxf.Tags) (entity.Entity, error) { return loadSweptSurface(t), nil },
+		"PLANESURFACE":      func(t lldxf.Tags) (entity.Entity, error) { return loadPlaneSurface(t), nil },
+		"ACAD_TABLE":        func(t lldxf.Tags) (entity.Entity, error) { return loadAcadTable(t), nil },
+	}
+	// Object-like records occasionally appear in the ENTITIES section. Load
+	// them through the typed OBJECTS models while keeping their section.
+	for _, name := range []string{
+		"LAYOUT", "PLOTSETTINGS", "RASTERVARIABLES", "WIPEOUTVARIABLES",
+		"IDBUFFER", "FIELDLIST", "SPATIAL_FILTER", "GEODATA",
+	} {
+		loaders[name] = loadObjectEntity
 	}
 	for name, fn := range loaders {
 		entity.Register(name, fn)
@@ -790,6 +802,26 @@ func loadPolyline(tags lldxf.Tags) *entity.Polyline {
 			if v, ok := tagInt(tag); ok {
 				p.Flag = v
 			}
+		case 71:
+			if v, ok := tagInt(tag); ok {
+				p.MeshVertexCount = v
+			}
+		case 72:
+			if v, ok := tagInt(tag); ok {
+				p.MeshFaceCount = v
+			}
+		case 73:
+			if v, ok := tagInt(tag); ok {
+				p.MSmoothDensity = v
+			}
+		case 74:
+			if v, ok := tagInt(tag); ok {
+				p.NSmoothDensity = v
+			}
+		case 75:
+			if v, ok := tagInt(tag); ok {
+				p.SmoothSurfaceType = v
+			}
 		}
 	}
 	return p
@@ -832,13 +864,17 @@ func loadVertex(tags lldxf.Tags) *entity.Vertex {
 			if fv, ok := tagFloat(tag); ok {
 				v.EndWidth = fv
 			}
-		case 71:
-			if fv, ok := tagInt(tag); ok {
-				v.Extra = fv
+		case 50:
+			if fv, ok := tagFloat(tag); ok {
+				v.Tangent = fv
 			}
-		case 72:
+		case 71, 72, 73, 74:
 			if fv, ok := tagInt(tag); ok {
-				v.EdgeFlags = fv
+				v.FaceIndices[int(tag.Code())-71] = fv
+			}
+		case 91:
+			if fv, ok := tagInt(tag); ok {
+				v.VertexIdentifier = fv
 			}
 		}
 	}
@@ -2265,6 +2301,113 @@ func loadMesh(tags lldxf.Tags) *entity.Mesh {
 // capHint guards the vertex flush closure above (unused helper).
 func capHint(n int) int { return n }
 
+// loadMeshVertexCache decodes a MESHVERTEXCACHE record. The layout follows the
+// entity model: 90 vertex count, 10/20/30 positions; 91 normal count,
+// 11/21/31 normals; 92 texture-coordinate count, 12/22 pairs; 93 face count
+// followed by 94 face-size / 95 index groups.
+func loadMeshVertexCache(tags lldxf.Tags) *entity.MeshVertexCache {
+	cache := entity.NewMeshVertexCache()
+	cache.SetRecordTypeName(tags.DXFType())
+	loadCommonAttribs(cache, tags)
+
+	const (
+		cacheVertices = iota + 1
+		cacheNormals
+		cacheTexCoords
+		cacheFaces
+	)
+	mode := 0
+	var vx, vy, vz float64
+	var nx, ny, nz float64
+	var tx, ty float64
+	var face []int
+	faceSize := 0
+	for _, tag := range tags {
+		switch tag.Code() {
+		case 90:
+			if _, ok := tagInt(tag); ok {
+				mode = cacheVertices
+			}
+		case 91:
+			if _, ok := tagInt(tag); ok {
+				mode = cacheNormals
+			}
+		case 92:
+			if _, ok := tagInt(tag); ok {
+				mode = cacheTexCoords
+			}
+		case 93:
+			if _, ok := tagInt(tag); ok {
+				mode = cacheFaces
+				face = nil
+				faceSize = 0
+			}
+		case 94:
+			if size, ok := tagInt(tag); ok {
+				face = make([]int, 0, size)
+				faceSize = size
+			}
+		case 95:
+			if index, ok := tagInt(tag); ok {
+				face = append(face, index)
+				if faceSize > 0 && len(face) >= faceSize {
+					cache.AddFace(face)
+					face = nil
+					faceSize = 0
+				}
+			}
+		case 10:
+			if v, ok := tagFloat(tag); ok {
+				vx = v
+			}
+		case 20:
+			if v, ok := tagFloat(tag); ok {
+				vy = v
+			}
+		case 30:
+			if v, ok := tagFloat(tag); ok {
+				vz = v
+				if mode == cacheVertices {
+					cache.AddVertex(dxfmath.NewVec3(vx, vy, vz))
+					vx, vy, vz = 0, 0, 0
+				}
+			}
+		case 11:
+			if v, ok := tagFloat(tag); ok {
+				nx = v
+			}
+		case 21:
+			if v, ok := tagFloat(tag); ok {
+				ny = v
+			}
+		case 31:
+			if v, ok := tagFloat(tag); ok {
+				nz = v
+				if mode == cacheNormals {
+					cache.AddNormal(dxfmath.NewVec3(nx, ny, nz))
+					nx, ny, nz = 0, 0, 0
+				}
+			}
+		case 12:
+			if v, ok := tagFloat(tag); ok {
+				tx = v
+			}
+		case 22:
+			if v, ok := tagFloat(tag); ok {
+				ty = v
+				if mode == cacheTexCoords {
+					cache.AddTexCoord(dxfmath.NewVec2(tx, ty))
+					tx, ty = 0, 0
+				}
+			}
+		}
+	}
+	if len(face) > 0 {
+		cache.AddFace(face)
+	}
+	return cache
+}
+
 func loadHelix(tags lldxf.Tags) *entity.Helix {
 	h := entity.NewHelix()
 	loadCommonAttribs(h, tags)
@@ -2483,6 +2626,361 @@ func acisPayload(tags lldxf.Tags) []string {
 	return lines
 }
 
+// acdbEntityTags returns the tags belonging to the AcDbEntity subclass, which
+// is where common entity attributes live. Later subclasses may reuse group
+// codes (for example ACAD_TABLE cell colors) that must not leak into the base
+// entity attributes.
+func acdbEntityTags(tags lldxf.Tags) lldxf.Tags {
+	subclasses := 0
+	for i, tag := range tags {
+		if tag.Code() == 100 {
+			subclasses++
+			if subclasses == 2 {
+				return tags[:i]
+			}
+		}
+	}
+	return tags
+}
+
+// loadAcadTable parses the typed ACAD_TABLE payload. Unknown tags remain in the
+// entity's retained raw tags through the normal binder retention path.
+func loadAcadTable(tags lldxf.Tags) *entity.AcadTable {
+	t := entity.NewAcadTable()
+	loadCommonAttribs(t, acdbEntityTags(tags))
+
+	subclass := ""
+	inCell := false
+	cellIndex := 0
+	var cellTags []lldxf.Tag
+	flushCell := func() {
+		if !inCell {
+			return
+		}
+		applyAcadTableCell(t, cellTags, cellIndex)
+		cellIndex++
+		cellTags = nil
+		inCell = false
+	}
+	totalCells := func() int { return t.RowCount * t.ColCount }
+
+	for _, tag := range tags {
+		if tag.Code() == 100 {
+			subclass = tagStringValue(tag)
+			continue
+		}
+		switch subclass {
+		case "AcDbBlockReference":
+			switch tag.Code() {
+			case 2:
+				t.BlockName = tagStringValue(tag)
+			case 10, 20, 30:
+				if v, ok := tagFloat(tag); ok {
+					idx := int(tag.Code())/10 - 1
+					if idx >= 0 && idx < len(t.InsertPoint) {
+						t.InsertPoint[idx] = v
+					}
+				}
+			}
+		case "AcDbTable":
+			if inCell {
+				if tag.Code() == 171 {
+					flushCell()
+					inCell = true
+					cellTags = append(cellTags, tag)
+				} else {
+					cellTags = append(cellTags, tag)
+				}
+				continue
+			}
+			if cellIndex > 0 && totalCells() > 0 && cellIndex >= totalCells() {
+				applyAcadTableStyleTag(t, tag)
+				continue
+			}
+			switch tag.Code() {
+			case 171:
+				flushCell()
+				inCell = true
+				cellTags = append(cellTags, tag)
+			case 280:
+				if v, ok := tagInt(tag); ok {
+					t.Version = v
+				}
+			case 342:
+				t.TableStyleHandle = tagStringValue(tag)
+			case 343:
+				t.BlockRecordHandle = tagStringValue(tag)
+			case 11, 21, 31:
+				if v, ok := tagFloat(tag); ok {
+					idx := int(tag.Code())/10 - 1
+					if idx >= 0 && idx < len(t.HorizontalDirection) {
+						t.HorizontalDirection[idx] = v
+					}
+				}
+			case 90:
+				if v, ok := tagInt(tag); ok {
+					t.TableValue = v
+				}
+			case 91:
+				if v, ok := tagInt(tag); ok {
+					t.RowCount = v
+				}
+			case 92:
+				if v, ok := tagInt(tag); ok {
+					t.ColCount = v
+				}
+			case 93:
+				if v, ok := tagInt(tag); ok {
+					t.OverrideFlag = v
+				}
+			case 94:
+				if v, ok := tagInt(tag); ok {
+					t.BorderColorOverrideFlag = v
+				}
+			case 95:
+				if v, ok := tagInt(tag); ok {
+					t.BorderLineweightOverrideFlag = v
+				}
+			case 96:
+				if v, ok := tagInt(tag); ok {
+					t.BorderVisibilityOverrideFlag = v
+				}
+			case 141:
+				if v, ok := tagFloat(tag); ok {
+					t.RowHeights = append(t.RowHeights, v)
+				}
+			case 142:
+				if v, ok := tagFloat(tag); ok {
+					t.ColWidths = append(t.ColWidths, v)
+				}
+			}
+		}
+	}
+	flushCell()
+
+	if len(t.RowHeights) > 0 {
+		t.RowHeight = t.RowHeights[0]
+	}
+	if len(t.ColWidths) > 0 {
+		t.ColWidth = t.ColWidths[0]
+	}
+	if t.RowCount == 0 && cellIndex > 0 {
+		if t.ColCount <= 0 {
+			t.ColCount = cellIndex
+		}
+		t.RowCount = (cellIndex + t.ColCount - 1) / t.ColCount
+	}
+	linkAcadTableMerges(t)
+	return t
+}
+
+// applyAcadTableCell fills one cell from its wire tags. index is the cell's
+// position in row-major order.
+func applyAcadTableCell(t *entity.AcadTable, tags lldxf.Tags, index int) {
+	cols := t.ColCount
+	if cols <= 0 {
+		cols = 1
+	}
+	rowIdx := index / cols
+	colIdx := index % cols
+	cell := &entity.TableCell{
+		Row:          rowIdx,
+		Col:          colIdx,
+		Alignment:    entity.CellAlignTopLeft,
+		BorderWidth:  1,
+		BorderHeight: 1,
+	}
+	var textChunks []string
+	longText := ""
+	overrideSeen := false
+	for _, tag := range tags {
+		switch tag.Code() {
+		case 171:
+			if v, ok := tagInt(tag); ok && v == 2 {
+				cell.CellType = entity.CellTypeBlock
+			} else {
+				cell.CellType = entity.CellTypeText
+			}
+		case 172:
+			if v, ok := tagInt(tag); ok {
+				cell.Flags = v
+			}
+		case 173:
+			if v, ok := tagInt(tag); ok {
+				cell.Merged = v != 0
+			}
+		case 174:
+			if v, ok := tagInt(tag); ok {
+				cell.AutoFit = v != 0
+			}
+		case 175:
+			if v, ok := tagInt(tag); ok {
+				cell.BorderWidth = v
+			}
+		case 176:
+			if v, ok := tagInt(tag); ok {
+				cell.BorderHeight = v
+			}
+		case 91:
+			if v, ok := tagInt(tag); ok && !overrideSeen {
+				cell.OverrideFlag = v
+				overrideSeen = true
+			}
+		case 178:
+			if v, ok := tagInt(tag); ok {
+				cell.VirtualEdge = v
+			}
+		case 145:
+			if v, ok := tagFloat(tag); ok {
+				cell.Rotation = v
+			}
+		case 340:
+			cell.BlockRecordHandle = tagStringValue(tag)
+		case 144:
+			if v, ok := tagFloat(tag); ok {
+				cell.BlockScale = v
+			}
+		case 170:
+			if v, ok := tagInt(tag); ok {
+				cell.Alignment = entity.CellAlignment(v)
+			}
+		case 92:
+			if v, ok := tagInt(tag); ok {
+				cell.ExtendedFlag = v
+			}
+		case 93:
+			if v, ok := tagInt(tag); ok {
+				cell.ValueType = v
+			}
+		case 90:
+			if v, ok := tagInt(tag); ok {
+				cell.DataType = v
+			}
+		case 94:
+			if v, ok := tagInt(tag); ok {
+				cell.ValueFlag = v
+			}
+		case 7:
+			cell.TextStyleName = tagStringValue(tag)
+		case 140:
+			if v, ok := tagFloat(tag); ok {
+				cell.TextHeight = v
+			}
+		case 62:
+			if v, ok := tagInt(tag); ok {
+				cell.TextColor = v
+			}
+		case 63:
+			if v, ok := tagInt(tag); ok {
+				cell.BgColor = v
+			}
+		case 64:
+			if v, ok := tagInt(tag); ok {
+				cell.GridColor = v
+			}
+		case 65:
+			if v, ok := tagInt(tag); ok {
+				cell.GridWeight = v
+			}
+		case 1, 2, 3:
+			textChunks = append(textChunks, tagStringValue(tag))
+		case 302:
+			longText = tagStringValue(tag)
+		}
+	}
+	if len(textChunks) > 0 {
+		cell.Text = strings.Join(textChunks, "")
+	} else {
+		cell.Text = longText
+	}
+
+	for len(t.Rows) <= rowIdx {
+		t.Rows = append(t.Rows, &entity.TableRow{})
+	}
+	row := t.Rows[rowIdx]
+	for len(row.Cells) <= colIdx {
+		row.Cells = append(row.Cells, &entity.TableCell{})
+	}
+	row.Cells[colIdx] = cell
+}
+
+// applyAcadTableStyleTag collects table-level style overrides that follow the
+// cell records.
+func applyAcadTableStyleTag(t *entity.AcadTable, tag lldxf.Tag) {
+	if t.TableStyleOverride == nil {
+		t.TableStyleOverride = &entity.TableStyle{}
+	}
+	style := t.TableStyleOverride
+	switch tag.Code() {
+	case 70:
+		if v, ok := tagInt(tag); ok {
+			style.FlowDirection = v
+		}
+	case 40:
+		if v, ok := tagFloat(tag); ok {
+			style.CellMarginH = v
+		}
+	case 41:
+		if v, ok := tagFloat(tag); ok {
+			style.CellMarginV = v
+		}
+	case 280:
+		if v, ok := tagInt(tag); ok {
+			style.TitleSuppressed = v != 0
+		}
+	case 281:
+		if v, ok := tagInt(tag); ok {
+			style.HeaderRowSuppressed = v != 0
+		}
+	case 7:
+		style.TextStyle = tagStringValue(tag)
+	case 140:
+		if v, ok := tagFloat(tag); ok {
+			style.TextHeight = v
+		}
+	}
+}
+
+// linkAcadTableMerges turns the border width/height of master cells into merge
+// spans and links covered cells back to their master.
+func linkAcadTableMerges(t *entity.AcadTable) {
+	cellAt := func(row, col int) *entity.TableCell {
+		if row < 0 || row >= len(t.Rows) || col < 0 || col >= len(t.Rows[row].Cells) {
+			return nil
+		}
+		return t.Rows[row].Cells[col]
+	}
+	for _, row := range t.Rows {
+		for _, cell := range row.Cells {
+			if cell == nil || cell.Merged {
+				continue
+			}
+			rowSpan, colSpan := cell.BorderHeight, cell.BorderWidth
+			if rowSpan <= 1 && colSpan <= 1 {
+				continue
+			}
+			if rowSpan < 1 {
+				rowSpan = 1
+			}
+			if colSpan < 1 {
+				colSpan = 1
+			}
+			cell.MergedCell = &entity.MergedCell{RowSpan: rowSpan, ColSpan: colSpan}
+			for r := cell.Row; r < cell.Row+rowSpan; r++ {
+				for c := cell.Col; c < cell.Col+colSpan; c++ {
+					if r == cell.Row && c == cell.Col {
+						continue
+					}
+					if covered := cellAt(r, c); covered != nil {
+						covered.Merged = true
+						covered.MergedCell = &entity.MergedCell{MasterCell: cell}
+					}
+				}
+			}
+		}
+	}
+}
+
 func loadSolid3d(tags lldxf.Tags) *entity.Solid3d {
 	s := entity.NewSolid3d()
 	loadCommonAttribs(s, tags)
@@ -2514,8 +3012,15 @@ func loadSolid3d(tags lldxf.Tags) *entity.Solid3d {
 			}
 		}
 	}
-	if lines := acisStringPayload(tags); len(lines) > 0 {
-		s.SetSATLines(lines)
+	if lines, codes := acisTextPayload(tags); len(lines) > 0 {
+		s.SetSATPayload(lines, codes)
+		info := entity.ParseSATMetadata(lines)
+		if info.Version == 0 {
+			info.Version = s.Version
+		}
+		s.SetACISInfo(info)
+	} else if data := acisBinaryPayload(tags); len(data) > 0 {
+		s.SetACISBinaryData(data)
 	}
 	return s
 }
@@ -2523,8 +3028,18 @@ func loadSolid3d(tags lldxf.Tags) *entity.Solid3d {
 func loadRegion(tags lldxf.Tags) *entity.Region {
 	r := entity.NewRegion()
 	loadCommonAttribs(r, tags)
-	if lines := acisStringPayload(tags); len(lines) > 0 {
-		r.SetSATLines(lines)
+	for _, tag := range tags {
+		if tag.Code() == 70 {
+			if v, ok := tagInt(tag); ok {
+				r.Version = v
+			}
+		}
+	}
+	if lines, codes := acisTextPayload(tags); len(lines) > 0 {
+		r.SetSATPayload(lines, codes)
+		r.SetACISInfo(entity.ParseSATMetadata(lines))
+	} else if data := acisBinaryPayload(tags); len(data) > 0 {
+		r.SetACISBinaryData(data)
 	}
 	return r
 }
@@ -2558,26 +3073,80 @@ func loadBody(tags lldxf.Tags) *entity.Body {
 			}
 		}
 	}
-	if lines := acisStringPayload(tags); len(lines) > 0 {
-		b.SetSATLines(lines)
+	if lines, codes := acisTextPayload(tags); len(lines) > 0 {
+		b.SetSATPayload(lines, codes)
+		info := entity.ParseSATMetadata(lines)
+		if info.Version == 0 {
+			info.Version = b.Version
+		}
+		b.SetACISInfo(info)
+	} else if data := acisBinaryPayload(tags); len(data) > 0 {
+		b.SetACISBinaryData(data)
 	}
 	return b
 }
 
-// acisStringPayload extracts string-valued code-10 tags: the ACIS text payload
-// of REGION and BODY records. Float code-10 tags are geometric points, not
-// payload lines.
-func acisStringPayload(tags lldxf.Tags) []string {
+// acisTextPayload extracts the ACIS text payload from a record. Current SAT
+// records use code 1 for a line and code 3 for continuation chunks; legacy
+// records (and the original Go tests) use code 10 lines. Float code-10 tags
+// are geometric points, not payload lines.
+func acisTextPayload(tags lldxf.Tags) ([]string, []int) {
 	var lines []string
+	var codes []int
+	inModeler := false
 	for _, tag := range tags {
-		if int(tag.Code()) != 10 {
-			continue
-		}
-		if v, ok := tag.Value().(string); ok {
-			lines = append(lines, v)
+		switch int(tag.Code()) {
+		case 100:
+			switch fmtTagValue(tag.Value()) {
+			case "AcDbModelerGeometry":
+				inModeler = true
+			case "AcDb3dSolid", "AcDbRegion", "AcDbBody":
+				inModeler = false
+			}
+		case 10:
+			if v, ok := tag.Value().(string); ok {
+				lines = append(lines, v)
+				codes = append(codes, 10)
+			}
+		case 1, 3:
+			if !inModeler {
+				continue
+			}
+			v, ok := tag.Value().(string)
+			if !ok {
+				continue
+			}
+			if tag.Code() == 1 {
+				lines = append(lines, v)
+				codes = append(codes, 1)
+			} else if len(lines) > 0 {
+				lines[len(lines)-1] += v
+			}
 		}
 	}
-	return lines
+	return lines, codes
+}
+
+// acisBinaryPayload concatenates code-310 binary chunks, which carry SAB data
+// in entity records that embed the payload directly.
+func acisBinaryPayload(tags lldxf.Tags) []byte {
+	var out []byte
+	for _, tag := range tags {
+		if int(tag.Code()) != 310 {
+			continue
+		}
+		switch v := tag.Value().(type) {
+		case []byte:
+			out = append(out, v...)
+		case string:
+			if decoded, err := hex.DecodeString(strings.TrimSpace(v)); err == nil {
+				out = append(out, decoded...)
+			} else {
+				out = append(out, []byte(v)...)
+			}
+		}
+	}
+	return out
 }
 
 func loadCommonAttribs(e entity.Entity, tags lldxf.Tags) {

@@ -52,6 +52,9 @@ type entity struct {
 	extrusion    []float64 // 210, 220, 230 extrusion direction
 	thickness    float64   // 39 thickness (LINE, CIRCLE, ARC, LWPOLYLINE, ...)
 
+	reactors []string // 102 {ACAD_REACTORS 330 ... 102 }
+	xdict    string   // 102 {ACAD_XDICTIONARY 360 handle 102 }
+
 	rawWholeRecord   bool   // rawTags carry every retained code of the record
 	typeNameOverride string // explicit code 0 name for retained records
 }
@@ -105,6 +108,18 @@ func (e *entity) Format(f format.Formatter) {
 	f.WriteString(0, e.recordTypeName())
 	if e.handle != "" {
 		f.WriteString(5, e.handle)
+	}
+	if len(e.reactors) > 0 {
+		f.WriteString(102, "{ACAD_REACTORS")
+		for _, r := range e.reactors {
+			f.WriteString(330, r)
+		}
+		f.WriteString(102, "}")
+	}
+	if e.xdict != "" {
+		f.WriteString(102, "{ACAD_XDICTIONARY")
+		f.WriteString(360, e.xdict)
+		f.WriteString(102, "}")
 	}
 	if e.blockRecord != nil {
 		f.WriteString(102, "{ACAD_REACTORS")
@@ -217,6 +232,19 @@ func (e *entity) SetOwner(h handle.Handler) {
 
 // Owner returns the entity's owner handler (code 330).
 func (e *entity) Owner() handle.Handler { return e.owner }
+
+// SetReactorHandles stores persistent reactor handles (102 {ACAD_REACTORS).
+func (e *entity) SetReactorHandles(hs []string) { e.reactors = hs }
+
+// ReactorHandles returns persistent reactor handles.
+func (e *entity) ReactorHandles() []string { return e.reactors }
+
+// SetExtDictHandle stores the extension dictionary handle
+// (102 {ACAD_XDICTIONARY 360 handle).
+func (e *entity) SetExtDictHandle(h string) { e.xdict = h }
+
+// ExtDictHandle returns the extension dictionary handle.
+func (e *entity) ExtDictHandle() string { return e.xdict }
 
 // Linetype returns the entity linetype name (code 6).
 func (e *entity) Linetype() string { return e.linetype }

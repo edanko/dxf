@@ -13,6 +13,7 @@ type BaseObject struct {
 	handle   string
 	wireType string     // code-0 marker emitted by Format (e.g. DICTIONARYVAR)
 	reactors []string   // owner handles from the {ACAD_REACTORS group (code 102/330)
+	xdict    string     // extension dictionary from {ACAD_XDICTIONARY (360)
 	retained lldxf.Tags // tags the typed model does not emit, kept for round trip
 }
 
@@ -48,6 +49,12 @@ func (b *BaseObject) SetReactorHandles(hs []string) { b.reactors = hs }
 
 // ReactorHandles returns the parsed reactor links.
 func (b *BaseObject) ReactorHandles() []string { return b.reactors }
+
+// SetExtDictHandle stores the extension dictionary handle.
+func (b *BaseObject) SetExtDictHandle(h string) { b.xdict = h }
+
+// ExtDictHandle returns the extension dictionary handle.
+func (b *BaseObject) ExtDictHandle() string { return b.xdict }
 
 // formatReactors writes the {ACAD_REACTORS group from the parsed links.
 func (b *BaseObject) formatReactors(f format.Formatter) {
@@ -122,6 +129,16 @@ type Object interface {
 	IsObject() bool
 	Format(format.Formatter)
 	handle.Handler
+}
+
+// ReactorReader exposes persistent reactor handles.
+type ReactorReader interface {
+	ReactorHandles() []string
+}
+
+// ExtDictReader exposes an extension dictionary handle.
+type ExtDictReader interface {
+	ExtDictHandle() string
 }
 
 // objectObject implements the Object interface

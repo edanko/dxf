@@ -42,8 +42,10 @@ type parityTableEntry struct {
 }
 
 type parityObject struct {
-	Type   string `json:"type"`
-	Handle string `json:"handle"`
+	Type      string   `json:"type"`
+	Handle    string   `json:"handle"`
+	TypedType string   `json:"typed_type"`
+	Members   []string `json:"members"`
 }
 
 // TestEzdxfCrossCheck compares the Go loader against an ezdxf dump for every
@@ -195,10 +197,19 @@ func goParityDump(t *testing.T, path string) parityDump {
 	}
 
 	for _, o := range d.Objects() {
-		dump.Objects = append(dump.Objects, parityObject{
-			Type:   object.TypeName(o),
-			Handle: normalizeHandle(version, o.Handle()),
-		})
+		po := parityObject{
+			Type:      parityObjectWireType(o),
+			Handle:    normalizeHandle(version, o.Handle()),
+			TypedType: object.TypeName(o),
+			Members:   make([]string, 0),
+		}
+		if collection, ok := o.(interface{ MemberHandles() []string }); ok {
+			for _, h := range collection.MemberHandles() {
+				po.Members = append(po.Members, normalizeHandle(version, h))
+			}
+			sort.Strings(po.Members)
+		}
+		dump.Objects = append(dump.Objects, po)
 	}
 	sort.Slice(dump.Objects, func(i, j int) bool {
 		if dump.Objects[i].Type != dump.Objects[j].Type {
@@ -208,6 +219,21 @@ func goParityDump(t *testing.T, path string) parityDump {
 	})
 
 	return dump
+}
+
+// parityObjectWireType reports the code-0 marker the object writes, which can
+// differ from the typed model name for dictionaries reclassified as typed
+// collections.
+func parityObjectWireType(o object.Object) string {
+	if wt, ok := o.(interface{ WireType() string }); ok {
+		if name := wt.WireType(); name != "" {
+			return name
+		}
+	}
+	if _, ok := o.(interface{ CollectionType() string }); ok {
+		return "DICTIONARY"
+	}
+	return object.TypeName(o)
 }
 
 func newParityEntity(dxfType, handle, layer, version string) parityEntity {

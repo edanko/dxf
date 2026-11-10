@@ -43,6 +43,9 @@ type Mesh struct {
 	// Optional property overrides
 	color int    // Vertex color override (62)
 	layer string // Layer override (8)
+
+	// Optional vertex cache record linked by owner handle (MESHVERTEXCACHE).
+	vertexCache *MeshVertexCache
 }
 
 // NewMesh creates a new MESH entity
@@ -66,6 +69,12 @@ func NewMesh() *Mesh {
 func (m *Mesh) IsEntity() bool {
 	return true
 }
+
+// VertexCache returns the linked MESHVERTEXCACHE record, or nil.
+func (m *Mesh) VertexCache() *MeshVertexCache { return m.vertexCache }
+
+// SetVertexCache links a MESHVERTEXCACHE record to this mesh.
+func (m *Mesh) SetVertexCache(cache *MeshVertexCache) { m.vertexCache = cache }
 
 // Format writes MESH entity data to DXF format
 func (m *Mesh) Format(f format.Formatter) {

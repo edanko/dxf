@@ -19,7 +19,9 @@ type Solid3d struct {
 	// Geometry data
 	SATData    []byte   // SAT/SAB binary data (retained via rawTags)
 	SATVersion int      // ACIS version for SAT format
-	satLines   []string // text SAT payload lines (code 10 groups)
+	satLines   []string // text SAT payload lines
+	satCodes   []int    // wire code per SAT line
+	acisInfo   ACISMetadata
 
 	// Transformation
 	Transform        *ACASTransform
@@ -169,6 +171,11 @@ func (s *Solid3d) Format(f format.Formatter) {
 		f.WriteString(1, s.UID)
 	}
 
+	// SAT (text ACIS) payload, preserving legacy code 10 lines and current
+	// code 1/3 SAT lines. Real ACIS records place the payload inside the
+	// AcDbModelerGeometry subclass, before AcDb3dSolid.
+	writeSATPayload(f, s.satLines, s.satCodes)
+
 	f.WriteString(100, "AcDb3dSolid")
 	// ACIS version (code 70).
 	f.WriteInt(70, s.Version)
@@ -177,9 +184,6 @@ func (s *Solid3d) Format(f format.Formatter) {
 	if len(s.SATData) == 0 {
 		f.WriteInt(91, s.Flags)
 	}
-
-	// SAT (text ACIS) payload: count of lines, then each line verbatim.
-	s.writeSATHistory(f)
 
 	// Geometric properties and center (AcDb3dSolid section).
 	if s.volume != 0 {
@@ -197,26 +201,41 @@ func (s *Solid3d) Format(f format.Formatter) {
 // RawWholeRecord reports whole-record retention: a 3DSOLID with an opaque
 // binary SAT/SAB payload (codes 90/310) re-emits its retained tags verbatim,
 // and the typed accessors below are unavailable for such records.
-func (s *Solid3d) RawWholeRecord() bool { return len(s.SATData) > 0 }
-
-// writeSATHistory emits the stored ACIS payload. Text SAT data (code 10 lines)
-// round-trips verbatim; binary SAB data (codes 90/310) is retained through
-// rawTags by the binder, so it must not be re-emitted here.
-func (s *Solid3d) writeSATHistory(f format.Formatter) {
-	if len(s.satLines) == 0 {
-		return
-	}
-	f.WriteInt(90, len(s.satLines))
-	for _, ln := range s.satLines {
-		f.WriteString(10, ln)
-	}
-}
+func (s *Solid3d) RawWholeRecord() bool { return len(s.SATData) > 0 || len(s.satLines) > 0 }
 
 // SATLines returns the stored text SAT payload lines.
 func (s *Solid3d) SATLines() []string { return s.satLines }
 
 // SetSATLines replaces the text SAT payload.
-func (s *Solid3d) SetSATLines(lines []string) { s.satLines = lines }
+func (s *Solid3d) SetSATLines(lines []string) {
+	s.satLines = append([]string(nil), lines...)
+	s.satCodes = normalizeSATCodes(s.satLines, nil)
+}
+
+// SetSATPayload replaces the text SAT payload and preserves each line's wire
+// group code.
+func (s *Solid3d) SetSATPayload(lines []string, codes []int) {
+	s.satLines = append([]string(nil), lines...)
+	s.satCodes = normalizeSATCodes(s.satLines, codes)
+}
+
+// ACISInfo returns the shallow ACIS metadata parsed from the payload.
+func (s *Solid3d) ACISInfo() ACISMetadata { return s.acisInfo }
+
+// SetACISInfo replaces the ACIS metadata.
+func (s *Solid3d) SetACISInfo(m ACISMetadata) { s.acisInfo = m }
+
+// SetACISBinaryData attaches a SAB payload and updates its metadata.
+func (s *Solid3d) SetACISBinaryData(data []byte) {
+	s.SATData = append([]byte(nil), data...)
+	s.acisInfo = ParseSABMetadata(s.SATData)
+}
+
+// ACISBinaryData returns a copy of the retained SAB payload.
+func (s *Solid3d) ACISBinaryData() []byte { return append([]byte(nil), s.SATData...) }
+
+// HasBinaryACIS reports whether the record carries SAB data.
+func (s *Solid3d) HasBinaryACIS() bool { return s.acisInfo.IsBinary() || len(s.SATData) > 0 }
 
 // String outputs data using default formatter
 func (s *Solid3d) String() string {

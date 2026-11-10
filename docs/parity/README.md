@@ -1,6 +1,6 @@
 # ezdxf Feature Parity Roadmap (Go `dxf`)
 
-Status: implementation complete for roadmap changes 1–13; remaining gaps are tracked as follow-up OpenSpec changes.
+Status: implementation complete for roadmap changes 1–14; remaining gaps are tracked as follow-up OpenSpec changes.
 Last updated: 2026-11-10.
 
 This document is the durable entry point for continuing the "Go `dxf` should match
@@ -81,7 +81,7 @@ openspec instructions <artifact> --change "<name>" --json
 | `header` | header variables | typed core variables plus `Extra` retention for every other `$...` |
 | `table` | APPID, BLOCK_RECORD, DIMSTYLE, LAYER, LTYPE, STYLE, UCS, VIEW, VIEWPORT | all entries parsed; unknown entry types retained as `RawSymbolTable` |
 | `block` | block definitions | names, handles, layer names, contained entities |
-| `entity` | entity structs and `Format` methods | broad typed inventory (37 registered types) plus whole-record retention; `ACAD_TABLE` remains retained |
+| `entity` | entity structs and `Format` methods | broad typed inventory (54 registered types, including objects-as-entities and MESHVERTEXCACHE) plus whole-record retention for unmodelled records |
 | `object` | OBJECTS section | typed dictionaries, groups, xrecords, layouts, plot settings, styles, image/underlay definitions; unknown objects retained as `RawObject` |
 | `class` | CLASSES section | full class record fields |
 | `math` | vectors, matrices, bbox, Bezier, BSpline/NURBS, bulge, OCS/UCS, offset, earcut, delaunay, construct | substantial; missing Perlin/clustering/Shape/nesting/clipping portal |
@@ -126,7 +126,7 @@ must be verified before implementation starts.
 | THUMBNAILIMAGE section | `document.py` | `DONE` — retained opaque and re-emitted (`TestOpaqueSectionsAreRetained`) |
 | ACDSDATA section | `sections/acdsdata.py` | `DONE` — retained opaque and re-emitted |
 | Unknown tag retention | `entities/dxfentity.py` | `PARTIAL` — known entities keep unhandled codes; unknown table entries/blocks/typed objects still drop some tags |
-| Load/save round trip | `document.py` | `DONE` — all 51 `testdata/*.dxf` round-trip with matching inventories (`TestCorpusRoundTrip`) |
+| Load/save round trip | `document.py` | `DONE` — all 54 `testdata/*.dxf` round-trip with matching inventories (`TestCorpusRoundTrip`) |
 | Recover mode | `recover.py` | `DONE` — missing ENDSEC/EOF and tagger errors recovered with a report; malformed entity records are skipped and counted; `RecoverFile`/`RecoverReader` add a merged audit pass (`TestRecoveryLoadsTruncatedDocument`, `TestRecoverMalformedEntity`, `audit/recover.go`) |
 | Comments (`999`) | `comments.py` | `PARTIAL` — preserved per section and re-emitted at section start; original position is not retained (`TestCommentsArePreservedUnlessStripped`) |
 | R12 strict mode | `r12strict.py` | `DONE` — sanitizer drops non-R12 tables/entities/layers, true-color header variables, records conversion report (`TestR12Downgrade`, `drawing/r12strict.go`) |
@@ -148,14 +148,16 @@ MLeader/MULTILEADER (alias), HATCH, MPOLYGON (typed hatch with record-name
 override), IMAGE, DIMENSION (+ ARC_DIMENSION, LARGE_RADIAL_DIMENSION aliases),
 SHAPE, XLINE, RAY, WIPEOUT, MLINE, TOLERANCE, 3DSOLID, REGION, BODY, MESH,
 HELIX, EXTRUDED_SURFACE, LOFTED_SURFACE, REVOLVED_SURFACE, SWEPT_SURFACE,
-PLANESURFACE.
+PLANESURFACE, ACAD_TABLE (typed rows/cells/styles/merges), MESHVERTEXCACHE
+(also `MESH_VERTEX_CACHE` alias), and objects-as-entities LAYOUT,
+PLOTSETTINGS, RASTERVARIABLES, WIPEOUTVARIABLES, IDBUFFER, FIELDLIST,
+SPATIAL_FILTER, GEODATA.
 
 Whole-record retention (`entity.RetainedRecordType`, default loader; verified
 by `TestRetainedRecordSurvival`, `TestLightSunRetainedRoundTrip`,
-`TestFieldRetainedRoundTrip`, `TestAcadTableRetainedRoundTrip`): ACAD_TABLE,
-ACAD_PROXY_ENTITY, OLE2FRAME, LIGHT, SUN, FIELD, LAYOUT-as-entity records,
-third-party/app-defined types, and any unregistered standard type. Retained
-records re-emit every tag verbatim (code 0/handle from the base), so
+`TestFieldRetainedRoundTrip`): ACAD_PROXY_ENTITY, OLE2FRAME, LIGHT, SUN,
+FIELD, third-party/app-defined types, and any unregistered standard type.
+Retained records re-emit every tag verbatim (code 0/handle from the base), so
 unknown/third-party entities survive load/save unchanged.
 
 Entity operations (`entity` package): `Transform` for every geometry category
@@ -164,28 +166,23 @@ matrix-composition tests; `BBox` including INSERT block content
 (`TestInsertBBoxContent`); `Explode` for INSERT, POLYLINE, HATCH (boundary
 polylines), DIMENSION, LEADER, MLEADER (`explode_roundtrip_test.go`).
 
-ACIS payload limitations: text SAT payloads (code 90 count + code 10 lines) on
-3DSOLID/REGION/BODY are retained whole-record and round-trip verbatim
-(`acis_roundtrip_test.go`); binary SAB payloads (codes 90/310) survive through
-the same whole-record retention. Go does not parse ACIS bodies, history trees,
-or SAT version semantics; typed accessors (volume/area/center) are only
-available on payload-free records. HATCH edge-path boundaries and ELLIPSE
+ACIS payloads: text SAT payloads on 3DSOLID/REGION/BODY are retained and
+round-trip verbatim (`acis_roundtrip_test.go`); the loader reports SAT format,
+ACIS version, record count, body count, and history/end markers
+(`entity.ParseSATMetadata`). Binary SAB payloads (codes 90/310, including
+ACDSDATA records linked by handle) are preserved byte-for-byte and report
+binary ACIS presence (`entity.ParseSABMetadata`, `acis_metadata_test.go`).
+Decoding is intentionally shallow: full ACIS body geometry and history-tree
+reconstruction are out of scope. HATCH edge-path boundaries and ELLIPSE
 records with embedded splines fall back to whole-record retention.
 
 Missing or only partially modelled (non-exhaustive):
 
-- Tables: `ACAD_TABLE` typed content rows/columns, `TABLESTYLE`.
-- Multileaders: `MLEADERSTYLE`, `MLEADERSTYLECOLLECTION`.
-- MLine: `MLINESTYLE`, `MLINESTYLECOLLECTION`.
-- Images/underlays: `IMAGEDEF`, `IMAGEDEF_REACTOR`, `PDFDEFINITION`,
-  `PDFREFERENCE`, `PDFUNDERLAY`, `DGNUNDERLAY`, `DWFUNDERLAY`,
-  `UNDERLAYDEFINITION`.
-- Objects-as-entities: `LAYOUT`, `PLOTSETTINGS`, `RASTERVARIABLES`,
-  `WIPEOUTVARIABLES`, `IDBUFFER`, `FIELDLIST`, `SPATIAL_FILTER`, `GEODATA`
-  (retained, not typed).
-- Sub-entities: `VERTEX` variants (`POLYFACE`, `POLYMESH`),
-  `MESHVERTEXCACHE`.
-- ACIS: body history parsing, SAT/SAB binary decoding.
+- Tables: `TABLESTYLE` is typed but not fully wired into table creation/editing.
+- Images/underlays: `PDFREFERENCE`, `PDFUNDERLAY`, `DGNUNDERLAY`,
+  `DWFUNDERLAY` are retained; definition objects are typed.
+- ACIS: full body geometry/history-tree decoding; typed metadata is shallow by
+  design.
 
 Per-entity requirements to verify for every type: all documented group codes,
 defaults, version gating, OCS/extrusion handling, subclass markers, XDATA/APPID,
@@ -196,15 +193,16 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | Area | ezdxf reference | Go baseline |
 |---|---|---|
 | APPID, BLOCK_RECORD, DIMSTYLE, LAYER, LTYPE, STYLE, UCS, VIEW, VPORT | `tables/*`, `entities/*` | `PARTIAL` — shared `EntryBase` (handle/owner/flags/xdata/extdict/reactors), generic lookup/add/remove/rename with duplicate-name errors, typed parse/format (`TestParseTablesEntryCounts`, `TestTableLookupAddRemoveRename`, `TestTableHandlesOwnersUnique`) |
-| Dictionaries, XRECORD, DICTIONARYVAR, DICTIONARYWITHDEFAULT | `entities/dictionary.py` | `PARTIAL` — typed round trip and key lookup (`TestDictionary*`) |
+| Dictionaries, XRECORD, DICTIONARYVAR, DICTIONARYWITHDEFAULT | `entities/dictionary.py` | `PARTIAL` — typed round trip, key lookup, and typed MLEADERSTYLE/MLINESTYLE collections reclassified from root dictionary keys (`TestDictionary*`, `TestMLeaderStyleCollectionMembers`, `TestMLineStyleCollectionFromRootDictionary`) |
 | GROUP | `entities/dxfgroups.py` | `PARTIAL` — typed round trip (`TestGroup*`) |
-| LAYOUT, PLOTSETTINGS | `entities/layout.py`, `dxfobjects/plotsettings.py` | `PARTIAL` — typed name/block record/flags, retained round trip (`TestLayoutNameAndBlockRecord`) |
-| MLINESTYLE, MLEADERSTYLE, TABLESTYLE | `entities/mlinestyle.py`, `mleader.py`, `table.py` | `PARTIAL` — typed name/description/flags, retained round trip (`TestStandardObjectTypedModels`) |
+| LAYOUT, PLOTSETTINGS | `entities/layout.py`, `dxfobjects/plotsettings.py` | `PARTIAL` — typed name/block record/flags, retained round trip; typed when loaded from ENTITIES (`TestLayoutObjectInEntitiesTyped`) |
+| MLINESTYLE, MLEADERSTYLE, TABLESTYLE | `entities/mlinestyle.py`, `mleader.py`, `table.py` | `PARTIAL` — typed name/description/flags, retained round trip; MLEADERSTYLECOLLECTION/MLINESTYLECOLLECTION typed (`TestStandardObjectTypedModels`) |
 | MATERIAL, VISUALSTYLE, SUN, LIGHT, GEODATA | `entities/material.py`, `visualstyle.py`, `sun.py`, `light.py`, `geodata.py` | `PARTIAL` — typed name/description/flags, retained round trip |
 | SPATIAL_FILTER, IDBUFFER, RASTERVARIABLES, WIPEOUTVARIABLES | `entities/spatial_filter.py`, `idbuffer.py` | `PARTIAL` — typed models, retained round trip; RASTERVARIABLES constructor (`object.NewRasterVariables`) |
 | SORTENTSTABLE, FIELDLIST, IMAGEDEF, IMAGEDEF_REACTOR, UNDERLAYDEFINITION, PDF/DWF/DGN DEFINITION | `entities/sortentstable.py`, `field.py`, `image.py`, `underlay.py` | `DONE` — typed sort order, entity handles, filename/size plus constructors and the Page accessor (`object.NewImageDef`, `object.NewUnderlayDef`, `TestImageDefPathAndSize`, `TestSortEntsTableOrder`, `TestUnderlayEntityRoundTrip`) |
 | ACAD_PROXY_ENTITY, ACAD_XREC_ROUNDTRIP | `entities/acad_proxy_entity.py` | `PARTIAL` |
-| Extension dictionary/reactors on every entity | `xdict.py`, `appdata.py` | `PARTIAL` — preserved on typed table entries and objects (`TestObjectReactorsAndExtDict`) |
+| Extension dictionary/reactors on every entity | `xdict.py`, `appdata.py` | `DONE` — typed on entities, table entries, and objects; unknown groups retained verbatim (`TestEntityExtensionDictionaryAndReactors`, `TestObjectExtensionDictionaryAndReactors`, `TestCollectionExtensionDictionary`) |
+| LAYER_FILTER, VBA_PROJECT | `entities/layer.py`, `dxfobjects/vba.py` | `DONE` — typed layer handles/names/expressions and VBA payload with retained unknown tags (`TestLayerFilterTyped`, `TestVBAProjectTyped`) |
 
 ### 4. High-level document and layout API
 
@@ -364,11 +362,12 @@ assume the earlier ones.
 ### Follow-up parity changes
 
 These changes cover remaining gaps found after the first thirteen changes were
-implemented. `library-refactor` is complete; the rest are not yet applied.
+implemented. `entity-object-completion-parity` and `library-refactor` are
+complete; the rest are not yet applied.
 
 | # | Change name | Scope | Depends on |
 |---|---|---|---|
-| 14 | `entity-object-completion-parity` | ACAD_TABLE typed content, collection objects, POLYFACE/POLYMESH vertices, MESHVERTEXCACHE, ACIS SAT/SAB metadata, objects-as-entities | 3, 4 |
+| 14 | `entity-object-completion-parity` (done) | ACAD_TABLE typed content, collection objects, POLYFACE/POLYMESH vertices, MESHVERTEXCACHE, ACIS SAT/SAB metadata, objects-as-entities | 3, 4 |
 | 15 | `math-shape-clipping-parity` | Perlin noise, clustering, Shape container, portal clipping, triangulation hole bridge, path nesting | 6, 7 |
 | 16 | `render-plot-font-parity` | full DIMENSION renderer, mesh/polyface faces, arrow heads, STB/binary CTB plot styles, SHX/TTF text metrics, ISO hatch patterns | 7, 11 |
 | 17 | `addons-remaining-parity` | browser/acisbrowser extraction, DWG via CommandRunner, r12export, xqt, dimlines, genetic algorithm, Menger sponge, Sierpinski pyramid, mixins | 11 |
@@ -400,9 +399,12 @@ on complete data; add-ons and CLI depend on everything.
    ```
 
    It compares version, entity/block/subentity inventory, source TABLES entries,
-   and source OBJECTS records for every `testdata/*.dxf`. Table/object
-   expectations come from raw source records so ezdxf auto-created defaults
-   (layers, dictionaries, layouts) do not create false diffs. Set
+   and typed OBJECTS records for every `testdata/*.dxf`. Object records expose
+   both the source wire type and the typed model, including collection member
+   handles; `MESHVERTEXCACHE` records are read from the source stream because
+   ezdxf does not expose them as graphics. Table/object expectations come from
+   raw source records so ezdxf auto-created defaults (layers, dictionaries,
+   layouts) do not create false diffs. Set
    `DXF_EZDXF_SOURCE=/home/egor/src/ezdxf` to use a local source checkout; the
    harness creates a temporary venv with `uv` or `python3 -m venv` when
    `DXF_EZDXF_PYTHON` is unset.
@@ -415,8 +417,6 @@ on complete data; add-ons and CLI depend on everything.
 ## Known WIP and hazards
 
 - `drawing.FromJSON` is a no-op.
-- `ACAD_TABLE` remains a retained record; typed row/cell access is not wired
-  into the entity loader.
 - Math gaps: Perlin noise, clustering, `Shape` container, portal clipping,
   path nesting, and the triangulation hole-bridge area shortfall.
 - Rendering gaps: full dimension block renderer, mesh rendering, arrow heads,
@@ -451,5 +451,6 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-10 | change 13 `color-enum-units-parity` | done | Full ACI table/nearest lookup/transparency, typed enums, units/$INSUNITS conversion, lineweight validation. Linetype patterns and ISO hatch patterns remain partial. |
 | 2026-11-10 | ezdxf cross-check harness | done | `scripts/ezdxf_dump.py` + opt-in `TestEzdxfCrossCheck` compare version, entity/block/subentity inventory, source tables, and source objects across all 52 fixtures. Passing against ezdxf 1.4.6b0; `go test ./...` passes. |
 | 2026-11-10 | `library-refactor` | done | Removed dead `parser.go` and unused render helpers; consolidated block adapters in `internal/blockadapter`; replaced inline interface assertions with named interfaces across the public packages; `go test ./...` and the ezdxf cross-check still pass. |
+| 2026-11-10 | change 14 `entity-object-completion-parity` | done | ACAD_TABLE typed rows/cells/styles/merges with typed loader and round trips; POLYFACE/POLYMESH vertex variants and face records; MESHVERTEXCACHE typed and linked to MESH; SAT/SAB metadata parsing with byte-preserving payloads and ACDSDATA linkage; typed MLEADERSTYLE/MLINESTYLE collections, LAYER_FILTER, VBA_PROJECT; objects-as-entities loaded through typed object models without moving sections; typed reactors/extension dictionaries on entities and objects. Cross-check now compares typed object inventories and passes across 54 fixtures. Tests: `acad_table_roundtrip_test.go`, `polyface_mesh_roundtrip_test.go`, `acis_metadata_test.go`, `object_collection_roundtrip_test.go`, `object_entity_roundtrip_test.go`, `extension_links_test.go`, plus package unit tests. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

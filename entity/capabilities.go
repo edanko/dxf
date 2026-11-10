@@ -184,9 +184,19 @@ type ReactorReader interface {
 	ReactorHandles() []string
 }
 
+// ReactorSetter updates persistent reactor handles.
+type ReactorSetter interface {
+	SetReactorHandles([]string)
+}
+
 // ExtDictReader exposes an extension dictionary handle.
 type ExtDictReader interface {
 	ExtDictHandle() string
+}
+
+// ExtDictSetter updates the extension dictionary handle.
+type ExtDictSetter interface {
+	SetExtDictHandle(string)
 }
 
 // RecordTypeNamer overrides the wire type name of a retained record.
@@ -219,4 +229,24 @@ type RotationReaderSetter interface {
 type RawTagReadWriter interface {
 	RawTagReader
 	RawTagWriter
+}
+
+// ACISMetadataReader exposes shallow ACIS payload metadata.
+type ACISMetadataReader interface {
+	ACISInfo() ACISMetadata
+}
+
+// ACISBinaryReader reports whether an entity carries binary SAB data.
+type ACISBinaryReader interface {
+	HasBinaryACIS() bool
+}
+
+// ACISBinaryDataSetter attaches binary SAB data to an ACIS entity.
+type ACISBinaryDataSetter interface {
+	SetACISBinaryData([]byte)
+}
+
+// ACISBinaryDataReader returns the retained binary SAB payload.
+type ACISBinaryDataReader interface {
+	ACISBinaryData() []byte
 }

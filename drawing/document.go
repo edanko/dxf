@@ -1,6 +1,8 @@
 package drawing
 
 import (
+	"strings"
+
 	"github.com/edanko/dxf/block"
 	"github.com/edanko/dxf/class"
 	"github.com/edanko/dxf/entity"
@@ -105,11 +107,47 @@ func (d *Drawing) SetObjects(o object.Objects) { d.objectsSection = o }
 // GetObject returns an object by handle.
 func (d *Drawing) GetObject(handle string) (object.Object, bool) {
 	for _, o := range d.objectsSection {
-		if o.Handle() == handle {
+		if strings.EqualFold(o.Handle(), handle) {
 			return o, true
 		}
 	}
 	return nil, false
+}
+
+// RootDictionary returns the OBJECTS-section dictionary with no owner.
+func (d *Drawing) RootDictionary() (*object.Dictionary, bool) {
+	for _, o := range d.objectsSection {
+		if dict, ok := o.(*object.Dictionary); ok && (dict.Owner == "" || dict.Owner == "0") {
+			return dict, true
+		}
+	}
+	return nil, false
+}
+
+// GetObjectByDictionaryKey resolves a root-dictionary entry by key.
+func (d *Drawing) GetObjectByDictionaryKey(key string) (object.Object, bool) {
+	root, ok := d.RootDictionary()
+	if !ok {
+		return nil, false
+	}
+	return d.GetObjectByKey(root.Handle(), key)
+}
+
+// GetObjectByKey resolves a dictionary entry by dictionary handle and key.
+func (d *Drawing) GetObjectByKey(dictHandle, key string) (object.Object, bool) {
+	dictObj, ok := d.GetObject(dictHandle)
+	if !ok {
+		return nil, false
+	}
+	dict, ok := dictObj.(*object.Dictionary)
+	if !ok {
+		return nil, false
+	}
+	entry, ok := dict.GetEntry(key)
+	if !ok {
+		return nil, false
+	}
+	return d.GetObject(entry.Value)
 }
 
 // SetOpaqueSections stores sections that are retained as raw tags.

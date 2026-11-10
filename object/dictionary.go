@@ -143,6 +143,11 @@ func (d *Dictionary) GetEntries() map[string]*DictionaryEntry {
 	return result
 }
 
+// Keys returns dictionary entry keys in source order.
+func (d *Dictionary) Keys() []string {
+	return append([]string(nil), d.entryOrder...)
+}
+
 // SetDefaultEntry sets the default entry for DictionaryWithDefault
 func (d *DictionaryWithDefault) SetDefaultEntry(key string) {
 	d.DefaultName = key

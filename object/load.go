@@ -180,6 +180,27 @@ func ownerOfRecord(tags lldxf.Tags) string {
 	return ""
 }
 
+// extDictOfRecord returns the handle inside a 102 {ACAD_XDICTIONARY group.
+func extDictOfRecord(tags lldxf.Tags) string {
+	inXDict := false
+	for _, tag := range tags {
+		code := int(tag.Code())
+		if code == 102 {
+			v := strings.ToUpper(strings.TrimSpace(tagString(tag)))
+			if v == "{ACAD_XDICTIONARY" {
+				inXDict = true
+			} else if v == "}" {
+				inXDict = false
+			}
+			continue
+		}
+		if inXDict && code == 360 {
+			return tagString(tag)
+		}
+	}
+	return ""
+}
+
 // retainObjectTags keeps every tag the typed model does not emit, in wire
 // order. Code-102 {ACAD_REACTORS groups are parsed into the model's reactor
 // links (retained as a structured list and re-emitted by Format), so they are
@@ -296,61 +317,73 @@ func tagIntValue(tag lldxf.Tag) int {
 
 // ParseObject parses one OBJECTS-section object, returning a typed model for
 // the core object types and a raw object for everything else.
+// parseDictionary builds the shared DICTIONARY model used both by plain
+// dictionaries and by typed collection records.
+func parseDictionary(tags lldxf.Tags) *Dictionary {
+	d := NewDictionary()
+	d.SetHandleValue(tags.GetHandle())
+	d.SetOwnerString(ownerOfRecord(tags))
+	d.SetExtDictHandle(extDictOfRecord(tags))
+	reactors, groupTags := reactorsOfRecord(tags)
+	d.SetReactorHandles(reactors)
+	// The first code-280 is the hard-ownership flag; a second occurrence
+	// (AcDbDictionaryWithDefault schema flag) is retained verbatim.
+	// When the record has no 280 at all, Format must not invent one:
+	// keep the default and mark the flag emitted via a sentinel below.
+	count280 := countIntByCode(tags, 280)
+	if c, ok := firstIntByCode(tags, 280); ok {
+		d.HardOwned = c != 0
+	}
+	if count280 == 0 {
+		d.SetNoFlag(true) // Format must not invent a code-280
+	}
+	// 360 hard-owner links keep their wire code: record which keys used it.
+	hardKey := map[string]bool{}
+	lastKey := ""
+	for _, tag := range tags {
+		switch int(tag.Code()) {
+		case 3:
+			lastKey = tagString(tag)
+		case 350:
+			lastKey = ""
+		case 360:
+			if lastKey != "" {
+				hardKey[lastKey] = true
+				lastKey = ""
+			}
+		}
+	}
+	d.SetHardOwnerKeys(hardKey)
+	var key string
+	for _, tag := range tags {
+		switch int(tag.Code()) {
+		case 3:
+			key = tagString(tag)
+		case 350, 360:
+			if key != "" {
+				d.AddEntry(key, tagString(tag))
+				key = ""
+			}
+		}
+	}
+	d.SetRetainedTags(retainObjectTags(tags, dictEmitCounts(tags), reactors, groupTags))
+	return d
+}
+
 func ParseObject(tags lldxf.Tags) Object {
 	typeName := strings.ToUpper(tags.DXFType())
 	switch typeName {
 	case "DICTIONARY":
-		d := NewDictionary()
-		d.SetHandleValue(tags.GetHandle())
-		d.SetOwnerString(ownerOfRecord(tags))
-		reactors, groupTags := reactorsOfRecord(tags)
-		d.SetReactorHandles(reactors)
-		// The first code-280 is the hard-ownership flag; a second occurrence
-		// (AcDbDictionaryWithDefault schema flag) is retained verbatim.
-		// When the record has no 280 at all, Format must not invent one:
-		// keep the default and mark the flag emitted via a sentinel below.
-		count280 := countIntByCode(tags, 280)
-		if c, ok := firstIntByCode(tags, 280); ok {
-			d.HardOwned = c != 0
-		}
-		if count280 == 0 {
-			d.SetNoFlag(true) // Format must not invent a code-280
-		}
-		// 360 hard-owner links keep their wire code: record which keys used it.
-		hardKey := map[string]bool{}
-		lastKey := ""
-		for _, tag := range tags {
-			switch int(tag.Code()) {
-			case 3:
-				lastKey = tagString(tag)
-			case 350:
-				lastKey = ""
-			case 360:
-				if lastKey != "" {
-					hardKey[lastKey] = true
-					lastKey = ""
-				}
-			}
-		}
-		d.SetHardOwnerKeys(hardKey)
-		var key string
-		for _, tag := range tags {
-			switch int(tag.Code()) {
-			case 3:
-				key = tagString(tag)
-			case 350, 360:
-				if key != "" {
-					d.AddEntry(key, tagString(tag))
-					key = ""
-				}
-			}
-		}
-		d.SetRetainedTags(retainObjectTags(tags, dictEmitCounts(tags), reactors, groupTags))
-		return d
+		return parseDictionary(tags)
+	case "MLEADERSTYLECOLLECTION", "MLINESTYLECOLLECTION":
+		d := parseDictionary(tags)
+		d.SetWireType(typeName)
+		return WrapCollection(d, typeName)
 	case "ACDBDICTIONARYWDFLT":
 		d := NewDictionaryWithDefault()
 		d.SetHandleValue(tags.GetHandle())
 		d.Owner = ownerOfRecord(tags)
+		d.SetExtDictHandle(extDictOfRecord(tags))
 		r2, gt2 := reactorsOfRecord(tags)
 		d.SetReactorHandles(r2)
 		d.SetWireType(typeName) // wire marker is ACDBDICTIONARYWDFLT
@@ -521,6 +554,12 @@ func TypeName(o Object) string {
 		return "ACDBPLACEHOLDER"
 	case *AcDbDictionaryWDFLT:
 		return "ACDBDICTIONARYWDFLT"
+	case *ObjectCollection:
+		return v.CollectionType()
+	case *MLeaderStyleCollection:
+		return "MLEADERSTYLECOLLECTION"
+	case *MLineStyleCollection:
+		return "MLINESTYLECOLLECTION"
 	default:
 		if t, ok := o.(dxfTypeReader); ok {
 			return t.DXFType()
@@ -556,6 +595,17 @@ func tagStringByCode(tags lldxf.Tags, code int) string {
 		}
 	}
 	return ""
+}
+
+// stringsByCode returns every string tag with the given code in wire order.
+func stringsByCode(tags lldxf.Tags, code int) []string {
+	out := make([]string, 0)
+	for _, tag := range tags {
+		if int(tag.Code()) == code {
+			out = append(out, tagString(tag))
+		}
+	}
+	return out
 }
 
 // countIntByCode returns the number of tags with the given code.

@@ -9,13 +9,36 @@ import (
 	dxfmath "github.com/edanko/dxf/math"
 )
 
-// Polyline represents POLYLINE Entity.
+// POLYLINE flag bits (group code 70).
+const (
+	PolylineFlagClosed           = 1
+	PolylineFlagCurveFit         = 2
+	PolylineFlagSplineFit        = 4
+	PolylineFlag3DPolyline       = 8
+	PolylineFlag3DPolygonMesh    = 16
+	PolylineFlagMeshClosedN      = 32
+	PolylineFlagPolyface         = 64
+	PolylineFlagGenerateLinetype = 128
+)
+
+// Polyline represents a POLYLINE entity. The same record models plain
+// polylines, 3D polygon meshes (POLYMESH) and polyface meshes; the Flag field
+// selects the variant and MeshVertexCount/MeshFaceCount carry the 71/72 counts.
 type Polyline struct {
 	*entity
 	Flag      int
 	size      int
 	Vertices  []*Vertex
 	endhandle string
+
+	// Mesh counts. For POLYMESH these are M/N vertex counts (71/72); for
+	// POLYFACE they are vertex/face counts. SmoothDensity codes are 73/74 and
+	// SmoothSurfaceType is 75.
+	MeshVertexCount   int
+	MeshFaceCount     int
+	MSmoothDensity    int
+	NSmoothDensity    int
+	SmoothSurfaceType int
 }
 
 // IsEntity is for Entity interface.
@@ -38,12 +61,34 @@ func NewPolyline() *Polyline {
 // Format writes data to formatter.
 func (p *Polyline) Format(f format.Formatter) {
 	p.entity.Format(f)
-	f.WriteString(100, "AcDb3dPolyline")
+	switch {
+	case p.IsPolyface():
+		f.WriteString(100, "AcDbPolyFaceMesh")
+	case p.IsPolymesh():
+		f.WriteString(100, "AcDbPolygonMesh")
+	default:
+		f.WriteString(100, "AcDb3dPolyline")
+	}
 	f.WriteInt(66, 1)
 	f.WriteString(10, "0.0")
 	f.WriteString(20, "0.0")
 	f.WriteString(30, "0.0")
 	f.WriteInt(70, p.Flag)
+	if p.MeshVertexCount != 0 {
+		f.WriteInt(71, p.MeshVertexCount)
+	}
+	if p.MeshFaceCount != 0 {
+		f.WriteInt(72, p.MeshFaceCount)
+	}
+	if p.MSmoothDensity != 0 {
+		f.WriteInt(73, p.MSmoothDensity)
+	}
+	if p.NSmoothDensity != 0 {
+		f.WriteInt(74, p.NSmoothDensity)
+	}
+	if p.SmoothSurfaceType != 0 {
+		f.WriteInt(75, p.SmoothSurfaceType)
+	}
 	for _, v := range p.Vertices {
 		v.Format(f)
 	}
@@ -59,6 +104,37 @@ func (p *Polyline) Format(f format.Formatter) {
 	}
 }
 
+// IsPolyface reports whether the polyline is a POLYFACE mesh.
+func (p *Polyline) IsPolyface() bool { return p.Flag&PolylineFlagPolyface != 0 }
+
+// IsPolymesh reports whether the polyline is a 3D polygon mesh (POLYMESH).
+func (p *Polyline) IsPolymesh() bool {
+	return p.Flag&PolylineFlag3DPolygonMesh != 0 && p.Flag&PolylineFlagPolyface == 0
+}
+
+// FaceRecords returns the POLYFACE face-record vertices owned by the polyline.
+func (p *Polyline) FaceRecords() []*Vertex {
+	records := make([]*Vertex, 0)
+	for _, v := range p.Vertices {
+		if v.IsFaceRecord() {
+			records = append(records, v)
+		}
+	}
+	return records
+}
+
+// MeshVertices returns the polyface/polymesh vertex records (face records are
+// excluded).
+func (p *Polyline) MeshVertices() []*Vertex {
+	vertices := make([]*Vertex, 0, len(p.Vertices))
+	for _, v := range p.Vertices {
+		if !v.IsFaceRecord() {
+			vertices = append(vertices, v)
+		}
+	}
+	return vertices
+}
+
 // Close closes Polyline.
 func (p *Polyline) Close() {
 	p.Flag |= 1
@@ -66,7 +142,20 @@ func (p *Polyline) Close() {
 
 // AddVertex adds a new vertex to Polyline.
 func (p *Polyline) AddVertex(x, y, z float64) *Vertex {
-	v := NewVertex(x, y, z)
+	return p.addVertex(NewVertex(x, y, z))
+}
+
+// AddPolyfaceVertex adds a polyface mesh vertex.
+func (p *Polyline) AddPolyfaceVertex(x, y, z float64) *Vertex {
+	return p.addVertex(NewPolyfaceVertex(x, y, z))
+}
+
+// AddFace adds a polyface face record with 1-based vertex indices.
+func (p *Polyline) AddFace(indices ...int) *Vertex {
+	return p.addVertex(NewFaceRecord(indices...))
+}
+
+func (p *Polyline) addVertex(v *Vertex) *Vertex {
 	p.Vertices = append(p.Vertices, v)
 	p.size++
 	v.SetLayer(p.Layer())

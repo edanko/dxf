@@ -202,17 +202,20 @@ func TestFieldRetainedRoundTrip(t *testing.T) {
 	}
 }
 
-func TestAcadTableRetainedRoundTrip(t *testing.T) {
-	body := "0\nACAD_TABLE\n5\nTB1\n100\nAcDbEntity\n8\n0\n100\nAcDbBlockReference\n100\nAcDbTable\n70\n" + f(3) + "\n71\n" + f(2) + "\n62\n" + f(7) + "\n"
+func TestAcadTableTypedRoundTrip(t *testing.T) {
+	body := "0\nACAD_TABLE\n5\nTB1\n100\nAcDbEntity\n8\n0\n100\nAcDbBlockReference\n2\n*T1\n10\n1.0\n20\n2.0\n30\n0.0\n100\nAcDbTable\n280\n0\n91\n1\n92\n1\n141\n9.0\n142\n40.0\n171\n1\n172\n0\n173\n0\n174\n0\n175\n1\n176\n1\n91\n0\n178\n0\n145\n0.0\n92\n0\n301\nCELL_VALUE\n93\n2\n90\n4\n1\nHi\n94\n0\n300\n\n302\nHi\n304\nACVALUE_END\n"
 	e, out := loadOne(t, body)
-	r, ok := e.(*entity.RetainedRecordType)
+	table, ok := e.(*entity.AcadTable)
 	if !ok {
 		t.Fatalf("loaded %T", e)
 	}
-	if r.DXFType() != "ACAD_TABLE" {
-		t.Errorf("DXFType = %q", r.DXFType())
+	if table.RowCount != 1 || table.ColCount != 1 {
+		t.Errorf("size = %dx%d", table.RowCount, table.ColCount)
 	}
-	for _, want := range []string{"0\nACAD_TABLE", "100\nAcDbTable", "70\n3"} {
+	if got := table.Rows[0].Cells[0].Text; got != "Hi" {
+		t.Errorf("cell text = %q", got)
+	}
+	for _, want := range []string{"0\nACAD_TABLE", "100\nAcDbBlockReference", "100\nAcDbTable", "1\nHi"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in\n%s", want, out)
 		}

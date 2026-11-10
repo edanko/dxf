@@ -2,6 +2,7 @@ package dxf
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"sort"
@@ -286,6 +287,8 @@ func (b *documentBinder) bind() error {
 	b.d.RestoreXRefRecords()
 	b.bindBlocks()
 	b.bindEntities()
+	b.linkMeshVertexCaches()
+	b.linkACISData()
 	b.bindObjects()
 	b.bindOpaqueSections()
 	return nil
@@ -567,6 +570,92 @@ func (b *documentBinder) bindEntities() {
 	}
 }
 
+// linkMeshVertexCaches attaches MESHVERTEXCACHE records to the MESH entity
+// named by their owner handle (code 330). Missing owners are left unlinked;
+// the cache record still round-trips as an independent entity.
+func (b *documentBinder) linkMeshVertexCaches() {
+	meshes := make(map[string]*entity.Mesh)
+	for _, e := range b.d.Entities() {
+		if mesh, ok := e.(*entity.Mesh); ok && mesh.Handle() != "" {
+			meshes[strings.ToUpper(mesh.Handle())] = mesh
+		}
+	}
+	for _, e := range b.d.Entities() {
+		cache, ok := e.(*entity.MeshVertexCache)
+		if !ok {
+			continue
+		}
+		owner := cache.Owner()
+		if owner == nil {
+			continue
+		}
+		if mesh := meshes[strings.ToUpper(owner.Handle())]; mesh != nil {
+			mesh.SetVertexCache(cache)
+		}
+	}
+}
+
+// linkACISData attaches binary SAB payloads retained in the ACDSDATA section to
+// their owning ACIS entities. The section itself remains opaque and is emitted
+// byte-for-byte on save.
+func (b *documentBinder) linkACISData() {
+	tags := b.loader.GetSection(lldxf.SectionAcDsData)
+	if len(tags) == 0 {
+		return
+	}
+	payloads := acisDataByHandle(tags)
+	if len(payloads) == 0 {
+		return
+	}
+	for _, e := range b.d.Entities() {
+		setter, ok := e.(entity.ACISBinaryDataSetter)
+		if !ok {
+			continue
+		}
+		data, ok := payloads[strings.ToUpper(e.Handle())]
+		if !ok || len(data) == 0 {
+			continue
+		}
+		setter.SetACISBinaryData(data)
+	}
+}
+
+// acisDataByHandle extracts ASM_Data binary chunks from ACDSDATA records,
+// keyed by the associated entity handle (code 320).
+func acisDataByHandle(tags lldxf.Tags) map[string][]byte {
+	out := make(map[string][]byte)
+	var handle string
+	var chunks []byte
+	flush := func() {
+		if handle != "" && len(chunks) > 0 {
+			out[strings.ToUpper(handle)] = append([]byte(nil), chunks...)
+		}
+		handle = ""
+		chunks = nil
+	}
+	for _, tag := range tags {
+		switch int(tag.Code()) {
+		case 0:
+			flush()
+		case 320:
+			if handle == "" {
+				handle = tagStringValue(tag)
+			}
+		case 310:
+			switch v := tag.Value().(type) {
+			case []byte:
+				chunks = append(chunks, v...)
+			case string:
+				if decoded, err := hex.DecodeString(strings.TrimSpace(v)); err == nil {
+					chunks = append(chunks, decoded...)
+				}
+			}
+		}
+	}
+	flush()
+	return out
+}
+
 // entityOwnerHandle returns the object-owned owner (code 330) of an entity
 // record, skipping the 330 handles inside ACAD_REACTORS sections.
 func entityOwnerHandle(tags lldxf.Tags) string {
@@ -671,9 +760,53 @@ func (b *documentBinder) buildEntity(tags lldxf.Tags) entity.Entity {
 	// extended data, and those group codes are excluded from the raw tags
 	// (no duplication on write).
 	wireXData(e, tags)
+	attachEntityLinks(e, tags)
 	attachRawTags(e, tags)
 	b.validateEntityColor(e)
 	return e
+}
+
+// attachEntityLinks parses the persistent reactor and extension-dictionary
+// groups into the typed entity base when the model exposes those fields.
+func attachEntityLinks(e entity.Entity, tags lldxf.Tags) {
+	reactors, xdict := entityLinks(tags)
+	if setter, ok := e.(entity.ReactorSetter); ok && len(reactors) > 0 {
+		setter.SetReactorHandles(reactors)
+	}
+	if setter, ok := e.(entity.ExtDictSetter); ok && xdict != "" {
+		setter.SetExtDictHandle(xdict)
+	}
+}
+
+// entityLinks extracts handles from the 102 {ACAD_REACTORS and
+// 102 {ACAD_XDICTIONARY groups.
+func entityLinks(tags lldxf.Tags) ([]string, string) {
+	var reactors []string
+	var xdict string
+	inReactors, inXDict := false, false
+	for _, tag := range tags {
+		code := int(tag.Code())
+		if code == 102 {
+			switch strings.ToUpper(strings.TrimSpace(tagStringValue(tag))) {
+			case "{ACAD_REACTORS":
+				inReactors = true
+			case "{ACAD_XDICTIONARY":
+				inXDict = true
+			case "}":
+				inReactors = false
+				inXDict = false
+			}
+			continue
+		}
+		if inReactors && code == 330 {
+			reactors = append(reactors, tagStringValue(tag))
+			continue
+		}
+		if inXDict && code == 360 && xdict == "" {
+			xdict = tagStringValue(tag)
+		}
+	}
+	return reactors, xdict
 }
 
 func (b *documentBinder) bindObjects() {
@@ -689,9 +822,57 @@ func (b *documentBinder) bindObjects() {
 		}
 		objects = objects.Add(o)
 	}
+	objects = b.linkObjectCollections(objects)
 	b.d.SetObjects(objects)
 	// Model-space draw order: SORTENTSTABLE records reorder the entities.
 	b.d.ApplySortEntsTables()
+}
+
+// linkObjectCollections upgrades dictionaries referenced by the root
+// dictionary's collection keys (ACAD_MLEADERSTYLE, ACAD_MLINESTYLE) to their
+// typed collection models. Handles, owners, entries, and retained tags are
+// preserved; only the concrete Go type changes.
+func (b *documentBinder) linkObjectCollections(objects object.Objects) object.Objects {
+	root := rootDictionary(objects)
+	if root == nil {
+		return objects
+	}
+	byHandle := make(map[string]int, len(objects))
+	for i, o := range objects {
+		byHandle[strings.ToUpper(o.Handle())] = i
+	}
+	for _, key := range root.Keys() {
+		collectionType, _, ok := object.CollectionForDictionaryKey(key)
+		if !ok {
+			continue
+		}
+		entry, ok := root.GetEntry(key)
+		if !ok || entry.Value == "" {
+			continue
+		}
+		idx, ok := byHandle[strings.ToUpper(entry.Value)]
+		if !ok {
+			b.report.Issues = append(b.report.Issues,
+				fmt.Sprintf("collection %s references missing dictionary %s", key, entry.Value))
+			continue
+		}
+		d, ok := objects[idx].(*object.Dictionary)
+		if !ok {
+			continue // already typed or not a dictionary
+		}
+		objects[idx] = object.WrapCollection(d, collectionType)
+	}
+	return objects
+}
+
+// rootDictionary returns the OBJECTS-section dictionary with no owner.
+func rootDictionary(objects object.Objects) *object.Dictionary {
+	for _, o := range objects {
+		if d, ok := o.(*object.Dictionary); ok && (d.Owner == "" || d.Owner == "0") {
+			return d
+		}
+	}
+	return nil
 }
 
 func (b *documentBinder) bindOpaqueSections() {
@@ -734,12 +915,71 @@ func attachRawTags(e entity.Entity, tags lldxf.Tags) {
 		}
 	}
 	raw := make([]entity.TagPair, 0)
+	var reactors []string
+	var xdict string
+	if reader, ok := e.(entity.ReactorReader); ok {
+		reactors = reader.ReactorHandles()
+	}
+	if reader, ok := e.(entity.ExtDictReader); ok {
+		xdict = reader.ExtDictHandle()
+	}
+	inReactors, inXDict := false, false
 	for _, tag := range tags {
 		code := int(tag.Code())
+		if code == 102 {
+			switch strings.ToUpper(strings.TrimSpace(tagStringValue(tag))) {
+			case "{ACAD_REACTORS":
+				inReactors = true
+				if len(reactors) == 0 {
+					raw = append(raw, entity.TagPair{Code: code, Value: tagStringValue(tag)})
+				}
+				continue
+			case "{ACAD_XDICTIONARY":
+				inXDict = true
+				if xdict == "" {
+					raw = append(raw, entity.TagPair{Code: code, Value: tagStringValue(tag)})
+				}
+				continue
+			case "}":
+				if inReactors {
+					inReactors = false
+					if len(reactors) == 0 {
+						raw = append(raw, entity.TagPair{Code: code, Value: tagStringValue(tag)})
+					}
+					continue
+				}
+				if inXDict {
+					inXDict = false
+					if xdict == "" {
+						raw = append(raw, entity.TagPair{Code: code, Value: tagStringValue(tag)})
+					}
+					continue
+				}
+			}
+			raw = append(raw, entity.TagPair{Code: code, Value: tagStringValue(tag)})
+			continue
+		}
+		if inReactors {
+			if len(reactors) == 0 {
+				raw = append(raw, entity.TagPair{Code: code, Value: tagStringValue(tag)})
+			}
+			continue
+		}
+		if inXDict {
+			if xdict == "" {
+				raw = append(raw, entity.TagPair{Code: code, Value: tagStringValue(tag)})
+			}
+			continue
+		}
 		// 66 is a derived "entities follow" flag for INSERT/POLYLINE that the
 		// typed model emits once vertices/attributes are attached. Retaining it
 		// as an unknown tag duplicates it after attribute binding.
 		if code == 0 || code == 5 || code == 66 || code == 105 || emitted[code] {
+			continue
+		}
+		// Owner (330) and extension-dictionary (360) links are re-emitted by
+		// the typed base. Standalone occurrences are consumed here.
+		if code == 330 || (code == 360 && xdict != "") {
 			continue
 		}
 		raw = append(raw, entity.TagPair{Code: code, Value: tagStringValue(tag)})
