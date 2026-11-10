@@ -2,6 +2,8 @@ package entity
 
 import (
 	"fmt"
+	stdmath "math"
+	"strings"
 
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
@@ -54,6 +56,7 @@ type Dimension struct {
 	definitionPoint     math.Vec3
 	textMidpoint        math.Vec3
 	text                string
+	blockName           string
 	style               string
 	attachmentPoint     int
 	lineSpacingStyle    int
@@ -130,6 +133,7 @@ func NewDimension() *Dimension {
 		definitionPoint:     math.NewVec3(0, 0, 0),
 		textMidpoint:        math.NewVec3(0, 0, 0),
 		text:                "",
+		blockName:           "",
 		style:               "Standard",
 		attachmentPoint:     DimensionAttachmentMiddleCenter,
 		lineSpacingStyle:    DimensionSpacingAtLeast,
@@ -268,6 +272,16 @@ func (d *Dimension) SetText(text string) {
 // SetStyle sets the dimension style name
 func (d *Dimension) SetStyle(style string) {
 	d.style = style
+}
+
+// SetBlockName sets the anonymous dimension geometry block name (code 2).
+func (d *Dimension) SetBlockName(name string) {
+	d.blockName = name
+}
+
+// BlockName returns the anonymous dimension geometry block name (code 2).
+func (d *Dimension) BlockName() string {
+	return d.blockName
 }
 
 // GetStyle returns the dimension style name (code 3).
@@ -420,6 +434,71 @@ func (d *Dimension) Transform(m math.Matrix44) error {
 	return nil
 }
 
+// Measurement returns the dimension's measured value. The stored code 42
+// value wins when present; otherwise the value is derived from the extension
+// geometry so synthetic dimensions still get a meaningful annotation.
+func (d *Dimension) Measurement() float64 {
+	if d.actualMeasurement != 0 {
+		return d.actualMeasurement
+	}
+	a := d.extensionPoint1
+	b := d.extensionPoint2
+	if d.IsAngular() || d.IsArcLength() {
+		v1 := a.Sub(d.definitionPoint)
+		v2 := b.Sub(d.definitionPoint)
+		l1, l2 := v1.Length(), v2.Length()
+		if l1 > 1e-12 && l2 > 1e-12 {
+			cos := v1.Dot(v2) / (l1 * l2)
+			if cos > 1 {
+				cos = 1
+			} else if cos < -1 {
+				cos = -1
+			}
+			angle := stdmath.Acos(cos)
+			if d.IsArcLength() {
+				radius := d.extensionLength
+				if d.arcData != nil && d.arcData.Radius > 0 {
+					radius = d.arcData.Radius
+				}
+				if radius > 0 {
+					return angle * radius
+				}
+			}
+			return angle * 180 / stdmath.Pi
+		}
+		return 0
+	}
+	return a.Distance(b)
+}
+
+// MeasurementText returns the annotation text for the dimension. A literal
+// "<>" or empty text is replaced by the formatted measurement; other user
+// text is kept verbatim with any "<>" placeholder substituted.
+func (d *Dimension) MeasurementText() string {
+	decimals := 2
+	if d.dimStyle != nil && d.dimStyle.DecimalPlaces > 0 {
+		decimals = d.dimStyle.DecimalPlaces
+	}
+	value := fmt.Sprintf("%.*f", decimals, d.Measurement())
+	if d.measurementUnits == DimensionUnitsDegrees || d.measurementUnits == DimensionUnitsDMS ||
+		d.measurementUnits == DimensionUnitsGrad || d.measurementUnits == DimensionUnitsRadians {
+		if d.measurementUnits == DimensionUnitsGrad && d.Measurement() != 0 {
+			value = fmt.Sprintf("%.*f", decimals, d.Measurement()*200/stdmath.Pi)
+		} else if d.measurementUnits == DimensionUnitsRadians && d.Measurement() != 0 {
+			value = fmt.Sprintf("%.*f", decimals, d.Measurement()*stdmath.Pi/180)
+		}
+		value += "°"
+	}
+	text := d.text
+	if text == "" || text == "<>" {
+		return value
+	}
+	if strings.Contains(text, "<>") {
+		return strings.ReplaceAll(text, "<>", value)
+	}
+	return text
+}
+
 // Explode decomposes the dimension into its constituent entities: extension
 // lines, the dimension line, arrow ticks at the extension points, and the
 // dimension text when present.
@@ -459,12 +538,15 @@ func (d *Dimension) Explode() ([]Entity, error) {
 			t2 := d.extensionPoint2.Add(unit.Mul(size))
 			addLine(d.extensionPoint2, t2)
 		}
-		if d.text != "" {
-			tx := NewText()
-			tx.Coord1 = []float64{d.textMidpoint.X(), d.textMidpoint.Y(), d.textMidpoint.Z()}
-			tx.Height = height
-			tx.Value = d.text
-			out = append(out, tx)
+		if d.text != "" || d.actualMeasurement != 0 || !d.extensionPoint1.IsEqual(d.extensionPoint2, 1e-9) {
+			text := d.MeasurementText()
+			if text != "" {
+				tx := NewText()
+				tx.Coord1 = []float64{d.textMidpoint.X(), d.textMidpoint.Y(), d.textMidpoint.Z()}
+				tx.Height = height
+				tx.Value = text
+				out = append(out, tx)
+			}
 		}
 	}
 	if len(out) == 0 {
@@ -492,6 +574,9 @@ func (d *Dimension) Format(f format.Formatter) {
 	f.WriteInt(70, d.dimensionType)
 	if d.text != "" {
 		f.WriteString(1, d.text)
+	}
+	if d.blockName != "" {
+		f.WriteString(2, d.blockName)
 	}
 	if d.style != "" {
 		f.WriteString(3, d.style)

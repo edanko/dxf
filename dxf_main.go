@@ -1716,7 +1716,7 @@ func loadDimension(tags lldxf.Tags) *entity.Dimension {
 			}
 		case 2:
 			if v, ok := tag.Value().(string); ok {
-				d.SetUserText(v, "")
+				d.SetBlockName(v)
 			}
 		case 3:
 			if v, ok := tag.Value().(string); ok {

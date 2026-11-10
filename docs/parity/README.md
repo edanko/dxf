@@ -86,7 +86,7 @@ openspec instructions <artifact> --change "<name>" --json
 | `class` | CLASSES section | full class record fields |
 | `math` | vectors, matrices, bbox, Bezier, BSpline/NURBS, bulge, OCS/UCS, offset, earcut, delaunay, construct, Perlin, clustering, Shape, portal clipping | substantial; math parity for changes 5 and 15 complete |
 | `path` | path commands, converter, tools, nesting | converters for all supported entities; offset and nesting implemented |
-| `render` | scene builder, SVG/PDF/raster backends, forms, arrows | `DONE` for core entity rendering; dimension/mesh/arrow completeness remains partial |
+| `render` | scene builder, SVG/PDF/raster backends, forms, arrows | `DONE` — core entity rendering including DIMENSION block content/measured text, mesh and polyface faces, and all arrow styles (`render/entities_parity_test.go`, `TestArrowHeadGeometryStyles`) |
 | `export` | SVG exporter | legacy exporter subset; use `render`/`addons/drawing` for full output |
 | `text2path` | `addons/text2path.py` | `DONE` — TTF glyph outlines (`addons/text2path`) plus built-in vector fallback |
 | `query` | entity query and parser | expression language, selections, grouping, transforms, explode, traversal |
@@ -247,14 +247,14 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | SVG/PDF backends | `addons/drawing/backend.py`, `pymupdf.py` | `DONE` — unified `Renderer` interface (Begin/SetStyle/DrawPath/Clip/FillGradient/End) with registry; compact SVG path data, PDF content streams with xref tables (`TestSVGPathGeometryAndStyle`, `TestPDFStructure`) |
 | matplotlib/PyQt/PyMuPDF backends | `addons/drawing/*` | `N/A` in Go; provided native raster backend instead: PNG with supersampled anti-aliasing, background, clipping, dash patterns (`TestPNGRenderedViaRegistry`, `TestRasterStyleColorWidthDash`) |
 | Linetype rendering | `render/_linetypes.py`, `linetypes.py` | `DONE` — dash patterns baked from layer linetype x linetype scale, device-scaled, stroked by all backends (`TestRasterStyleColorWidthDash`) |
-| Hatch rendering | `render/hatching.py` | `DONE` — solid fill, predefined ANSI31–38 patterns expanded to clipped segments (`HatchFillSegments`), gradients: SVG linearGradient, PNG axis lerp, PDF first color (`TestSceneHatchFill`, `TestHatchPatternExpanded`, `TestFillGradientBackends`) |
-| Dimension rendering | `render/dimension.py`, `dim_*.py` | `PARTIAL` — dimension block content lowered to paths by the converter; full block renderer (transforms, text placement at paper scale) not modeled |
+| Hatch rendering | `render/hatching.py` | `DONE` — solid fill, predefined ANSI31–38 and ISO `ACAD_ISO02W100`–`ACAD_ISO15W100` patterns expanded to clipped segments (`HatchFillSegments`), gradients: SVG linearGradient, PNG axis lerp, PDF first color (`TestSceneHatchFill`, `TestHatchPatternExpanded`, `TestISOHatchPatternExpanded`, `TestFillGradientBackends`) |
+| Dimension rendering | `render/dimension.py`, `dim_*.py` | `DONE` — DIMENSION entities render referenced dimension block content through the path converter, falling back to exploded geometry with measured text; arrowheads use the complete arrow-style set (`TestDimensionRendersReferencedBlock`, `TestDimensionFallbackUsesMeasurementText`) |
 | MTEXT rendering | `render/abstract_mtext_renderer.py`, `tools/text_layout.py` | `DONE` — inline codes stripped (`StripCodes`), greedy word wrap at column width (`LayoutMText`), paragraph pitch 1.6714x height, TrueType glyph outlines via system fonts with marching-squares contours and built-in vector font fallback (`TestTextToPathsTTF`, `TestLayoutMTextWrap`, `TestTextOutlines`) |
-| Mesh rendering | `render/mesh.py`, `mesh_builder.py` | `PARTIAL` |
-| Arrow heads | `render/arrows.py` | `PARTIAL` |
+| Mesh rendering | `render/mesh.py`, `mesh_builder.py` | `DONE` — MESH and POLYFACE/POLYMESH faces emitted as closed paths (filled or wireframe); invalid/degenerate faces skipped (`TestMeshRendersClosedFaces`, `TestPolyfaceRendersClosedFaces`) |
+| Arrow heads | `render/arrows.py` | `DONE` — closed/open, arch tick, oblique, box, box-filled, diamond, circle, dot and dot-small geometries with closed/filled flags (`TestArrowHeadGeometryStyles`) |
 | MLeader/MLine rendering | `render/mleader.py`, `mline.py` | `DONE` — converted to path geometry (leader arrows via path, mline style lines) and rendered by all backends (converter tests in `path/converter_ext_test.go`, corpus conformance) |
 
-Plot style tables (CTB/STB) are not modeled: entities render with their screen colors. Print/plot scaling (PS/PDF paper layout) is out of scope. Text rendering uses system TrueType fonts (Noto/Liberation/DejaVu/Vera) via `golang.org/x/image/font/opentype`; when none is available the built-in single-stroke vector font is used and `StyledScene.Fallbacks` records the substitution.
+Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB files parse into a shared style table with color, true color, lineweight and screening overrides; `render.SceneOptions` applies color-based CTB or named STB overrides during scene building. Print/plot scaling (PS/PDF paper layout) is out of scope. Text rendering uses system TrueType fonts (Noto/Liberation/DejaVu/Vera) via `golang.org/x/image/font/opentype`; when none is available the built-in single-stroke vector font is used and `StyledScene.Fallbacks` records the substitution. SHX fonts can be loaded for glyph metadata and text measurement, and TTF advances/ascent/descent are exposed by the metrics API.
 
 ### 7. Audit, recover, validation, repair
 
@@ -297,15 +297,15 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 
 | Add-on | ezdxf reference | Go baseline |
 |---|---|---|
-| `drawing` | `addons/drawing` | `DONE` — native SVG/PDF/PNG backends via core `render`; plot styles remain partial |
+| `drawing` | `addons/drawing` | `DONE` — native SVG/PDF/PNG backends via core `render`; plot style overrides applied during scene building |
 | `r12writer` | `addons/r12writer.py` | `DONE` — `addons/r12writer` incremental R12 writer (header/tables + entities, no full document; `TestR12WriterStreaming` 10k entities) |
 | `iterdxf` | `addons/iterdxf.py` | `DONE` — `addons/iterdxf` bounded-memory record iterator in file order (`TestIterDXFStreamingRecords`) |
 | `importer` | `addons/importer.py` | `DONE` — `addons/importer.ImportSVG` (line/rect/circle/polyline/path; `TestImportSVGElements`) |
 | `dxf2code` | `addons/dxf2code` | `DONE` — `addons/dxf2code.Generate` emits Go source (parsed with go/parser, inventory counts) |
-| `acadctb` | `addons/acadctb.py` | `PARTIAL` — `addons/acadctb` STB text parse + Apply (color/lineweight); binary CTB unsupported with descriptive error (`TestParseAndApply`) |
+| `acadctb` | `addons/acadctb.py` | `DONE` — text STB and binary CTB/STB parse into a shared plot-style model with color, true color, lineweight, screening and linetype overrides; `Apply` and render-scene integration (`TestParseBinaryCTB`, `TestParseBinarySTBNamedStyles`, `TestNamedPlotStyleOverridesRendering`) |
 | `pycsg` | `addons/pycsg.py` | `DONE` — real triangle-level booleans + Box/Sphere primitives + `csg.Volume` (`csg/boolean_test.go`) |
 | `MTextExplode` | `addons/mtextsurrogate` | `DONE` — `addons/mtxpl` Lines/Explode → positioned TEXT entities |
-| `text2path` | `addons/text2path.py` | `DONE` — `addons/text2path` TTF/OTF outlines via system fonts plus built-in vector fallback |
+| `text2path` | `addons/text2path.py` | `DONE` — `addons/text2path` TTF/OTF outlines via system fonts plus built-in vector fallback; SHX font loader with glyph metadata and text metrics; TTF metrics API (`text2path/shx.go`, `text2path/metrics.go`) |
 | `geo` | `addons/geo.py` | `DONE` — `addons/geo.ExportGeoJSON` + `CRSFunc` transform |
 | `meshex` | `addons/meshex.py` | `DONE` — `addons/meshex.ExportOBJ` |
 | `openscad` | `addons/openscad.py` | `DONE` — `addons/meshex.ExportOpenSCAD` polyhedron source |
@@ -329,8 +329,8 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 | `ezdxf` CLI (`info`, `audit`, `draw`, `browse`, `convert`, `strip`, `view`, `pp`) | `commands.py`, `__main__.py` | `DONE` — `cmd/dxf` provides info/analyze/difftags/debug/audit/convert/draw/query/explode/fix/strip/header/layers/browse/standards/zip/unzip/version/completion, text+JSON, exit codes 0/1/2/3 (`cmd/dxf/main_test.go`, `cmd/dxf/devtools_test.go`, `cmd/dxf/zip_test.go`, `docs/cli.md`) |
 | App settings / config | `appsettings.py`, `_options.py` | `DONE` — `appsettings` with defaults < file < `DXF_*` env precedence |
 | Comments | `comments.py` | `DONE` — preserve per section and strip via `comments.StripComments` |
-| Fonts, SHX/TTF, text metrics | `fonts/*`, `tools/text*.py` | `PARTIAL` — TTF/OTF outlines via system fonts; SHX absent; text metrics minimal |
-| ISO hatch patterns / standards | `tools/_iso_pattern.py`, `standards.py` | `PARTIAL` — built-in ANSI31–38 patterns; ISO library absent; standards rule engine and `dxf standards` implemented (`standards` package, `standards_test.go`) |
+| Fonts, SHX/TTF, text metrics | `fonts/*`, `tools/text*.py` | `DONE` — TTF/OTF outlines via system fonts; SHX shape/unifont loader with glyph metrics (`text2path/shx.go`); TTF advance/ascent/descent metrics (`text2path/metrics.go`, `TestParseSHXShapesAndMeasure`, `TestMeasureTTF`) |
+| ISO hatch patterns / standards | `tools/_iso_pattern.py`, `standards.py` | `DONE` — ANSI31–38 and ISO `ACAD_ISO02W100`–`ACAD_ISO15W100` patterns with category lookup and render expansion (`TestISOPatterns`, `TestISOHatchPatternExpanded`); standards rule engine and `dxf standards` implemented (`standards` package, `standards_test.go`) |
 | Revcloud | `revcloud.py` | `DONE` — `query.RevCloudRectangle`/`RevCloudArcs` (closed bulged LWPOLYLINE, configurable arc chord and bulge) plus `Space.AddRevCloud`/`Drawing.AddRevCloud`; revcloud tests in `query/parity_test.go` and `TestQuerySelectionsAndTransformsE2E` |
 | Zoom/extents helpers | `zoom.py` | `DONE` — `drawing.FitExtentsToViewport` and `Drawing.FitView`/`FitLayoutView`; `TestQuerySelectionsAndTransformsE2E` |
 | Analyze/difftags/debug tools | `tools/analyze.py`, `difftags.py` | `DONE` — `analyze` tag/entity/table/block/object statistics, structural `difftags` with changed/added/removed tag paths, `debug` loader/recovery diagnostics; text+JSON (`cmd/dxf/analyze.go`, `cmd/dxf/difftags.go`, `cmd/dxf/debug.go`, `cmd/dxf/devtools_test.go`) |
@@ -378,7 +378,7 @@ complete; changes 16 and 19 are not yet applied.
 |---|---|---|---|
 | 14 | `entity-object-completion-parity` (done) | ACAD_TABLE typed content, collection objects, POLYFACE/POLYMESH vertices, MESHVERTEXCACHE, ACIS SAT/SAB metadata, objects-as-entities | 3, 4 |
 | 15 | `math-shape-clipping-parity` (done) | Perlin noise, clustering, Shape container, portal clipping, triangulation hole bridge, path nesting | 6, 7 |
-| 16 | `render-plot-font-parity` | full DIMENSION renderer, mesh/polyface faces, arrow heads, STB/binary CTB plot styles, SHX/TTF text metrics, ISO hatch patterns | 7, 11 |
+| 16 | `render-plot-font-parity` (done) | full DIMENSION renderer, mesh/polyface faces, arrow heads, STB/binary CTB plot styles, SHX/TTF text metrics, ISO hatch patterns | 7, 11 |
 | 17 | `addons-remaining-parity` (done) | browser/acisbrowser extraction, DWG via CommandRunner, r12export, dimlines, genetic algorithm, Menger sponge, Sierpinski pyramid, mixins | 11 |
 | 18 | `dev-tools-parity` (done) | `dxf analyze`, `difftags`, `debug`, `standards`, ZIP manager and CLI zip/unzip | 12 |
 | 19 | `library-refactor` | dead code, duplicate adapters, named interfaces, SOLID/DRY/YAGNI review | 1–13 |
@@ -427,13 +427,13 @@ on complete data; add-ons and CLI depend on everything.
 
 - `drawing.FromJSON` is a no-op.
 - No known math gaps remain from changes 5 and 15.
-- Rendering gaps: full dimension block renderer, mesh rendering, arrow heads,
-  plot style tables (CTB/STB), SHX fonts, ISO hatch pattern library.
+- Rendering gaps closed by change 16: DIMENSION block content with measured
+  text, mesh/polyface face rendering, all arrow heads, CTB/STB plot-style
+  overrides, SHX loading/metrics, and ISO hatch patterns.
 - Audit gaps: duplicate handles are reported, not repaired; cycle repair is not
   modeled.
-- Add-on/tool gaps: none from change 17; binary CTB parsing remains
-  unavailable, and `xqt` is intentionally not ported because the Go package has
-  no Qt dependency.
+- Add-on/tool gaps: none from changes 16 and 17; `xqt` is intentionally not
+  ported because the Go package has no Qt dependency.
 - The repository has a large untracked `.agents/`, `.dsh/`, `.zcode/` skill
   configuration. Treat as tooling, not library code.
 
@@ -463,5 +463,6 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-10 | change 15 `math-shape-clipping-parity` | done | Seeded deterministic Perlin 2D/3D with octave variants; point clustering with membership and centroids; `Shape` container with holes, area/containment/centroid/bbox and winding normalization; portal clipping for line segments and quadratic/cubic Bezier curves; earcut hole bridging via deterministic visible-vertex candidate search plus post-triangulation area verification (centered hole now has no exterior bay and exact area); path nesting tree with normalized CCW outer / CW holes. Tests: `math/perlin_test.go`, `math/clustering_test.go`, `math/shape_test.go`, `math/clipping_test.go`, `math/parity_ext_test.go`, `path/nesting_test.go`. |
 | 2026-11-10 | change 17 `addons-remaining-parity` | done | GUI-free browser and ACIS browser extraction; external DWG converter with actionable missing-tool errors and atomic output; streaming R12 exporter converting splines/ellipses/LWPolylines/MTEXT/meshes; linear and angular dimension-line generators; genetic algorithm engine; Menger sponge and Sierpinski pyramid generators; `SubscriptAttributes` mixin. Tests: `addons/browser/browser_test.go`, `addons/acisbrowser/acisbrowser_test.go`, `addons/dwg/dwg_test.go`, `addons/r12export/r12export_test.go`, `addons/dimlines/dimlines_test.go`, `addons/genetic/genetic_test.go`, `addons/fractals/fractals_test.go`, `addons/mixins/mixins_test.go`. |
 | 2026-11-10 | change 18 `dev-tools-parity` | done | `dxf analyze` tag/entity/table/block/object statistics; `dxf difftags` structural added/removed/changed tag paths with non-zero exit on differences; `dxf debug` version/encoding/section/loader/recovery diagnostics; reusable `standards` rule engine with structured violations, configurable severities and `dxf standards`; ZIP manager with atomic creation/extraction, per-entry path traversal and symlink rejection, plus `dxf zip`/`dxf unzip`. Tests: `cmd/dxf/devtools_test.go`, `cmd/dxf/zip_test.go`, `standards/standards_test.go`, `filemanagement/zip_test.go`. |
+| 2026-11-11 | change 16 `render-plot-font-parity` | done | DIMENSION entities render referenced dimension blocks fully with measured text fallback; MESH and POLYFACE/POLYMESH faces emit closed filled or wireframe paths; all arrow-head styles (closed/open, arch tick, oblique, box, diamond, circle, dot) implemented; shared STB/binary CTB plot-style model with color, true color, lineweight and screening overrides applied during scene building; SHX shape/unifont loader with glyph metrics and TTF advance/ascent/descent metrics API; ISO `ACAD_ISO02W100`–`ACAD_ISO15W100` hatch patterns with lookup and render expansion. Tests: `render/entities_parity_test.go`, `render/render_test.go`, `addons/acadctb/binary_test.go`, `addons/acadctb/stb_test.go`, `text2path/shx_test.go`, `text2path/metrics_test.go`, `patterns/patterns_test.go`. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

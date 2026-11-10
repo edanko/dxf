@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/edanko/dxf/addons/acadctb"
 	dxfcolor "github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/drawing"
 	"github.com/edanko/dxf/entity"
@@ -39,6 +40,11 @@ type SceneOptions struct {
 	BasePath string
 	// ImageSearchPaths are additional directories searched for image files.
 	ImageSearchPaths []string
+	// PlotStyles applies plot style overrides during scene construction. A
+	// color-dependent (CTB) table selects the style by entity ACI color.
+	PlotStyles *acadctb.PlotStyleTable
+	// PlotStyleName selects a named style from a named (STB) table.
+	PlotStyleName string
 }
 
 // StyledScene is a canvas-ready drawing: paths with resolved styles
@@ -85,7 +91,7 @@ func BuildScene(d *drawing.Drawing, width, height float64, opts *SceneOptions) (
 	var paths []StyledPath
 	nt := &sceneNotes{}
 	for _, e := range ents {
-		st, ok := resolveStyle(e, bg)
+		st, ok := resolveStyle(e, bg, opts)
 		if !ok {
 			continue
 		}
@@ -293,6 +299,8 @@ func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg 
 			}
 		}
 		return out
+	case *entity.Dimension:
+		return dimensionEntityPaths(d, t, st, dev, bg, opts, nt)
 	case *entity.Image:
 		return imageEntityPaths(d, t, st, opts, nt)
 	case *entity.Underlay:
@@ -348,12 +356,190 @@ func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg 
 		}
 		st.Fill = st.Stroke
 		return []StyledPath{{Path: p, Style: st}}
+	case *entity.Mesh:
+		return faceEntityPaths(meshFaces(t.Vertices(), t.Faces()), st)
+	case *entity.Polyline:
+		if t.IsPolyface() {
+			return faceEntityPaths(polyfaceFaces(t), st)
+		}
+		if t.IsPolymesh() {
+			return faceEntityPaths(polymeshFaces(t), st)
+		}
 	}
 	p, err := path.MakePath(e, path.WithDistance(dev))
 	if err != nil {
 		return nil
 	}
 	return []StyledPath{{Path: p, Style: st}}
+}
+
+// dimensionEntityPaths renders a DIMENSION from its anonymous geometry block
+// when available, falling back to synthesized extension lines, dimension line
+// and measured text for synthetic dimensions. Dimension block entities are
+// stored in world coordinates, so no insertion transform is applied.
+func dimensionEntityPaths(d *drawing.Drawing, t *entity.Dimension, st Style, dev float64, bg color.RGBA, opts *SceneOptions, nt *sceneNotes) []StyledPath {
+	if name := t.BlockName(); name != "" {
+		if b, err := d.GetBlock(name); err == nil {
+			var out []StyledPath
+			for _, be := range b.Entities() {
+				child, ok := be.(entity.Entity)
+				if !ok {
+					continue
+				}
+				if u, ok := child.(entity.Unwrapper); ok {
+					child = u.Unwrap()
+				}
+				out = append(out, entityPaths(d, child, st, dev, bg, opts, nt)...)
+			}
+			if len(out) > 0 {
+				return out
+			}
+		}
+	}
+
+	parts, err := t.Explode()
+	if err != nil {
+		return nil
+	}
+	var out []StyledPath
+	for _, part := range parts {
+		if tx, ok := part.(*entity.Text); ok {
+			p, fontName := runText(tx.Value, tx.Height, tx.Coord1[0], tx.Coord1[1], tx.Rotation)
+			if p == nil {
+				continue
+			}
+			nt.recordText(fontName)
+			stt := st
+			if fontName != "" {
+				stt = textStyle(st)
+			}
+			out = append(out, StyledPath{Path: p, Style: stt})
+			continue
+		}
+		p, err := path.MakePath(part, path.WithDistance(dev))
+		if err == nil {
+			out = append(out, StyledPath{Path: p, Style: st})
+		}
+	}
+	return out
+}
+
+// meshFaces extracts valid MESH faces. MESH face indices are zero-based.
+func meshFaces(vertices []dxfmath.Vec3, faces [][]int) [][]dxfmath.Vec3 {
+	out := make([][]dxfmath.Vec3, 0, len(faces))
+	for _, face := range faces {
+		if len(face) < 3 {
+			continue
+		}
+		poly := make([]dxfmath.Vec3, 0, len(face))
+		valid := true
+		for _, idx := range face {
+			if idx < 0 || idx >= len(vertices) {
+				valid = false
+				break
+			}
+			poly = append(poly, vertices[idx])
+		}
+		if valid && !degenerateFace(poly) {
+			out = append(out, poly)
+		}
+	}
+	return out
+}
+
+// polyfaceFaces extracts POLYFACE faces. Face-record indices are one-based;
+// negative values mark an invisible edge but still name a vertex.
+func polyfaceFaces(p *entity.Polyline) [][]dxfmath.Vec3 {
+	vertices := p.MeshVertices()
+	out := make([][]dxfmath.Vec3, 0, len(p.FaceRecords()))
+	for _, rec := range p.FaceRecords() {
+		indices := rec.FaceVertexIndices()
+		if len(indices) < 3 {
+			continue
+		}
+		poly := make([]dxfmath.Vec3, 0, len(indices))
+		valid := true
+		for _, idx := range indices {
+			if idx < 0 {
+				idx = -idx
+			}
+			if idx <= 0 || idx > len(vertices) {
+				valid = false
+				break
+			}
+			c := vertices[idx-1].Coord
+			poly = append(poly, dxfmath.NewVec3(coordAt(c, 0), coordAt(c, 1), coordAt(c, 2)))
+		}
+		if valid && !degenerateFace(poly) {
+			out = append(out, poly)
+		}
+	}
+	return out
+}
+
+// polymeshFaces subdivides a POLYMESH row/column grid into quad faces.
+func polymeshFaces(p *entity.Polyline) [][]dxfmath.Vec3 {
+	vertices := p.MeshVertices()
+	m, n := p.MeshVertexCount, p.MeshFaceCount
+	if m < 2 || n < 2 || m*n > len(vertices) {
+		return nil
+	}
+	out := make([][]dxfmath.Vec3, 0, (m-1)*(n-1))
+	for row := 0; row < n-1; row++ {
+		for col := 0; col < m-1; col++ {
+			a := vertices[row*m+col].Coord
+			b := vertices[row*m+col+1].Coord
+			c := vertices[(row+1)*m+col+1].Coord
+			d := vertices[(row+1)*m+col].Coord
+			face := []dxfmath.Vec3{
+				dxfmath.NewVec3(coordAt(a, 0), coordAt(a, 1), coordAt(a, 2)),
+				dxfmath.NewVec3(coordAt(b, 0), coordAt(b, 1), coordAt(b, 2)),
+				dxfmath.NewVec3(coordAt(c, 0), coordAt(c, 1), coordAt(c, 2)),
+				dxfmath.NewVec3(coordAt(d, 0), coordAt(d, 1), coordAt(d, 2)),
+			}
+			if !degenerateFace(face) {
+				out = append(out, face)
+			}
+		}
+	}
+	return out
+}
+
+func coordAt(c []float64, i int) float64 {
+	if i >= 0 && i < len(c) {
+		return c[i]
+	}
+	return 0
+}
+
+func degenerateFace(face []dxfmath.Vec3) bool {
+	if len(face) < 3 {
+		return true
+	}
+	a := face[0]
+	area := 0.0
+	for i := 1; i+1 < len(face); i++ {
+		b, c := face[i], face[i+1]
+		area += (b.X()-a.X())*(c.Y()-a.Y()) - (c.X()-a.X())*(b.Y()-a.Y())
+	}
+	return math.Abs(area) < 1e-12
+}
+
+// faceEntityPaths emits each face as a closed path. Hidden or degenerate
+// faces are skipped; a fill on the incoming style requests filled faces,
+// otherwise faces render as wireframe.
+func faceEntityPaths(faces [][]dxfmath.Vec3, st Style) []StyledPath {
+	out := make([]StyledPath, 0, len(faces))
+	for _, face := range faces {
+		p := path.NewPath()
+		p.MoveTo(face[0].X(), face[0].Y())
+		for _, v := range face[1:] {
+			p.LineTo(v.X(), v.Y())
+		}
+		p.Close()
+		out = append(out, StyledPath{Path: p, Style: st})
+	}
+	return out
 }
 
 // hatchFill maps a non-solid hatch entity to pattern filling. Known pattern
@@ -398,7 +584,7 @@ func v2f(v []float64) [2]float64 {
 // resolveStyle derives the drawing style of an entity, resolving ByLayer
 // color/lineweight/linetype/transparency, true color, and ACI 7 against
 // the background. ok is false when the entity must not be drawn.
-func resolveStyle(e entity.Entity, bg color.RGBA) (Style, bool) {
+func resolveStyle(e entity.Entity, bg color.RGBA, opts *SceneOptions) (Style, bool) {
 	if inv, ok := e.(entity.InvisibleReader); ok && inv.Invisible() {
 		return Style{}, false
 	}
@@ -444,8 +630,6 @@ func resolveStyle(e entity.Entity, bg color.RGBA) (Style, bool) {
 			rgb = [3]uint8{c[0], c[1], c[2]}
 		}
 	}
-	_ = rgb
-
 	alpha := uint8(255)
 	if tr, ok := e.(entity.TransparencyReader); ok && tr.Transparency() > 0 {
 		alpha = uint8((1 - tr.Transparency()) * 255)
@@ -460,6 +644,46 @@ func resolveStyle(e entity.Entity, bg color.RGBA) (Style, bool) {
 		lw = layer.LineWidth()
 	}
 	width := float64(lw) / 100.0 / 25.4 * 96.0
+	if opts != nil && opts.PlotStyles != nil {
+		var overrides acadctb.PlotOverrides
+		var ok bool
+		if opts.PlotStyles.ByColor {
+			overrides, ok = opts.PlotStyles.ColorOverrides(aci)
+		} else if opts.PlotStyleName != "" {
+			overrides, ok = opts.PlotStyles.Overrides(opts.PlotStyleName)
+		}
+		if ok {
+			if overrides.HasTrueColor {
+				rgb = [3]uint8{
+					uint8(overrides.TrueColor >> 16),
+					uint8(overrides.TrueColor >> 8),
+					uint8(overrides.TrueColor),
+				}
+			} else if overrides.HasColor {
+				if overrides.Color == 7 {
+					rgb = aci7OnBackground(bg)
+				} else {
+					c := dxfcolor.IndexColor(uint8(overrides.Color))
+					rgb = [3]uint8{c[0], c[1], c[2]}
+				}
+			}
+			if overrides.HasScreening {
+				s := float64(overrides.Screening)
+				if s < 0 {
+					s = 0
+				}
+				if s > 100 {
+					s = 100
+				}
+				for i := range rgb {
+					rgb[i] = uint8(255 - (255-float64(rgb[i]))*s/100)
+				}
+			}
+			if overrides.HasLineweight && overrides.Lineweight > 0 {
+				width = float64(overrides.Lineweight) / 100.0 / 25.4 * 96.0
+			}
+		}
+	}
 
 	stroke := color.RGBA{R: rgb[0], G: rgb[1], B: rgb[2], A: alpha}
 	st := Style{Stroke: stroke, Width: width, Dash: dashPattern(e, layer, ltscale)}

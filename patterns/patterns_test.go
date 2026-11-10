@@ -240,3 +240,28 @@ func TestPredefinedPatternsCount(t *testing.T) {
 		t.Errorf("Expected at least 8 ANSI patterns, got %d", len(PredefinedPatterns))
 	}
 }
+
+func TestISOPatterns(t *testing.T) {
+	names := []string{
+		"ACAD_ISO02W100", "ACAD_ISO03W100", "ACAD_ISO04W100", "ACAD_ISO05W100",
+		"ACAD_ISO06W100", "ACAD_ISO07W100", "ACAD_ISO08W100", "ACAD_ISO09W100",
+		"ACAD_ISO10W100", "ACAD_ISO11W100", "ACAD_ISO12W100", "ACAD_ISO13W100",
+		"ACAD_ISO14W100", "ACAD_ISO15W100",
+	}
+	for _, name := range names {
+		def, ok := GetPatternDefinition(name)
+		if !ok {
+			t.Fatalf("%s not found", name)
+		}
+		if def.Category != PatternCategoryISO {
+			t.Fatalf("%s category = %s", name, def.Category)
+		}
+		if len(def.Lines) == 0 {
+			t.Fatalf("%s has no lines", name)
+		}
+	}
+	iso := GetPatternsByCategory(PatternCategoryISO)
+	if len(iso) < len(names) {
+		t.Fatalf("ISO patterns = %d, want at least %d", len(iso), len(names))
+	}
+}

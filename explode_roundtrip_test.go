@@ -110,13 +110,16 @@ func TestExplodeDimension(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(parts) != 5 { // two extension lines + dimension line + two arrow ticks
+	if len(parts) != 6 { // two extension lines + dimension line + two arrow ticks + measured text
 		t.Fatalf("parts = %d", len(parts))
 	}
-	for _, p := range parts {
+	for _, p := range parts[:5] {
 		if _, ok := p.(*entity.Line); !ok {
 			t.Fatalf("part type %T", p)
 		}
+	}
+	if txt, ok := parts[5].(*entity.Text); !ok || txt.Value != "10.00" {
+		t.Fatalf("text part = %#v", parts[5])
 	}
 	// Arrow ticks sit at the extension points along the dimension line.
 	if tick := parts[3].(*entity.Line); tick.End[0] != 0 || tick.End[1] != 0 {

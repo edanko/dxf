@@ -895,3 +895,42 @@ func TestHatchPatternExpanded(t *testing.T) {
 		t.Error("pattern hatch segments missing from scene")
 	}
 }
+
+func TestISOHatchPatternExpanded(t *testing.T) {
+	d, err := drawing.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	he, err := d.Model().AddHatch(d.WithLayer("HP"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	he.BoundaryPaths = []entity.HatchBoundaryPath{{Type: 0, Flags: 1, IsClosed: true,
+		Points: [][]float64{{0, 0}, {20, 0}, {20, 20}, {0, 20}}}}
+	he.SetPredefinedPattern("ACAD_ISO04W100", 0, 1, 1, false)
+	sc, err := BuildScene(d, 800, 600, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	boundary, segments := false, 0
+	for _, sp := range sc.Paths {
+		if sp.FillHatch != nil {
+			if sp.FillHatch.Pattern != nil && sp.FillHatch.Pattern.Name != "ACAD_ISO04W100" {
+				t.Fatalf("pattern name = %q", sp.FillHatch.Pattern.Name)
+			}
+			if sp.Style.Fill.A == 0 && sp.Style.Stroke.A > 0 {
+				boundary = true
+			}
+			continue
+		}
+		if sp.Style.Fill.A == 0 && sp.Style.Stroke.A > 0 {
+			segments++
+		}
+	}
+	if !boundary {
+		t.Error("ISO hatch boundary not stroked unfilled")
+	}
+	if segments == 0 {
+		t.Error("ISO hatch segments missing from scene")
+	}
+}
