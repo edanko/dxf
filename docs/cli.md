@@ -14,15 +14,19 @@ go build -o bin/dxf ./cmd/dxf
 dxf <command> [options] [file]
 ```
 
-Commands: info, audit, convert, draw, query, explode, fix, strip, header,
-layers, browse, version, completion. Run `dxf <command> --help` for
-command-specific options; `dxf --help` lists all commands.
+Commands: info, analyze, difftags, debug, audit, convert, draw, query,
+explode, fix, strip, header, layers, browse, standards, zip, unzip, version,
+completion. Run `dxf <command> --help` for command-specific options;
+`dxf --help` lists all commands.
 
 ## Subcommands
 
 | Command | Description |
 |---|---|
 | `info` | print version, encoding, entity/table/block/object counts (`--format text\|json`) |
+| `analyze` | print tag, entity, table, block and object statistics (`--format text\|json`) |
+| `difftags` | compare raw tag structures of two files (`--format text\|json`; exit 1 when differences exist) |
+| `debug` | print loader diagnostics and recovery issues (`--format text\|json`) |
 | `audit` | run the audit checks (`--fix`, `--output`) |
 | `convert` | rewrite a file in another DXF version (`--version`, `--encoding ascii\|binary`, `--output`) |
 | `draw` | render a drawing to SVG/PDF/PNG (`--backend`, `--width`, `--height`, `--background`, `--layout`, `--output`) |
@@ -33,6 +37,9 @@ command-specific options; `dxf --help` lists all commands.
 | `header` | list or set header variables (`--set NAME=VALUE`) |
 | `layers` | list layers with color/linetype (`--format text\|json`) |
 | `browse` | list the document structure |
+| `standards` | validate drawing standards (`--format text\|json`, `--layer-pattern`, `--severity`, `--disable`; exit 1 on violations) |
+| `zip` | package drawing files into a ZIP archive |
+| `unzip` | extract a drawing ZIP archive (`[target-dir]`, default `.`) |
 | `version` | print the CLI version |
 | `completion` | print a shell completion script (`--shell bash\|zsh\|fish\|powershell`) |
 
@@ -41,7 +48,7 @@ command-specific options; `dxf --help` lists all commands.
 | Code | Meaning |
 |---|---|
 | 0 | success |
-| 1 | data error (unreadable or invalid input) |
+| 1 | data error (unreadable/invalid input), audit errors, or detected differences/violations (`difftags`, `standards`) |
 | 2 | usage error (unknown command or flag) |
 | 3 | missing external resource (unresolved xref/image) |
 
@@ -60,3 +67,12 @@ Modifying commands write through a temporary file in the destination
 directory, fsync it, and rename it over the target. With the default
 in-place mode the previous file is copied to `<file>.bak` first;
 `--output` writes to an explicit path instead.
+
+## ZIP archives
+
+`dxf zip ARCHIVE FILE [FILE...]` stores each input under its base name;
+`dxf unzip ARCHIVE [TARGET]` extracts entries under `TARGET` (default `.`).
+Archive creation and extraction write through temporary files so a failed
+operation does not leave a partial output. Extraction validates every entry
+name before writing anything and rejects absolute paths, `..` traversal, and
+symbolic links, so an archive cannot escape the target directory.

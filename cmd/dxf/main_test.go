@@ -171,7 +171,7 @@ func TestHelp(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, name := range []string{"info", "audit", "convert", "draw", "query", "explode", "strip", "header", "layers", "browse", "version", "completion"} {
+	for _, name := range []string{"info", "analyze", "difftags", "debug", "audit", "convert", "draw", "query", "explode", "strip", "header", "layers", "browse", "version", "completion"} {
 		if !strings.Contains(out, name) {
 			t.Fatalf("usage missing %s:\n%s", name, out)
 		}

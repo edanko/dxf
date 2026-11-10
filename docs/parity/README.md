@@ -132,7 +132,7 @@ must be verified before implementation starts.
 | R12 strict mode | `r12strict.py` | `DONE` — sanitizer drops non-R12 tables/entities/layers, true-color header variables, records conversion report (`TestR12Downgrade`, `drawing/r12strict.go`) |
 | Binary DXF read/write | `lldxf/tagger.py`, `tagwriter.py` | `DONE` — binary writer emits all sections + EOF with per-code int16/int32/int64/float/raw sizing; ASCII/binary tag streams are value-identical (`TestBinaryASCIIEquivalence`) |
 | Encoding/codepage handling | `lldxf/encoding.py`, `tools/codepage.py` | `DONE` — codepage-aware decode on load (ANSI_1252 etc.), UTF-8 for R2007+, codepage output for older targets (`TestCodepageDecoding`, `TestUTF8AndCodepageOutput`) |
-| File management (temp/backup/zip) | `filemanagement.py`, `tools/zipmanager.py` | `PARTIAL` — atomic write + optional backup (`filemanagement`); ZIP manager `ABSENT` |
+| File management (temp/backup/zip) | `filemanagement.py`, `tools/zipmanager.py` | `DONE` — atomic write + optional backup (`filemanagement`); ZIP manager creates/reads/extracts archives with entry validation, traversal/symlink rejection, and atomic output (`TestZipRoundTripPreservesEntries`, `TestExtractZipRejectsTraversal`; `filemanagement/zip.go`) |
 
 ### 2. Entities
 
@@ -318,14 +318,14 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 
 | Capability | ezdxf reference | Go baseline |
 |---|---|---|
-| `ezdxf` CLI (`info`, `audit`, `draw`, `browse`, `convert`, `strip`, `view`, `pp`) | `commands.py`, `__main__.py` | `DONE` — `cmd/dxf` provides info/audit/convert/draw/query/explode/fix/strip/header/layers/browse/version/completion, text+JSON, exit codes 0/1/2/3 (`cmd/dxf/main_test.go`, `docs/cli.md`) |
+| `ezdxf` CLI (`info`, `audit`, `draw`, `browse`, `convert`, `strip`, `view`, `pp`) | `commands.py`, `__main__.py` | `DONE` — `cmd/dxf` provides info/analyze/difftags/debug/audit/convert/draw/query/explode/fix/strip/header/layers/browse/standards/zip/unzip/version/completion, text+JSON, exit codes 0/1/2/3 (`cmd/dxf/main_test.go`, `cmd/dxf/devtools_test.go`, `cmd/dxf/zip_test.go`, `docs/cli.md`) |
 | App settings / config | `appsettings.py`, `_options.py` | `DONE` — `appsettings` with defaults < file < `DXF_*` env precedence |
 | Comments | `comments.py` | `DONE` — preserve per section and strip via `comments.StripComments` |
 | Fonts, SHX/TTF, text metrics | `fonts/*`, `tools/text*.py` | `PARTIAL` — TTF/OTF outlines via system fonts; SHX absent; text metrics minimal |
-| ISO hatch patterns / standards | `tools/_iso_pattern.py`, `standards.py` | `PARTIAL` — built-in ANSI31–38 patterns; ISO library and standards checks absent |
+| ISO hatch patterns / standards | `tools/_iso_pattern.py`, `standards.py` | `PARTIAL` — built-in ANSI31–38 patterns; ISO library absent; standards rule engine and `dxf standards` implemented (`standards` package, `standards_test.go`) |
 | Revcloud | `revcloud.py` | `DONE` — `query.RevCloudRectangle`/`RevCloudArcs` (closed bulged LWPOLYLINE, configurable arc chord and bulge) plus `Space.AddRevCloud`/`Drawing.AddRevCloud`; revcloud tests in `query/parity_test.go` and `TestQuerySelectionsAndTransformsE2E` |
 | Zoom/extents helpers | `zoom.py` | `DONE` — `drawing.FitExtentsToViewport` and `Drawing.FitView`/`FitLayoutView`; `TestQuerySelectionsAndTransformsE2E` |
-| Analyze/difftags/debug tools | `tools/analyze.py`, `difftags.py` | `ABSENT` |
+| Analyze/difftags/debug tools | `tools/analyze.py`, `difftags.py` | `DONE` — `analyze` tag/entity/table/block/object statistics, structural `difftags` with changed/added/removed tag paths, `debug` loader/recovery diagnostics; text+JSON (`cmd/dxf/analyze.go`, `cmd/dxf/difftags.go`, `cmd/dxf/debug.go`, `cmd/dxf/devtools_test.go`) |
 
 ### 12. Colors, enums, units, standards
 
@@ -334,7 +334,7 @@ Plot style tables (CTB/STB) are not modeled: entities render with their screen c
 | ACI colors, true color, transparency | `colors.py`, `concepts/true_color.rst` | `DONE` — tagged color value (ACI/true color/BYLAYER/BYBLOCK) with full ACI table, nearest-index lookup and validation (`color/colorvalue.go`), alpha transparency (`color/transparency.go`), entity round trips (`color/roundtrip_test.go`, `color/colorvalue_test.go`) |
 | Enums (text alignment, hatch, etc.) | `enums.py` | `DONE` — typed enum sets with name/numeric conversion and unknown-value reporting (`enums/enums.go`, `enums/enums_test.go`) |
 | Units and insunits | `units.py`, `concepts/units.rst` | `DONE` — unit definitions 0-20 with meter factors, `$INSUNITS` mapping and length conversion (`units/units.go`, `units/units_test.go`) |
-| Standards checks | `tools/standards.py` | `ABSENT` |
+| Standards checks | `tools/standards.py` | `DONE` — reusable rule engine with structured violations (code/severity/path/handle), configurable severities and disable list, layer-name rule, and `dxf standards` CLI (`standards/standards.go`, `standards/layer.go`, `standards/standards_test.go`, `cmd/dxf/standards.go`) |
 | Lineweights | `concepts/lineweights.rst` | `DONE` — lineweight default (-3 ByLayer) and validation (`enums/enums.go` `DefaultLineWeight`/`ValidateLineWeight`) |
 | Linetype patterns | `tools/pattern.py`, `_linetypes.py` | `PARTIAL` |
 
@@ -371,7 +371,7 @@ complete; the rest are not yet applied.
 | 15 | `math-shape-clipping-parity` (done) | Perlin noise, clustering, Shape container, portal clipping, triangulation hole bridge, path nesting | 6, 7 |
 | 16 | `render-plot-font-parity` | full DIMENSION renderer, mesh/polyface faces, arrow heads, STB/binary CTB plot styles, SHX/TTF text metrics, ISO hatch patterns | 7, 11 |
 | 17 | `addons-remaining-parity` | browser/acisbrowser extraction, DWG via CommandRunner, r12export, xqt, dimlines, genetic algorithm, Menger sponge, Sierpinski pyramid, mixins | 11 |
-| 18 | `dev-tools-parity` | `dxf analyze`, `difftags`, `debug`, `standards`, ZIP manager and CLI zip/unzip | 12 |
+| 18 | `dev-tools-parity` (done) | `dxf analyze`, `difftags`, `debug`, `standards`, ZIP manager and CLI zip/unzip | 12 |
 | 19 | `library-refactor` | dead code, duplicate adapters, named interfaces, SOLID/DRY/YAGNI review | 1–13 |
 
 Rationale for ordering: I/O correctness and version support are prerequisites for
@@ -423,8 +423,7 @@ on complete data; add-ons and CLI depend on everything.
 - Audit gaps: duplicate handles are reported, not repaired; cycle repair is not
   modeled.
 - Add-on/tool gaps: browser, acisbrowser, dwg, dimlines, r12export, xqt,
-  genetic_algorithm, menger_sponge, sierpinski_pyramid, mixins, standards,
-  analyze/difftags, ZIP manager.
+  genetic_algorithm, menger_sponge, sierpinski_pyramid, mixins.
 - The repository has a large untracked `.agents/`, `.dsh/`, `.zcode/` skill
   configuration. Treat as tooling, not library code.
 
@@ -452,5 +451,6 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-10 | `library-refactor` | done | Removed dead `parser.go` and unused render helpers; consolidated block adapters in `internal/blockadapter`; replaced inline interface assertions with named interfaces across the public packages; `go test ./...` and the ezdxf cross-check still pass. |
 | 2026-11-10 | change 14 `entity-object-completion-parity` | done | ACAD_TABLE typed rows/cells/styles/merges with typed loader and round trips; POLYFACE/POLYMESH vertex variants and face records; MESHVERTEXCACHE typed and linked to MESH; SAT/SAB metadata parsing with byte-preserving payloads and ACDSDATA linkage; typed MLEADERSTYLE/MLINESTYLE collections, LAYER_FILTER, VBA_PROJECT; objects-as-entities loaded through typed object models without moving sections; typed reactors/extension dictionaries on entities and objects. Cross-check now compares typed object inventories and passes across 54 fixtures. Tests: `acad_table_roundtrip_test.go`, `polyface_mesh_roundtrip_test.go`, `acis_metadata_test.go`, `object_collection_roundtrip_test.go`, `object_entity_roundtrip_test.go`, `extension_links_test.go`, plus package unit tests. |
 | 2026-11-10 | change 15 `math-shape-clipping-parity` | done | Seeded deterministic Perlin 2D/3D with octave variants; point clustering with membership and centroids; `Shape` container with holes, area/containment/centroid/bbox and winding normalization; portal clipping for line segments and quadratic/cubic Bezier curves; earcut hole bridging via deterministic visible-vertex candidate search plus post-triangulation area verification (centered hole now has no exterior bay and exact area); path nesting tree with normalized CCW outer / CW holes. Tests: `math/perlin_test.go`, `math/clustering_test.go`, `math/shape_test.go`, `math/clipping_test.go`, `math/parity_ext_test.go`, `path/nesting_test.go`. |
+| 2026-11-10 | change 18 `dev-tools-parity` | done | `dxf analyze` tag/entity/table/block/object statistics; `dxf difftags` structural added/removed/changed tag paths with non-zero exit on differences; `dxf debug` version/encoding/section/loader/recovery diagnostics; reusable `standards` rule engine with structured violations, configurable severities and `dxf standards`; ZIP manager with atomic creation/extraction, per-entry path traversal and symlink rejection, plus `dxf zip`/`dxf unzip`. Tests: `cmd/dxf/devtools_test.go`, `cmd/dxf/zip_test.go`, `standards/standards_test.go`, `filemanagement/zip_test.go`. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

@@ -34,6 +34,12 @@ const usage = `usage: dxf <command> [options] [file]
 
 commands:
   info       show version, entity/table/block/object counts
+  analyze    show tag, entity, table, block and object statistics
+  difftags   compare tag structures of two files
+  debug      show loader diagnostics and recovery issues
+  standards  validate drawing standards rules
+  zip        package drawings into a ZIP archive
+  unzip      extract a drawing ZIP archive
   audit      audit a file (--fix repairs)
   convert    convert to a target version and encoding
   draw       render to svg, pdf or png
@@ -74,6 +80,12 @@ func main() {
 
 var commands = map[string]func([]string) error{
 	"info":       cmdInfo,
+	"analyze":    cmdAnalyze,
+	"difftags":   cmdDiffTags,
+	"debug":      cmdDebug,
+	"standards":  cmdStandards,
+	"zip":        cmdZip,
+	"unzip":      cmdUnzip,
 	"audit":      cmdAudit,
 	"convert":    cmdConvert,
 	"draw":       cmdDraw,
@@ -626,13 +638,13 @@ func cmdCompletion(args []string) error {
 	}
 	switch *shell {
 	case "bash":
-		fmt.Print("complete -W \"info audit convert draw query explode fix strip header layers browse version completion\" dxf\n")
+		fmt.Print("complete -W \"info analyze difftags debug standards zip unzip audit convert draw query explode fix strip header layers browse version completion\" dxf\n")
 	case "zsh":
-		fmt.Print("#compdef dxf\n_arguments '1:command:(info audit convert draw query explode fix strip header layers browse version completion)'\n")
+		fmt.Print("#compdef dxf\n_arguments '1:command:(info analyze difftags debug standards zip unzip audit convert draw query explode fix strip header layers browse version completion)'\n")
 	case "fish":
-		fmt.Print("complete -c dxf -f -a \"info audit convert draw query explode fix strip header layers browse version completion\"\n")
+		fmt.Print("complete -c dxf -f -a \"info analyze difftags debug standards zip unzip audit convert draw query explode fix strip header layers browse version completion\"\n")
 	case "powershell":
-		fmt.Print("Register-ArgumentCompleter -CommandName dxf -ScriptBlock { param($w) 'info','audit','convert','draw','query','explode','fix','strip','header','layers','browse','version','completion' | Where-Object { $_ -like \"$w*\" } }\n")
+		fmt.Print("Register-ArgumentCompleter -CommandName dxf -ScriptBlock { param($w) 'info','analyze','difftags','debug','standards','zip','unzip','audit','convert','draw','query','explode','fix','strip','header','layers','browse','version','completion' | Where-Object { $_ -like \"$w*\" } }\n")
 	default:
 		return usageError("invalid shell %q (bash, zsh, fish, powershell)", *shell)
 	}
