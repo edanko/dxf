@@ -45,6 +45,10 @@ type SceneOptions struct {
 	PlotStyles *acadctb.PlotStyleTable
 	// PlotStyleName selects a named style from a named (STB) table.
 	PlotStyleName string
+	// ShapeFonts supplies loaded SHX shape fonts for complex linetype shape
+	// elements, keyed by font name (for example "ltypeshp.shx"). When empty,
+	// shape elements are reported as missing and only dashes/text render.
+	ShapeFonts map[string]*text2path.SHXFont
 }
 
 // StyledScene is a canvas-ready drawing: paths with resolved styles
@@ -95,7 +99,9 @@ func BuildScene(d *drawing.Drawing, width, height float64, opts *SceneOptions) (
 		if !ok {
 			continue
 		}
-		paths = append(paths, entityPaths(d, e, st, dev, bg, opts, nt)...)
+		entPaths := entityPaths(d, e, st, dev, bg, opts, nt)
+		paths = append(paths, entPaths...)
+		paths = append(paths, linetypeElementPaths(d, e, entPaths, dev, opts, nt)...)
 	}
 
 	// Fit transform: an active viewport in the entity list projects the
@@ -310,7 +316,15 @@ func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg 
 	case *entity.Hatch:
 		p, err := path.MakePath(t, path.WithDistance(dev))
 		if err != nil {
+			nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("HATCH %s: %v", t.Handle(), err))
 			return nil
+		}
+		for _, bp := range t.GetBoundaryPaths() {
+			if ep, ok := bp.(*entity.EdgePath); ok {
+				for _, reason := range ep.Unsupported() {
+					nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("HATCH %s: boundary edge skipped: %s", t.Handle(), reason))
+				}
+			}
 		}
 		if t.IsSolid() {
 			st.Fill = st.Stroke
@@ -346,6 +360,24 @@ func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg 
 		default:
 			return []StyledPath{{Path: p, Style: st}}
 		}
+	case *entity.MPolygonEntity:
+		p, err := path.MakePath(t, path.WithDistance(dev))
+		if err != nil {
+			nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("MPOLYGON %s: %v", t.Handle(), err))
+			return nil
+		}
+		st.Fill = st.Stroke
+		return []StyledPath{{Path: p, Style: st}}
+	case *entity.Ellipse:
+		if t.EmbeddedSplineError != "" {
+			nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("ELLIPSE %s: malformed embedded spline: %s", t.Handle(), t.EmbeddedSplineError))
+		}
+		p, err := path.MakePath(t, path.WithDistance(dev))
+		if err != nil {
+			nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("ELLIPSE %s: %v", t.Handle(), err))
+			return nil
+		}
+		return []StyledPath{{Path: p, Style: st}}
 	case *entity.Solid, *entity.Trace, *entity.ThreeDFace:
 		p, err := path.MakePath(t, path.WithDistance(dev))
 		if err != nil {

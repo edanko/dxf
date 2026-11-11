@@ -78,7 +78,6 @@ func DetectFormat(data []byte) (string, error) {
 	return lldxf.DetectDXFFormat(data)
 }
 
-
 // loadEntity dispatches to the entity loader registry. All 29 typed loaders
 // register themselves from this package's init; unregistered types fall back
 // to retained-record entities that keep every tag.
@@ -723,8 +722,136 @@ func loadLwPolyline(tags lldxf.Tags) *entity.LwPolyline {
 func loadEllipse(tags lldxf.Tags) *entity.Ellipse {
 	e := entity.NewEllipse()
 	loadCommonAttribs(e, tags)
+
+	// Embedded spline payload: a SPLINE-style block inside the ELLIPSE
+	// record. Code 71 (degree) has no meaning for a plain ELLIPSE, so it
+	// switches parsing into the spline payload; codes 40/41/10/20/30 after it
+	// belong to the spline rather than the ellipse axes and center.
+	splineActive := false
+	var sp *entity.Spline
+	var splineErr string
+	var pending []float64
+	var pendingFit []float64
+	knotCount, controlCount, fitCount := -1, -1, -1
+	var splineTags []entity.TagPair
+
+	flushPoint := func() {
+		if !splineActive || len(pending) == 0 {
+			return
+		}
+		for len(pending) < 3 {
+			pending = append(pending, 0)
+		}
+		sp.Controls = append(sp.Controls, []float64{pending[0], pending[1], pending[2]})
+		pending = nil
+	}
+	flushFit := func() {
+		if !splineActive || len(pendingFit) == 0 {
+			return
+		}
+		for len(pendingFit) < 3 {
+			pendingFit = append(pendingFit, 0)
+		}
+		sp.Fits = append(sp.Fits, []float64{pendingFit[0], pendingFit[1], pendingFit[2]})
+		pendingFit = nil
+	}
+
 	for _, tag := range tags {
+		if splineActive {
+			switch int(tag.Code()) {
+			case 10, 11, 20, 21, 30, 31, 40, 41, 42, 43, 44, 70, 71, 72, 73, 74:
+				splineTags = append(splineTags, entity.TagPair{Code: int(tag.Code()), Value: fmtTagValue(tag.Value())})
+			}
+			switch int(tag.Code()) {
+			case 70:
+				if v, ok := tagInt(tag); ok {
+					sp.Flag = v
+				}
+				continue
+			case 71:
+				if v, ok := tagInt(tag); ok {
+					sp.Degree = v
+				}
+				continue
+			case 72:
+				if v, ok := tagInt(tag); ok {
+					knotCount = v
+				}
+				continue
+			case 73:
+				if v, ok := tagInt(tag); ok {
+					controlCount = v
+				}
+				continue
+			case 74:
+				if v, ok := tagInt(tag); ok {
+					fitCount = v
+				}
+				continue
+			case 40:
+				if v, ok := tagFloat(tag); ok {
+					sp.Knots = append(sp.Knots, v)
+				}
+				continue
+			case 41:
+				if v, ok := tagFloat(tag); ok {
+					sp.Weights = append(sp.Weights, v)
+				}
+				continue
+			case 42, 43, 44:
+				if v, ok := tagFloat(tag); ok {
+					sp.Tolerance[int(tag.Code())-42] = v
+				}
+				continue
+			case 10, 20, 30:
+				if v, ok := tagFloat(tag); ok {
+					switch int(tag.Code()) {
+					case 10:
+						flushPoint()
+						pending = []float64{v}
+					case 20:
+						for len(pending) < 2 {
+							pending = append(pending, 0)
+						}
+						pending[1] = v
+					case 30:
+						for len(pending) < 3 {
+							pending = append(pending, 0)
+						}
+						pending[2] = v
+					}
+				}
+				continue
+			case 11, 21, 31:
+				if v, ok := tagFloat(tag); ok {
+					switch int(tag.Code()) {
+					case 11:
+						flushFit()
+						pendingFit = []float64{v}
+					case 21:
+						for len(pendingFit) < 2 {
+							pendingFit = append(pendingFit, 0)
+						}
+						pendingFit[1] = v
+					case 31:
+						for len(pendingFit) < 3 {
+							pendingFit = append(pendingFit, 0)
+						}
+						pendingFit[2] = v
+					}
+				}
+				continue
+			}
+		}
 		switch tag.Code() {
+		case 71:
+			// Degree marker for the embedded spline payload.
+			splineTags = append(splineTags, entity.TagPair{Code: 71, Value: fmtTagValue(tag.Value())})
+			sp = entity.NewSpline(3)
+			splineActive = true
+			if v, ok := tagInt(tag); ok {
+				sp.Degree = v
+			}
 		case 10:
 			if v, ok := tagFloat(tag); ok {
 				e.Center[0] = v
@@ -757,6 +884,31 @@ func loadEllipse(tags lldxf.Tags) *entity.Ellipse {
 			if v, ok := tagFloat(tag); ok {
 				e.End = v
 			}
+		}
+	}
+	flushPoint()
+	flushFit()
+	if splineActive && sp != nil {
+		// Validate the declared counts against the parsed payload.
+		switch {
+		case len(sp.Controls) == 0:
+			splineErr = "embedded spline has no control points"
+		case sp.Degree < 1:
+			splineErr = "embedded spline degree is below 1"
+		case controlCount >= 0 && len(sp.Controls) != controlCount:
+			splineErr = fmt.Sprintf("embedded spline declares %d control points but carries %d", controlCount, len(sp.Controls))
+		case knotCount >= 0 && len(sp.Knots) != knotCount:
+			splineErr = fmt.Sprintf("embedded spline declares %d knots but carries %d", knotCount, len(sp.Knots))
+		case fitCount >= 0 && len(sp.Fits) != fitCount:
+			splineErr = fmt.Sprintf("embedded spline declares %d fit points but carries %d", fitCount, len(sp.Fits))
+		}
+		if splineErr == "" {
+			e.Spline = sp
+		} else {
+			// Retain the malformed payload verbatim so a save preserves the
+			// original record instead of dropping it.
+			e.EmbeddedSplineError = splineErr
+			e.SetRawTags(splineTags)
 		}
 	}
 	return e
@@ -1196,6 +1348,123 @@ func loadLeader(tags lldxf.Tags) *entity.Leader {
 	return l
 }
 
+// hatchEdgeBuilder accumulates one edge while the loader walks a hatch
+// boundary edge path (code 72 selects the edge type).
+type hatchEdgeBuilder struct {
+	kind       int
+	p1, p2     dxfmath.Vec2
+	radius     float64
+	ratio      float64
+	startAngle float64
+	endAngle   float64
+	ccw        bool
+	degree     int
+	rational   bool
+	periodic   bool
+	knots      []float64
+	controls   []dxfmath.Vec3
+	weights    []float64
+	current    dxfmath.Vec3
+}
+
+// feed consumes one edge geometry tag.
+func (b *hatchEdgeBuilder) feed(tag lldxf.Tag) {
+	v, _ := tagFloat(tag)
+	switch int(tag.Code()) {
+	case 10:
+		if b.kind == entity.BoundaryEdgeSpline {
+			b.current = dxfmath.NewVec3(v, 0, 0)
+			b.controls = append(b.controls, b.current)
+		} else {
+			b.p1 = dxfmath.NewVec2(v, b.p1.Y())
+		}
+	case 20:
+		if b.kind == entity.BoundaryEdgeSpline {
+			b.current = dxfmath.NewVec3(b.current.X(), v, b.current.Z())
+			b.controls[len(b.controls)-1] = b.current
+		} else {
+			b.p1 = dxfmath.NewVec2(b.p1.X(), v)
+		}
+	case 30:
+		if b.kind == entity.BoundaryEdgeSpline && len(b.controls) > 0 {
+			b.current = dxfmath.NewVec3(b.current.X(), b.current.Y(), v)
+			b.controls[len(b.controls)-1] = b.current
+		}
+	case 11:
+		b.p2 = dxfmath.NewVec2(v, b.p2.Y())
+	case 21:
+		b.p2 = dxfmath.NewVec2(b.p2.X(), v)
+	case 40:
+		switch b.kind {
+		case entity.BoundaryEdgeSpline:
+			b.knots = append(b.knots, v)
+		case entity.BoundaryEdgeEllipse:
+			b.ratio = v
+		default:
+			b.radius = v
+		}
+	case 42:
+		if b.kind == entity.BoundaryEdgeSpline {
+			b.weights = append(b.weights, v)
+		}
+	case 50:
+		b.startAngle = v
+	case 51:
+		b.endAngle = v
+	case 73:
+		if b.kind == entity.BoundaryEdgeSpline {
+			b.rational = v != 0
+		} else {
+			b.ccw = v != 0
+		}
+	case 74:
+		b.periodic = v != 0
+	case 94:
+		if iv, ok := tagInt(tag); ok {
+			b.degree = iv
+		}
+	case 95, 96:
+		// counts; the values themselves follow as 40/10 tags
+	}
+}
+
+// finishHatchEdge converts the accumulated tags into a typed edge and appends
+// it to the path. Unusable edges are recorded as unsupported.
+func finishHatchEdge(path *entity.EdgePath, b *hatchEdgeBuilder) {
+	if path == nil || b == nil {
+		return
+	}
+	switch b.kind {
+	case entity.BoundaryEdgeLine:
+		if b.p1 == b.p2 {
+			path.AddUnsupported("degenerate line edge")
+			return
+		}
+		path.AddEdge(entity.NewLineEdge(b.p1, b.p2))
+	case entity.BoundaryEdgeArc:
+		if b.radius <= 0 {
+			path.AddUnsupported("arc edge with non-positive radius")
+			return
+		}
+		path.AddEdge(entity.NewArcEdge(b.p1, b.radius, b.startAngle, b.endAngle, b.ccw))
+	case entity.BoundaryEdgeEllipse:
+		major := b.p2
+		if major.Length() == 0 {
+			path.AddUnsupported("ellipse edge with degenerate major axis")
+			return
+		}
+		path.AddEdge(entity.NewEllipseEdge(b.p1, major, b.ratio, b.startAngle, b.endAngle, b.ccw))
+	case entity.BoundaryEdgeSpline:
+		if len(b.controls) < 2 || b.degree < 1 {
+			path.AddUnsupported("spline edge with insufficient control data")
+			return
+		}
+		path.AddEdge(entity.NewSplineEdge(b.degree, b.rational, b.periodic, b.knots, b.controls, b.weights))
+	default:
+		path.AddUnsupported(fmt.Sprintf("unsupported boundary edge type %d", b.kind))
+	}
+}
+
 func loadHatch(tags lldxf.Tags) *entity.Hatch {
 	h := entity.NewHatch()
 	loadCommonAttribs(h, tags)
@@ -1207,6 +1476,9 @@ func loadHatch(tags lldxf.Tags) *entity.Hatch {
 	// boundary path parsing state
 	var paths []entity.BoundaryPath
 	var curPath *entity.PolylinePath
+	var curEdgePath *entity.EdgePath
+	var edge *hatchEdgeBuilder
+	inEdgePath := false
 	inBoundary := false
 	isPolylinePath := false
 	seenBulgeFlag := false
@@ -1305,7 +1577,18 @@ func loadHatch(tags lldxf.Tags) *entity.Hatch {
 			}
 			inBoundary = true
 			inPattern = false
-		case 72: // has-bulge flag (code 72) inside a boundary path
+		case 72: // edge type (edge paths) or has-bulge flag (polyline paths)
+			if inEdgePath {
+				if edge != nil {
+					finishHatchEdge(curEdgePath, edge)
+				}
+				kind := 0
+				if v, ok := tagInt(tag); ok {
+					kind = v
+				}
+				edge = &hatchEdgeBuilder{kind: kind}
+				break
+			}
 			if (inBoundary || seenPathHeader) && isPolylinePath && !seenBulgeFlag {
 				seenBulgeFlag = true
 				bulge := false
@@ -1320,12 +1603,32 @@ func loadHatch(tags lldxf.Tags) *entity.Hatch {
 					curPath = entity.NewPolylinePath(0, closedVal, bulge)
 				}
 			}
-		case 92: // MPOLYGON: after the path header this carries the closed flag
-			if isMPolygon && seenPathHeader {
-				if v, ok := tagInt(tag); ok && curPath != nil {
-					curPath.SetClosed(v != 0)
+		case 92: // boundary path header; 1 = edge path, 2 = polyline path
+			if isMPolygon {
+				// MPOLYGON uses code 92 for the closed flag after a code 70
+				// path header; it never introduces an edge path.
+				if seenPathHeader {
+					if v, ok := tagInt(tag); ok && curPath != nil {
+						curPath.SetClosed(v != 0)
+					}
 				}
 				break
+			}
+			if !inBoundary {
+				// Outside the HATCH boundary section, code 92 can come from
+				// retained raw tags and must not start a path.
+				break
+			}
+			if inEdgePath {
+				if edge != nil {
+					finishHatchEdge(curEdgePath, edge)
+					edge = nil
+				}
+				if curEdgePath != nil {
+					paths = append(paths, curEdgePath)
+					curEdgePath = nil
+				}
+				inEdgePath = false
 			}
 			if inBoundary && curPath != nil {
 				paths = append(paths, curPath)
@@ -1334,8 +1637,29 @@ func loadHatch(tags lldxf.Tags) *entity.Hatch {
 			isPolylinePath = false
 			if v, ok := tagInt(tag); ok {
 				isPolylinePath = v == entity.BoundaryPathTypePolyline
+				if v == 1 {
+					curEdgePath = entity.NewEdgePath(0)
+					inEdgePath = true
+				}
 			}
-		case 73: // closed flag (code 73) inside a boundary path
+		case 11, 21: // edge endpoint / major-axis endpoint
+			if inEdgePath && edge != nil {
+				v, _ := tagFloat(tag)
+				if int(tag.Code()) == 11 {
+					edge.p2 = dxfmath.NewVec2(v, edge.p2.Y())
+				} else {
+					edge.p2 = dxfmath.NewVec2(edge.p2.X(), v)
+				}
+			}
+		case 40, 50, 51, 74, 94, 95, 96: // edge geometry fields
+			if inEdgePath && edge != nil {
+				edge.feed(tag)
+			}
+		case 73: // closed flag (polyline), ccw flag (arc/ellipse), rational (spline)
+			if inEdgePath && edge != nil {
+				edge.feed(tag)
+				break
+			}
 			if (inBoundary || seenPathHeader) && isPolylinePath && !seenClosedFlag {
 				seenClosedFlag = true
 				if v, ok := tagInt(tag); ok {
@@ -1355,6 +1679,10 @@ func loadHatch(tags lldxf.Tags) *entity.Hatch {
 				seenPathHeader = true
 			}
 		case 10, 20, 30, 42:
+			if inEdgePath && edge != nil {
+				edge.feed(tag)
+				break
+			}
 			if curPath != nil {
 				v, _ := tagFloat(tag)
 				switch int(tag.Code()) {
@@ -1369,11 +1697,25 @@ func loadHatch(tags lldxf.Tags) *entity.Hatch {
 				}
 			}
 		case 330:
+			if inEdgePath && curEdgePath != nil {
+				if v, ok := tag.Value().(string); ok {
+					curEdgePath.AddSourceHandle(v)
+				}
+				break
+			}
 			if curPath != nil {
 				if v, ok := tag.Value().(string); ok {
 					curPath.AddSourceHandle(v)
 				}
 			}
+		}
+	}
+	if inEdgePath {
+		if edge != nil {
+			finishHatchEdge(curEdgePath, edge)
+		}
+		if curEdgePath != nil {
+			paths = append(paths, curEdgePath)
 		}
 	}
 	if curPath != nil {
@@ -2993,7 +3335,6 @@ func loadRegion(tags lldxf.Tags) *entity.Region {
 	}
 	return r
 }
-
 
 func loadBody(tags lldxf.Tags) *entity.Body {
 	b := entity.NewBody()

@@ -51,11 +51,20 @@ type Renderer interface {
 	// given size in canvas units, rotated by rotDeg about its center and
 	// faded by opacity (0..1). Backends without raster support may ignore it.
 	DrawImage(im image.Image, x, y, w, h, rotDeg, opacity float64) error
-	// FillGradient fills the boundary path with a linear gradient.
-	// PDF backends fill with the first color (minimal support).
+	// FillGradient fills the boundary path with a linear or radial
+	// gradient. Backends that cannot render a gradient fall back to a
+	// solid fill and report it through Diagnostics when supported.
 	FillGradient(boundary *path.Path, g *GradientFill) error
 	// End finishes the canvas and writes the output.
 	End() error
+}
+
+// DiagnosticRenderer is implemented by backends that record degradations
+// (for example unsupported color spaces or malformed gradients) while
+// rendering. Diagnostics are stable for the same drawing and options.
+type DiagnosticRenderer interface {
+	Renderer
+	Diagnostics() []string
 }
 
 // StyledPath pairs a canvas-space path with the style it must be drawn with.
@@ -105,12 +114,77 @@ type PatternLine struct {
 	Dashes []float64
 }
 
-// GradientFill maps a linear gradient between two colors across the
-// boundary bounding box. Rotation is the gradient axis angle in degrees.
+// GradientStop is one color stop of a gradient: Offset runs from 0 (start)
+// to 1 (end) and Color holds RGB components in 0..1.
+type GradientStop struct {
+	Offset float64
+	Color  [3]float64
+}
+
+// GradientFill describes a gradient across the boundary bounding box.
+// Rotation is the axis angle in degrees for linear gradients. Type is
+// "linear" (default when empty) or "radial"; radial gradients use Center
+// (canvas units, default boundary center) and Radius (default half the
+// boundary diagonal).
+//
+// Stops lists all color stops in ascending offset order. When Stops is
+// empty the two-color Color1/Color2 form is used. ColorSpace is the color
+// space the stops were authored in; empty and "DeviceRGB"/"RGB" are
+// supported, other values are reported and rendered as a solid fill.
 type GradientFill struct {
 	Color1, Color2 [3]float64 // RGB components 0..1
 	Rotation       float64
 	Centered       bool
+
+	Stops      []GradientStop
+	Type       string
+	Center     [2]float64
+	Radius     float64
+	ColorSpace string
+}
+
+// GradientStops returns the effective color stops in ascending offset
+// order, deriving them from Color1/Color2 when Stops is empty.
+func (g *GradientFill) GradientStops() []GradientStop {
+	if g == nil {
+		return nil
+	}
+	if len(g.Stops) > 0 {
+		return g.Stops
+	}
+	return []GradientStop{{Offset: 0, Color: g.Color1}, {Offset: 1, Color: g.Color2}}
+}
+
+// IsRadial reports whether the gradient is radial.
+func (g *GradientFill) IsRadial() bool {
+	return g != nil && g.Type == "radial"
+}
+
+// SupportedColorSpace reports whether the gradient's color space can be
+// rendered directly. Unknown color spaces fall back to a solid fill.
+func (g *GradientFill) SupportedColorSpace() bool {
+	switch g.ColorSpace {
+	case "", "RGB", "DeviceRGB":
+		return true
+	}
+	return false
+}
+
+// ValidStops reports whether the effective stops can form a gradient: at
+// least two stops with strictly ascending offsets in 0..1.
+func (g *GradientFill) ValidStops() bool {
+	stops := g.GradientStops()
+	if len(stops) < 2 {
+		return false
+	}
+	prev := -1.0
+	for _, s := range stops {
+		if s.Offset < 0 || s.Offset > 1 || s.Offset <= prev {
+			return false
+		}
+		prev = s.Offset
+	}
+	return true
 }
 
 // BackendFactory creates a renderer writing to w on a width x height canvas.

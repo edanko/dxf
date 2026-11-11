@@ -64,29 +64,46 @@ func (r *SVGRenderer) Clip(p *path.Path) error {
 	return nil
 }
 
-// FillGradient fills the boundary with a linear gradient along the
-// gradient axis across the boundary bounding box.
+// FillGradient fills the boundary with a linear or radial gradient along
+// the gradient axis across the boundary bounding box, honoring all stops.
 func (r *SVGRenderer) FillGradient(bnd *path.Path, g *GradientFill) error {
 	if !r.started || bnd == nil || g == nil {
 		return nil
 	}
 	lo, hi := bnd.BoundingBox()
 	cx, cy := (lo.X()+hi.X())/2, (lo.Y()+hi.Y())/2
-	ang := g.Rotation * math.Pi / 180
-	ux, uy := math.Cos(ang), math.Sin(ang)
-	hw := (math.Abs(ux)*(hi.X()-lo.X()) + math.Abs(uy)*(hi.Y()-lo.Y())) / 2
-	if hw <= 0 {
-		hw = 1
-	}
 	r.nextGrad++
 	id := fmt.Sprintf("grad%d", r.nextGrad)
-	c1 := svgColor(gradientRGBA(g.Color1))
-	c2 := svgColor(gradientRGBA(g.Color2))
-	r.defs = append(r.defs, fmt.Sprintf(
-		`<linearGradient id=%s gradientUnits="userSpaceOnUse" x1=%s y1=%s x2=%s y2=%s>`+
-			`<stop offset="0" stop-color=%s/><stop offset="1" stop-color=%s/></linearGradient>`,
-		fmt.Sprintf("%q", id), num(cx-ux*hw), num(cy-uy*hw), num(cx+ux*hw), num(cy+uy*hw),
-		fmt.Sprintf("%q", c1), fmt.Sprintf("%q", c2)))
+	var stops strings.Builder
+	for _, st := range g.GradientStops() {
+		fmt.Fprintf(&stops, `<stop offset=%q stop-color=%q/>`,
+			num(st.Offset), svgColor(gradientRGBA(st.Color)))
+	}
+	if g.IsRadial() {
+		if g.Center != [2]float64{} {
+			cx, cy = g.Center[0], g.Center[1]
+		}
+		radius := g.Radius
+		if radius <= 0 {
+			radius = math.Hypot(hi.X()-lo.X(), hi.Y()-lo.Y()) / 2
+		}
+		if radius <= 0 {
+			radius = 1
+		}
+		r.defs = append(r.defs, fmt.Sprintf(
+			`<radialGradient id=%s gradientUnits="userSpaceOnUse" cx=%s cy=%s r=%s>%s</radialGradient>`,
+			fmt.Sprintf("%q", id), num(cx), num(cy), num(radius), stops.String()))
+	} else {
+		ang := g.Rotation * math.Pi / 180
+		ux, uy := math.Cos(ang), math.Sin(ang)
+		hw := (math.Abs(ux)*(hi.X()-lo.X()) + math.Abs(uy)*(hi.Y()-lo.Y())) / 2
+		if hw <= 0 {
+			hw = 1
+		}
+		r.defs = append(r.defs, fmt.Sprintf(
+			`<linearGradient id=%s gradientUnits="userSpaceOnUse" x1=%s y1=%s x2=%s y2=%s>%s</linearGradient>`,
+			fmt.Sprintf("%q", id), num(cx-ux*hw), num(cy-uy*hw), num(cx+ux*hw), num(cy+uy*hw), stops.String()))
+	}
 	var b strings.Builder
 	b.WriteString(`<path d="`)
 	b.WriteString(pathData(bnd))

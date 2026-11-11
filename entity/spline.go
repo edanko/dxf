@@ -217,6 +217,38 @@ func (s *Spline) Format(f format.Formatter) {
 	}
 }
 
+// formatEmbedded writes the spline payload embedded in an ELLIPSE record. It
+// uses the SPLINE group codes but omits the entity header, subclass marker,
+// and extrusion so the payload stays unambiguous inside the parent record.
+func (s *Spline) formatEmbedded(f format.Formatter) {
+	f.WriteInt(70, s.Flag)
+	f.WriteInt(71, s.Degree)
+	f.WriteInt(72, len(s.Knots))
+	f.WriteInt(73, len(s.Controls))
+	f.WriteInt(74, len(s.Fits))
+	for _, w := range s.Weights {
+		f.WriteFloat(41, w)
+	}
+	for _, knot := range s.Knots {
+		f.WriteFloat(40, knot)
+	}
+	for _, point := range s.Controls {
+		for j, coord := range point {
+			f.WriteFloat(10+j*10, coord)
+		}
+	}
+	for _, point := range s.Fits {
+		for j, coord := range point {
+			f.WriteFloat(11+j*10, coord)
+		}
+	}
+	for i := range 3 {
+		if s.Tolerance[i] != 0.000000001 {
+			f.WriteFloat(42+i, s.Tolerance[i])
+		}
+	}
+}
+
 // GetEnhancedBSpline returns or creates an EnhancedBSpline from this spline
 func (s *Spline) GetEnhancedBSpline() *math.BSpline {
 	if s.enhancedBSpline == nil {

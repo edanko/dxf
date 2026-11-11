@@ -19,11 +19,22 @@ type Ellipse struct {
 	Start  float64   // 50
 	End    float64   // 51
 
+	// Spline holds typed embedded spline control data (degree, knots,
+	// control points, weights). When set, rendering follows this spline
+	// instead of the elliptical arc parameters.
+	Spline *Spline
+	// EmbeddedSplineError records why malformed embedded spline data was
+	// rejected; the original record is retained verbatim in that case.
+	EmbeddedSplineError string
 }
 
 // ErrDegenerateEllipse is returned when an ellipse cannot be converted to a
 // Bézier decomposition because one of its defining dimensions is zero.
 var ErrDegenerateEllipse = errors.New("degenerate ellipse")
+
+// ErrEmbeddedSpline reports that an ellipse is defined by embedded spline data
+// and must be converted through the spline pipeline.
+var ErrEmbeddedSpline = errors.New("ellipse uses an embedded spline")
 
 // IsEntity is for Entity interface.
 func (e *Ellipse) IsEntity() bool {
@@ -33,13 +44,13 @@ func (e *Ellipse) IsEntity() bool {
 // NewEllipse creates a new Ellipse.
 func NewEllipse() *Ellipse {
 	return &Ellipse{
-		entity:      NewEntity(ELLIPSE),
-		Center:      []float64{0.0, 0.0, 0.0},
-		Major:       0.0,
-		Minor:       0.0,
-		Ratio:       1.0,
-		Start:       0.0,
-		End:         360.0,
+		entity: NewEntity(ELLIPSE),
+		Center: []float64{0.0, 0.0, 0.0},
+		Major:  0.0,
+		Minor:  0.0,
+		Ratio:  1.0,
+		Start:  0.0,
+		End:    360.0,
 	}
 }
 
@@ -59,6 +70,9 @@ func NewEllipse() *Ellipse {
 // representation when the ELLIPSE record retains raw data (an embedded spline
 // definition that cannot be reproduced as a Bézier decomposition).
 func (e *Ellipse) ToBezier() ([]*dxfmath.Bezier, error) {
+	if e.Spline != nil {
+		return nil, fmt.Errorf("%w: convert through the spline pipeline", ErrEmbeddedSpline)
+	}
 	if len(e.rawTags) > 0 {
 		return nil, fmt.Errorf("embedded spline representation is not supported by Bézier conversion")
 	}
@@ -203,7 +217,7 @@ func (e *Ellipse) IsFull() bool {
 // RawWholeRecord reports whole-record retention: an ELLIPSE carrying embedded
 // spline data cannot be re-emitted from the typed model, so its retained
 // record is written verbatim.
-func (e *Ellipse) RawWholeRecord() bool { return len(e.rawTags) > 0 }
+func (e *Ellipse) RawWholeRecord() bool { return len(e.rawTags) > 0 && e.Spline == nil }
 
 func (e *Ellipse) Format(f format.Formatter) {
 	e.entity.Format(f)
@@ -230,6 +244,10 @@ func (e *Ellipse) Format(f format.Formatter) {
 		f.WriteFloat(200, e.Ratio)
 	}
 
+	if e.Spline != nil {
+		e.Spline.formatEmbedded(f)
+	}
+
 	e.entity.FormatBaseExtrusion(f)
 }
 
@@ -250,6 +268,13 @@ func (e *Ellipse) PointAt(t float64) dxfmath.Vec3 {
 
 // Flatten converts the ellipse to line segments
 func (e *Ellipse) Flatten(deviation float64) []dxfmath.Vec3 {
+	if e.Spline != nil {
+		bs := e.Spline.GetEnhancedBSpline()
+		if bs == nil {
+			return nil
+		}
+		return bs.Flattening(deviation)
+	}
 	segments, err := e.ToBezier()
 	if err != nil {
 		return nil

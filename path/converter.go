@@ -68,6 +68,8 @@ func MakePath(ent entity.Entity, opts ...Option) (*Path, error) {
 		return splineToPath(e, options)
 	case *entity.Hatch:
 		return hatchToPath(e, options)
+	case *entity.MPolygonEntity:
+		return mpolygonToPath(e, options)
 	case *entity.Solid:
 		return solidToPath(e, options)
 	case *entity.Trace:
@@ -222,6 +224,9 @@ func arcToPath(arc *entity.Arc, options *Options) (*Path, error) {
 // ellipseToPath converts an ellipse entity to a path. Start/End are parametric
 // angles in degrees; a full ellipse closes the path, an elliptical arc does not.
 func ellipseToPath(ellipse *entity.Ellipse, options *Options) (*Path, error) {
+	if ellipse.Spline != nil {
+		return splineToPath(ellipse.Spline, options)
+	}
 	path := NewPath()
 	cx := getCoord(ellipse.Center, 0)
 	cy := getCoord(ellipse.Center, 1)
@@ -251,7 +256,6 @@ func ellipseToPath(ellipse *entity.Ellipse, options *Options) (*Path, error) {
 	}
 	return path, nil
 }
-
 
 // getCoord extracts coordinate from slice with bounds checking
 func getCoord(coords []float64, index int) float64 {

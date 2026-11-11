@@ -327,7 +327,9 @@ func (h *Hatch) RecordTypeName() string { return h.entity.recordTypeName() }
 // model, so its retained record is written verbatim.
 func (h *Hatch) RawWholeRecord() bool {
 	for _, bp := range h.boundaryPaths {
-		if _, ok := bp.(*PolylinePath); !ok {
+		switch bp.(type) {
+		case *PolylinePath, *EdgePath:
+		default:
 			return true
 		}
 	}
@@ -381,6 +383,10 @@ func (h *Hatch) Format(f format.Formatter) {
 	// Boundary paths
 	f.WriteInt(91, len(h.boundaryPaths))
 	for _, boundaryPath := range h.boundaryPaths {
+		if ep, ok := boundaryPath.(*EdgePath); ok && !isMPolygon {
+			ep.FormatBoundary(f)
+			continue
+		}
 		if isMPolygon {
 			// MPOLYGON path header: 70 flags, then 93 vertex count.
 			flags := 0
@@ -398,8 +404,7 @@ func (h *Hatch) Format(f format.Formatter) {
 		}
 
 		// Polyline paths emit 73 (closed), 72 (bulge), 44 (dash length), the
-		// source-object count with handles, then the vertex count. Edge paths
-		// are retained verbatim through rawTags.
+		// source-object count with handles, then the vertex count.
 		if polylinePath, ok := boundaryPath.(*PolylinePath); ok {
 			bulgeFlag := 0
 			if polylinePath.hasBulge {
@@ -462,15 +467,16 @@ func (h *Hatch) Explode() ([]Entity, error) {
 // boundary path. Edge (non-polyline) paths are not modified; they are
 // retained verbatim through raw tags.
 func (h *Hatch) Transform(m dxfmath.Matrix44) error {
-	for _, bp := range h.boundaryPaths {
-		pp, ok := bp.(*PolylinePath)
-		if !ok {
-			continue
-		}
-		for idx := range pp.vertices {
-			v := &pp.vertices[idx]
-			p := TransformPoint(m, []float64{v.Point.X(), v.Point.Y(), v.Point.Z()})
-			v.Point = dxfmath.NewVec3(p[0], p[1], p[2])
+	for i, bp := range h.boundaryPaths {
+		switch p := bp.(type) {
+		case *PolylinePath:
+			for idx := range p.vertices {
+				v := &p.vertices[idx]
+				pt := TransformPoint(m, []float64{v.Point.X(), v.Point.Y(), v.Point.Z()})
+				v.Point = dxfmath.NewVec3(pt[0], pt[1], pt[2])
+			}
+		case *EdgePath:
+			h.boundaryPaths[i] = p.TransformMatrix(m)
 		}
 	}
 	return nil
@@ -482,20 +488,35 @@ func (h *Hatch) bboxPaths() ([]float64, []float64) {
 	maxs := []float64{stdmath.Inf(-1), stdmath.Inf(-1), stdmath.Inf(-1)}
 	found := false
 	for _, bp := range h.boundaryPaths {
-		pp, ok := bp.(*PolylinePath)
-		if !ok {
-			continue
-		}
-		for _, v := range pp.vertices {
-			for k, val := range []float64{v.Point.X(), v.Point.Y(), v.Point.Z()} {
-				if val < mins[k] {
-					mins[k] = val
+		switch p := bp.(type) {
+		case *PolylinePath:
+			for _, v := range p.vertices {
+				for k, val := range []float64{v.Point.X(), v.Point.Y(), v.Point.Z()} {
+					if val < mins[k] {
+						mins[k] = val
+					}
+					if val > maxs[k] {
+						maxs[k] = val
+					}
 				}
-				if val > maxs[k] {
-					maxs[k] = val
-				}
+				found = true
 			}
-			found = true
+		case *EdgePath:
+			if minX, minY, maxX, maxY, ok := p.BBox(); ok {
+				if minX < mins[0] {
+					mins[0] = minX
+				}
+				if minY < mins[1] {
+					mins[1] = minY
+				}
+				if maxX > maxs[0] {
+					maxs[0] = maxX
+				}
+				if maxY > maxs[1] {
+					maxs[1] = maxY
+				}
+				found = true
+			}
 		}
 	}
 	if !found {
@@ -558,7 +579,14 @@ func (h *Hatch) Copy() Entity {
 	hatch.gradient = h.gradient
 	hatch.boundaryPaths = make([]BoundaryPath, 0, len(h.boundaryPaths))
 	for _, bp := range h.boundaryPaths {
-		if pp, ok := bp.(*PolylinePath); ok {
+		if ep, ok := bp.(*EdgePath); ok {
+			cp := &EdgePath{pathTypeFlags: ep.pathTypeFlags, sourceHandles: append([]string(nil), ep.sourceHandles...)}
+			for _, edge := range ep.edges {
+				cp.edges = append(cp.edges, edge.TransformEdge(dxfmath.Identity()))
+			}
+			cp.unsupported = append([]string(nil), ep.unsupported...)
+			hatch.boundaryPaths = append(hatch.boundaryPaths, cp)
+		} else if pp, ok := bp.(*PolylinePath); ok {
 			vs := append([]Vertex3D(nil), pp.vertices...)
 			sh := append([]string(nil), pp.sourceHandles...)
 			hatch.boundaryPaths = append(hatch.boundaryPaths, &PolylinePath{

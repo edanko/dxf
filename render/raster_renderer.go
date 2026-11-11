@@ -140,8 +140,9 @@ func (r *RasterRenderer) DrawPath(p *path.Path) error {
 	return nil
 }
 
-// FillGradient fills the boundary with a linear gradient interpolated
-// along the gradient axis across the boundary bounding box.
+// FillGradient fills the boundary with a linear or radial gradient
+// interpolated along the gradient axis across the boundary bounding box,
+// honoring all color stops.
 func (r *RasterRenderer) FillGradient(bnd *path.Path, g *GradientFill) error {
 	if !r.started || bnd == nil || g == nil {
 		return nil
@@ -162,6 +163,29 @@ func (r *RasterRenderer) FillGradient(bnd *path.Path, g *GradientFill) error {
 		return nil
 	}
 	lo, hi := bnd.BoundingBox()
+	stops := g.GradientStops()
+	if !g.ValidStops() {
+		c := [3]float64{}
+		if len(stops) > 0 {
+			c = stops[0].Color
+		}
+		stops = []GradientStop{{Offset: 0, Color: c}, {Offset: 1, Color: c}}
+	}
+	if g.IsRadial() {
+		cx, cy := (lo.X()+hi.X())/2, (lo.Y()+hi.Y())/2
+		if g.Center != [2]float64{} {
+			cx, cy = g.Center[0], g.Center[1]
+		}
+		radius := g.Radius
+		if radius <= 0 {
+			radius = math.Hypot(hi.X()-lo.X(), hi.Y()-lo.Y()) / 2
+		}
+		if radius <= 0 {
+			radius = 1
+		}
+		r.fillPolysGrad(dev, cx*s, cy*s, 0, 0, 0, radius*s, true, stops)
+		return nil
+	}
 	ang := g.Rotation * math.Pi / 180
 	ux, uy := math.Cos(ang), math.Sin(ang)
 	hw := (math.Abs(ux)*(hi.X()-lo.X()) + math.Abs(uy)*(hi.Y()-lo.Y())) / 2
@@ -170,13 +194,15 @@ func (r *RasterRenderer) FillGradient(bnd *path.Path, g *GradientFill) error {
 	}
 	cx := (lo.X() + hi.X()) / 2 * s
 	cy := (lo.Y() + hi.Y()) / 2 * s
-	r.fillPolysGrad(dev, cx, cy, ux, uy, hw*s, gradientRGBA(g.Color1), gradientRGBA(g.Color2))
+	r.fillPolysGrad(dev, cx, cy, ux, uy, hw*s, 0, false, stops)
 	return nil
 }
 
 // fillPolysGrad scans polygons with even-odd parity, filling each span
-// with the gradient color interpolated at every pixel.
-func (r *RasterRenderer) fillPolysGrad(polys [][]dxfmath.Vec2, cx, cy, ux, uy, hw float64, c1, c2 color.RGBA) {
+// with the gradient color interpolated at every pixel. Radial gradients
+// use (cx, cy) as center and radius; linear ones project onto (ux, uy)
+// across half-width hw.
+func (r *RasterRenderer) fillPolysGrad(polys [][]dxfmath.Vec2, cx, cy, ux, uy, hw, radius float64, radial bool, stops []GradientStop) {
 	minY, maxY := 1<<30, -(1 << 30)
 	for _, poly := range polys {
 		for i := range poly {
@@ -230,16 +256,41 @@ func (r *RasterRenderer) fillPolysGrad(polys [][]dxfmath.Vec2, cx, cy, ux, uy, h
 					continue
 				}
 				t := 0.5 + ((px-cx)*ux+(scan-cy)*uy)/hw
+				if radial {
+					t = math.Hypot(px-cx, scan-cy) / radius
+				}
 				if t < 0 {
 					t = 0
 				}
 				if t > 1 {
 					t = 1
 				}
-				r.blend(x, y, lerpRGBA(c1, c2, t))
+				r.blend(x, y, gradientColorAt(stops, t))
 			}
 		}
 	}
+}
+
+// gradientColorAt interpolates the stop colors at t in 0..1.
+func gradientColorAt(stops []GradientStop, t float64) color.RGBA {
+	if len(stops) == 0 {
+		return color.RGBA{A: 255}
+	}
+	if t <= stops[0].Offset {
+		return gradientRGBA(stops[0].Color)
+	}
+	for i := 0; i+1 < len(stops); i++ {
+		a, b := stops[i], stops[i+1]
+		if t <= b.Offset {
+			span := b.Offset - a.Offset
+			local := 1.0
+			if span > 0 {
+				local = (t - a.Offset) / span
+			}
+			return lerpRGBA(gradientRGBA(a.Color), gradientRGBA(b.Color), local)
+		}
+	}
+	return gradientRGBA(stops[len(stops)-1].Color)
 }
 
 // lerpRGBA interpolates two opaque colors.

@@ -3,6 +3,7 @@ package path
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/edanko/dxf/entity"
 	dxfmath "github.com/edanko/dxf/math"
@@ -162,26 +163,189 @@ func hatchToPath(h *entity.Hatch, options *Options) (*Path, error) {
 	}
 	p := NewPath()
 	any := false
+	var unsupported []string
 	for _, bp := range paths {
-		pp, ok := bp.(*entity.PolylinePath)
-		if !ok {
+		switch path := bp.(type) {
+		case *entity.PolylinePath:
+			verts := path.Vertices()
+			if len(verts) == 0 {
+				continue
+			}
+			coords := make([][2]float64, 0, len(verts))
+			bulges := make([]float64, 0, len(verts))
+			for _, v := range verts {
+				coords = append(coords, [2]float64{v.Point.X(), v.Point.Y()})
+				bulges = append(bulges, v.Bulge)
+			}
+			appendBulgeChain(p, coords, bulges, path.IsClosed(), options)
+			any = true
+		case *entity.EdgePath:
+			if edgePathToPath(p, path, options) {
+				any = true
+			}
+			unsupported = append(unsupported, path.Unsupported()...)
+		default:
+			unsupported = append(unsupported, "unknown boundary path type")
+		}
+	}
+	if !any {
+		if len(unsupported) > 0 {
+			return nil, fmt.Errorf("hatch boundary has no supported edges: %s", strings.Join(unsupported, "; "))
+		}
+		return nil, fmt.Errorf("hatch has no boundary geometry")
+	}
+	return p, nil
+}
+
+// edgePathToPath appends the flattened geometry of one typed edge boundary
+// path. It reports whether at least one edge contributed geometry.
+func edgePathToPath(p *Path, ep *entity.EdgePath, options *Options) bool {
+	started := false
+	added := false
+	for _, edge := range ep.Edges() {
+		switch e := edge.(type) {
+		case *entity.LineEdge:
+			if !started {
+				p.MoveTo(e.Start.X(), e.Start.Y())
+				started = true
+			}
+			p.LineTo(e.End.X(), e.End.Y())
+			added = true
+		case *entity.ArcEdge:
+			pts := arcEdgePoints(e)
+			if len(pts) == 0 {
+				continue
+			}
+			if !started {
+				p.MoveTo(pts[0].X(), pts[0].Y())
+				started = true
+			}
+			for _, pt := range pts[1:] {
+				p.LineTo(pt.X(), pt.Y())
+			}
+			added = true
+		case *entity.EllipseEdge:
+			pts := ellipseEdgePoints(e)
+			if len(pts) == 0 {
+				continue
+			}
+			if !started {
+				p.MoveTo(pts[0].X(), pts[0].Y())
+				started = true
+			}
+			for _, pt := range pts[1:] {
+				p.LineTo(pt.X(), pt.Y())
+			}
+			added = true
+		case *entity.SplineEdge:
+			pts := splineEdgePoints(e, options)
+			if len(pts) < 2 {
+				continue
+			}
+			if !started {
+				p.MoveTo(pts[0].X(), pts[0].Y())
+				started = true
+			}
+			for _, pt := range pts[1:] {
+				p.LineTo(pt.X(), pt.Y())
+			}
+			added = true
+		}
+	}
+	if added {
+		p.Close()
+	}
+	return added
+}
+
+// arcEdgePoints flattens a circular arc edge into points.
+func arcEdgePoints(e *entity.ArcEdge) []dxfmath.Vec2 {
+	sweep := e.Sweep()
+	steps := int(math.Ceil(math.Abs(sweep) / 5))
+	if steps < 2 {
+		steps = 2
+	}
+	pts := make([]dxfmath.Vec2, 0, steps+1)
+	for i := 0; i <= steps; i++ {
+		pts = append(pts, e.PointAt(e.StartAngle+sweep*float64(i)/float64(steps)))
+	}
+	return pts
+}
+
+// ellipseEdgePoints flattens an elliptical arc edge into points.
+func ellipseEdgePoints(e *entity.EllipseEdge) []dxfmath.Vec2 {
+	sweep := e.Sweep()
+	steps := int(math.Ceil(math.Abs(sweep) / 5))
+	if steps < 2 {
+		steps = 2
+	}
+	pts := make([]dxfmath.Vec2, 0, steps+1)
+	for i := 0; i <= steps; i++ {
+		pts = append(pts, e.PointAt(e.StartAngle+sweep*float64(i)/float64(steps)))
+	}
+	return pts
+}
+
+// splineEdgePoints flattens a NURBS boundary edge.
+func splineEdgePoints(e *entity.SplineEdge, options *Options) []dxfmath.Vec2 {
+	deviation := options.Distance
+	if deviation <= 0 {
+		deviation = 0.1
+	}
+	degree := min(max(e.Degree, 1), len(e.Controls)-1)
+	if degree < 1 {
+		return nil
+	}
+	weights := e.Weights
+	if len(weights) != len(e.Controls) {
+		weights = make([]float64, len(e.Controls))
+		for i := range weights {
+			weights[i] = 1
+		}
+	}
+	var bs *dxfmath.BSpline
+	if len(e.Knots) >= degree+2 {
+		bs = dxfmath.NewBSplineWithKnots(e.Controls, weights, e.Knots, degree)
+	} else {
+		bs = dxfmath.NewBSpline(e.Controls, degree)
+	}
+	if bs == nil {
+		return nil
+	}
+	flat := bs.Flattening(deviation)
+	pts := make([]dxfmath.Vec2, 0, len(flat))
+	for _, pt := range flat {
+		pts = append(pts, dxfmath.NewVec2(pt.X(), pt.Y()))
+	}
+	return pts
+}
+
+// mpolygonToPath converts an MPOLYGON, including hole paths, into fill loops.
+func mpolygonToPath(m *entity.MPolygonEntity, options *Options) (*Path, error) {
+	bps := m.GetBoundaryPaths()
+	if bps == nil || bps.PathCount() == 0 {
+		return nil, fmt.Errorf("mpolygon has no boundary paths")
+	}
+	p := NewPath()
+	any := false
+	for i := 0; i < bps.PathCount(); i++ {
+		bp := bps.GetPath(i)
+		n := bp.VertexCount()
+		if n == 0 {
 			continue
 		}
-		verts := pp.Vertices()
-		if len(verts) == 0 {
-			continue
-		}
-		coords := make([][2]float64, 0, len(verts))
-		bulges := make([]float64, 0, len(verts))
-		for _, v := range verts {
-			coords = append(coords, [2]float64{v.Point.X(), v.Point.Y()})
+		coords := make([][2]float64, 0, n)
+		bulges := make([]float64, 0, n)
+		for j := 0; j < n; j++ {
+			v := bp.GetVertex(j)
+			coords = append(coords, [2]float64{v.X, v.Y})
 			bulges = append(bulges, v.Bulge)
 		}
-		appendBulgeChain(p, coords, bulges, pp.IsClosed(), options)
+		appendBulgeChain(p, coords, bulges, bp.IsClosed, options)
 		any = true
 	}
 	if !any {
-		return nil, fmt.Errorf("hatch boundary paths are not polyline-based")
+		return nil, fmt.Errorf("mpolygon has no boundary geometry")
 	}
 	return p, nil
 }

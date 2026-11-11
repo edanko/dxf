@@ -99,6 +99,9 @@ func (lt *LineType) Elements() []LineTypeElement { return lt.elements }
 
 // AddElement appends a complex-linetype element and its dash length.
 func (lt *LineType) AddElement(e LineTypeElement) {
+	if e.ShapeNum == -1 && e.TextValue != "" {
+		e.ShapeNum = -2 // text element marker
+	}
 	lt.elements = append(lt.elements, e)
 }
 

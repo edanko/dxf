@@ -651,7 +651,7 @@ func TestConformanceAllBackends(t *testing.T) {
 				}
 			}
 		case "pdf":
-			for _, want := range []string{"%PDF", "startxref", "%%EOF", "1.000 0.000 0.000 rg"} {
+			for _, want := range []string{"%PDF", "startxref", "%%EOF", "/ShadingType 2", "/Sh1 sh"} {
 				if !strings.Contains(out, want) {
 					t.Errorf("pdf missing %q", want)
 				}
@@ -733,8 +733,9 @@ func TestFillGradientBackends(t *testing.T) {
 		!strings.Contains(svgBuf.String(), "url(#grad") {
 		t.Errorf("svg gradient missing:\n%s", svgBuf.String())
 	}
-	if !strings.Contains(pdfBuf.String(), "1.000 0.000 0.000 rg") {
-		t.Error("pdf gradient first color missing")
+	if !strings.Contains(pdfBuf.String(), "/ShadingType 2") ||
+		!strings.Contains(pdfBuf.String(), "/Sh1 sh") {
+		t.Errorf("pdf gradient shading missing:\n%s", pdfBuf.String())
 	}
 	w, h, at := decodePNG(t, &pngBuf)
 	if w != 800 || h != 600 {

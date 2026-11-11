@@ -221,7 +221,24 @@ func ParseTableEntry(tableName string, tags lldxf.Tags) SymbolTable {
 		if a, ok := tagIntByCodeOK(tags, 72); ok {
 			lt.SetAlignment(a)
 		}
-		if n, ok := tagIntByCodeOK(tags, 73); ok && n > len(lengths) {
+		// A complex linetype carries element payload codes (74 segment length,
+		// 75 shape number, or 9 text value) after some code 49 dash lengths.
+		// Simple linetypes repeat code 49 only, so the element payload is the
+		// reliable complexity marker; the code 73 count equals the number of
+		// code 49 tags in both forms.
+		complex := false
+		for _, tag := range tags {
+			switch int(tag.Code()) {
+			case 74:
+				// Code 74 also appears as zero on simple dash/gap elements.
+				if tagValueInt(tag) != 0 {
+					complex = true
+				}
+			case 75, 9:
+				complex = true
+			}
+		}
+		if complex {
 			// Complex linetype: per-element records follow each code 49.
 			lt.lengths = nil
 			var e LineTypeElement
@@ -232,7 +249,7 @@ func ParseTableEntry(tableName string, tags lldxf.Tags) SymbolTable {
 					if inElement {
 						lt.AddElement(e)
 					}
-					e = LineTypeElement{DashLength: tagFloat(tag)}
+					e = LineTypeElement{DashLength: tagFloat(tag), ShapeNum: -1}
 					inElement = true
 				case 74:
 					e.SegLen = int(tagValueInt(tag))

@@ -268,8 +268,8 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | Drawing add-on / render pipeline | `addons/drawing/*`, `render/*` | `DONE` — `render.BuildScene` resolves styles (ByLayer/ByBlock, ACI/truecolor/alpha, lineweight, linetype scale), fits model extents (5% margin) or header extents, projects an active VIEWPORT, supports explicit extents and returns a fallback report (`TestViewportScene`, `TestSceneExtentsOverride`) |
 | SVG/PDF backends | `addons/drawing/backend.py`, `pymupdf.py` | `DONE` — unified `Renderer` interface (Begin/SetStyle/DrawPath/Clip/FillGradient/End) with registry; compact SVG path data, PDF content streams with xref tables (`TestSVGPathGeometryAndStyle`, `TestPDFStructure`) |
 | matplotlib/PyQt/PyMuPDF backends | `addons/drawing/*` | `N/A` in Go; provided native raster backend instead: PNG with supersampled anti-aliasing, background, clipping, dash patterns (`TestPNGRenderedViaRegistry`, `TestRasterStyleColorWidthDash`) |
-| Linetype rendering | `render/_linetypes.py`, `linetypes.py` | `DONE` — dash patterns baked from layer linetype x linetype scale, device-scaled, stroked by all backends (`TestRasterStyleColorWidthDash`) |
-| Hatch rendering | `render/hatching.py` | `DONE` — solid fill, predefined ANSI31–38 and ISO `ACAD_ISO02W100`–`ACAD_ISO15W100`, and custom `.pat` patterns expanded to clipped segments (`HatchFillSegments`); unknown named patterns keep the boundary stroke and report handle plus name in scene fallbacks; gradients: SVG linearGradient, PNG axis lerp, PDF first color (`TestSceneHatchFill`, `TestHatchPatternExpanded`, `TestISOHatchPatternExpanded`, `TestParsedPatternExpandsToClippedSegments`, `TestUnknownHatchPatternKeepsBoundaryAndReports`, `TestFillGradientBackends`) |
+| Linetype rendering | `render/_linetypes.py`, `linetypes.py` | `DONE` — dash patterns baked from layer/layer linetype x linetype scale, device-scaled, stroked by all backends (`TestRasterStyleColorWidthDash`); complex linetype shape and text elements are placed along the path with tangent orientation, element rotation, offsets and XScale, using loaded SHX shape fonts (`TestComplexLinetypeShapePlacedAlongPath`, `TestComplexLinetypeShapeFollowsTangent`, `TestComplexLinetypeTextElementPlaced`) |
+| Hatch rendering | `render/hatching.py` | `DONE` — solid fill, predefined ANSI31–38 and ISO `ACAD_ISO02W100`–`ACAD_ISO15W100`, and custom `.pat` patterns expanded to clipped segments (`HatchFillSegments`); unknown named patterns keep the boundary stroke and report handle plus name in scene fallbacks; typed boundary edge paths render line/arc/ellipse/spline edges with holes and transforms (see "Boundary edges"); gradients: SVG linear/radial gradients, PNG axis/radial interpolation and PDF axial/radial shadings, all with every configured color stop (see "Gradients"; `TestSceneHatchFill`, `TestHatchPatternExpanded`, `TestISOHatchPatternExpanded`, `TestParsedPatternExpandsToClippedSegments`, `TestUnknownHatchPatternKeepsBoundaryAndReports`, `TestFillGradientBackends`, `TestHatchBoundaryEdgeLoadAndRoundTrip`, `TestHatchMixedBoundaryWithSplineHole`) |
 | Edge topology and boundaries | `explode.py`, `boundary.py` equivalents | `DONE` — `edges.BuildGraph` merges endpoints within tolerance, reports degree/leaves/components, extracts loops and chains, builds ordered LWPOLYLINE/POLYLINE and hatch boundaries, and preserves/reverses source orientation (`edges/edges_test.go`) |
 | Dimension rendering | `render/dimension.py`, `dim_*.py` | `DONE` — DIMENSION entities render referenced dimension block content through the path converter, falling back to exploded geometry with measured text; arrowheads use the complete arrow-style set (`TestDimensionRendersReferencedBlock`, `TestDimensionFallbackUsesMeasurementText`) |
 | MTEXT rendering | `render/abstract_mtext_renderer.py`, `tools/text_layout.py` | `DONE` — inline codes stripped (`StripCodes`), greedy word wrap at measured font advances (`LayoutMText`/`MeasureAdvance`), paragraph pitch 1.6714x height, alignment offsets from measured advances, TrueType glyph outlines via system fonts with marching-squares contours and built-in vector font fallback (`TestTextToPathsTTF`, `TestLayoutMTextWrap`, `TestTextAlignmentUsesMeasuredAdvance`, `TestTextOutlines`) |
@@ -277,7 +277,7 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | Arrow heads | `render/arrows.py` | `DONE` — closed/open, arch tick, oblique, box, box-filled, diamond, circle, dot and dot-small geometries with closed/filled flags (`TestArrowHeadGeometryStyles`) |
 | MLeader/MLine rendering | `render/mleader.py`, `mline.py` | `DONE` — converted to path geometry (leader arrows via path, mline style lines) and rendered by all backends (converter tests in `path/converter_ext_test.go`, corpus conformance) |
 
-Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB files parse into a shared style table with color, true color, lineweight and screening overrides; `render.SceneOptions` applies color-based CTB or named STB overrides during scene building. Print/plot scaling (PS/PDF paper layout) is out of scope. Text rendering uses system TrueType fonts (Noto/Liberation/DejaVu/Vera) via `golang.org/x/image/font/opentype`; when none is available the built-in single-stroke vector font is used and `StyledScene.Fallbacks` records the substitution. SHX fonts can be loaded for glyph metadata and text measurement, and TTF advances/ascent/descent are exposed by the metrics API.
+Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB files parse into a shared style table with color, true color, lineweight and screening overrides; `render.SceneOptions` applies color-based CTB or named STB overrides during scene building. Print/plot scaling (PS/PDF paper layout) is out of scope. Text rendering uses system TrueType fonts (Noto/Liberation/DejaVu/Vera) via `golang.org/x/image/font/opentype`; when none is available the built-in single-stroke vector font is used and `StyledScene.Fallbacks` records the substitution. SHX fonts can be loaded for glyph metadata and text measurement, and shape codes can be converted to outline paths for complex linetype rendering; TTF advances/ascent/descent are exposed by the metrics API.
 
 ### 7. Audit, recover, validation, repair
 
@@ -330,7 +330,7 @@ Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB f
 | `acadctb` | `addons/acadctb.py` | `DONE` — text STB and binary CTB/STB parse into a shared plot-style model with color, true color, lineweight, screening and linetype overrides; `Apply` and render-scene integration (`TestParseBinaryCTB`, `TestParseBinarySTBNamedStyles`, `TestNamedPlotStyleOverridesRendering`) |
 | `pycsg` | `addons/pycsg.py` | `DONE` — real triangle-level booleans + Box/Sphere primitives + `csg.Volume` (`csg/boolean_test.go`) |
 | `MTextExplode` | `addons/mtextsurrogate` | `DONE` — `addons/mtxpl` Lines/Explode → positioned TEXT entities |
-| `text2path` | `addons/text2path.py` | `DONE` — `addons/text2path` TTF/OTF outlines via system fonts plus built-in vector fallback; `Size`/`MTextSize` report measured width, height, ascent, descent, advance, wrapped line count and rotated bounds with an explicit fallback reason; SHX font loader with glyph metadata and text metrics; TTF metrics API (`text2path/shx.go`, `text2path/metrics.go`, `addons/text2path/size.go`, `addons/text2path/size_test.go`) |
+| `text2path` | `addons/text2path.py` | `DONE` — `addons/text2path` TTF/OTF outlines via system fonts plus built-in vector fallback; `Size`/`MTextSize` report measured width, height, ascent, descent, advance, wrapped line count and rotated bounds with an explicit fallback reason; SHX font loader with glyph metadata, text metrics and shape-code outline conversion (`ShapePath`); TTF metrics API (`text2path/shx.go`, `text2path/metrics.go`, `addons/text2path/size.go`, `addons/text2path/size_test.go`) |
 | `geo` | `addons/geo.py` | `DONE` — `addons/geo.ExportGeoJSON` + `CRSFunc` transform |
 | `meshex` | `addons/meshex.py` | `DONE` — `addons/meshex.ExportOBJ`/`ExportOpenSCAD` route direct meshes and decoded ACIS SAT bodies through `Geometry`; `ExportOBJWithLoops`/`ExportOpenSCADWithLoops` append closed linked-edge loops in source order (`addons/meshex/geometry_test.go`) |
 | `openscad` | `addons/openscad.py` | `DONE` — `addons/meshex.ExportOpenSCAD` polyhedron source, with decoded ACIS and linked-edge loop geometry |
@@ -357,7 +357,7 @@ Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB f
 | Native DWG metadata | LibreDWG R13–R2018 header equivalents | `DONE` — read-only version/release detection, maintenance and codepage fields, R13–R2000 section locator names/addresses/sizes, and diagnostics for unsupported sections; R2004+ reports the encrypted/compressed section map as unsupported instead of guessing. The external ODA `Converter` is unchanged, and native parsing never writes DWG output (`addons/dwg/metadata_test.go`) |
 | Raw section loading | `lldxf/loader.py` equivalents | `DONE` — `lldxf.ParseRawSections` tags ASCII or binary DXF into ordered, named section bodies without binding; truncated input returns the tags read so far and an error naming the open section (`lldxf/raw_sections_test.go`) |
 | Julian date conversion | `tools/julian.py` equivalents | `DONE` — `math.JulianDate`, `TimeFromJulian`, `CivilToJulian`, and `JulianToCivil`; J2000 is `2451545.0` at 2000-01-01T12:00Z and round trips within one second (`math/julian_test.go`) |
-| Fonts, SHX/TTF, text metrics | `fonts/*`, `tools/text*.py` | `DONE` — TTF/OTF outlines via system fonts; SHX shape/unifont loader with glyph metrics (`text2path/shx.go`); TTF advance/ascent/descent metrics and TEXT/MTEXT measured size APIs (`text2path/metrics.go`, `addons/text2path/size.go`, `TestParseSHXShapesAndMeasure`, `TestMeasureTTF`, `TestTextSizeReportsMeasuredExtents`) |
+| Fonts, SHX/TTF, text metrics | `fonts/*`, `tools/text*.py` | `DONE` — TTF/OTF outlines via system fonts; SHX shape/unifont loader with glyph metrics and shape-code outline conversion (`text2path/shx.go`, `text2path/shx_path.go`); TTF advance/ascent/descent metrics and TEXT/MTEXT measured size APIs (`text2path/metrics.go`, `addons/text2path/size.go`, `TestParseSHXShapesAndMeasure`, `TestMeasureTTF`, `TestTextSizeReportsMeasuredExtents`) |
 | ISO hatch patterns / standards | `tools/_iso_pattern.py`, `standards.py` | `DONE` — ANSI31–38 and ISO `ACAD_ISO02W100`–`ACAD_ISO15W100` patterns with category lookup and render expansion (`TestISOPatterns`, `TestISOHatchPatternExpanded`); standards rule engine and `dxf standards` implemented (`standards` package, `standards_test.go`) |
 | Revcloud | `revcloud.py` | `DONE` — `query.RevCloudRectangle`/`RevCloudArcs` (closed bulged LWPOLYLINE, configurable arc chord and bulge) plus `Space.AddRevCloud`/`Drawing.AddRevCloud`; revcloud tests in `query/parity_test.go` and `TestQuerySelectionsAndTransformsE2E` |
 | Zoom/extents helpers | `zoom.py` | `DONE` — `drawing.FitExtentsToViewport` and `Drawing.FitView`/`FitLayoutView`; `TestQuerySelectionsAndTransformsE2E` |
@@ -457,6 +457,151 @@ on complete data; add-ons and CLI depend on everything.
    text size, custom patterns, edge loops and binding-free raw section loading
    on `testdata/tooling_fixture.dxf`.
 6. **Performance smoke tests.** `iterdxf`-style streaming must keep memory bounded.
+
+## Boundary edges
+
+HATCH and MPOLYGON boundary paths are typed (`entity.BoundaryPath`):
+
+- Polyline paths keep every vertex and bulge (`entity.PolylinePath`), so bulge
+  arcs are preserved through load, save, and transform.
+- Edge paths keep one typed value per edge (`entity.EdgePath`):
+  `entity.LineEdge` (DXF edge type 1), `entity.ArcEdge` (2, circular arc with
+  center/radius/angles/CCW), `entity.EllipseEdge` (3, center/major-axis
+  vector/ratio/angles/CCW), and `entity.SplineEdge` (4, NURBS degree, rational
+  and periodic flags, knots, control points, weights).
+- Load and format preserve every edge parameter; `Hatch.Transform` and
+  `EdgePath.TransformMatrix` transform edge geometry (arcs are refitted through
+  transformed start/mid/end points, ellipse axes follow the matrix).
+- Path conversion flattens each loop after the owning entity transform and
+  emits outer boundaries and holes in source order, so even-odd fills exclude
+  holes (`TestHatchMixedBoundaryWithSplineHole`).
+
+Fallbacks: an edge whose type or parameters cannot be converted is skipped
+while the remaining edges still render; the scene fallback report names the
+entity handle and the reason. Reports are built in document order and are
+identical across repeated builds (`TestHatchUnsupportedEdgeReported`,
+`TestHatchUnsupportedEdgeFallbackStable`).
+
+## Complex linetypes
+
+LTYPE records with shape or text elements load into ordered
+`table.LineTypeElement` values (`49` dash length, `74` segment length, `75` shape
+number, `9` text, `50` rotation, `46` scale, `44`/`45` offsets). The loader
+detects a complex pattern by the presence of `74`, `75`, or `9` tags rather than
+comparing the `73` element count with the number of `49` tags, because both forms
+carry one `49` per element. Save emits the same fields in pattern order
+(`table/linetype_complex_test.go`).
+
+Rendering walks each flattened entity path in pattern cycles. Dash and gap
+elements remain in the stroke dash array; shape and text elements are emitted as
+separate solid paths at their pattern position:
+
+- The element baseline follows the local path tangent, plus the element
+  rotation (`50`) in degrees, so transformed or rotated entities place elements
+  along the transformed path.
+- `46` scales the SHX shape height and the text height; `44` shifts along the
+  tangent and `45` shifts perpendicular to it. Linetype scale (`LTSCALE`)
+  multiplies all pattern distances and element sizes.
+- Shapes are rendered from a loaded SHX shape font supplied through
+  `render.SceneOptions.ShapeFonts` (map keyed by font name). `ltypeshp.shx` is
+  preferred, then fonts are tried in lexicographic name order; the selected font
+  must contain the requested shape number. `SHXFont.ShapePath` converts shape
+  codes (vectors, polylines, offsets, stacks, octant arcs, sub-shapes) to outline
+  paths.
+- Text elements use `text2path` glyph outlines at the element height, rotation
+  and offset.
+
+When no font is configured or a font lacks the shape number, the shape element
+is skipped but the dash pattern and all remaining text elements still render.
+The scene fallback report records `missing shape <n> in linetype <name>` once per
+entity/linetype/shape combination, in document order, so repeated builds produce
+identical reports (`TestComplexLinetypeMissingShapeKeepsText`,
+`TestComplexLinetypeSceneMissingShapeFallbackStable`).
+
+## Gradients
+
+`render.GradientFill` describes a gradient independently of the backend:
+
+- `Stops` holds every color stop as `GradientStop{Offset, Color}` in ascending
+  offset order; when empty the two-color `Color1`/`Color2` form is used.
+  `GradientStops()` returns the effective list.
+- `Type` is `"linear"` (also the default for an empty value) or `"radial"`.
+  `Rotation` is the linear axis angle in degrees; radial gradients use `Center`
+  (canvas units, default boundary center) and `Radius` (default half the
+  boundary diagonal).
+- `ColorSpace` is empty, `RGB` or `DeviceRGB` for directly renderable
+  gradients. Other values are unsupported.
+
+Backend behavior:
+
+- **PDF**: linear gradients become `/ShadingType 2` axial shadings and radial
+  gradients `/ShadingType 3` with `/Coords [cx cy 0 cx cy r]`. Two-stop
+  gradients use one `/FunctionType 2` exponential function; three or more stops
+  use a `/FunctionType 3` stitching function over one exponential sub-function
+  per segment, with interior offsets in `/Bounds` and `0 1` pairs in `/Encode`,
+  so every stop participates in order. Shading and function objects are
+  written after the graphics states and referenced from the page
+  `/Resources /Shading` dictionary. The boundary is painted with
+  `q <path ops> W n /ShN sh Q`.
+- **SVG**: `linearGradient` or `radialGradient` with one `<stop>` per
+  configured stop.
+- **Raster**: interpolates every stop along the axis (linear) or radial
+  distance (radial) during span filling.
+
+Fallbacks: an unsupported `ColorSpace`, fewer than two stops, or non-ascending
+stop offsets degrade to a solid fill with the first stop. The PDF backend
+records the degradation through the optional `DiagnosticRenderer` interface
+(`Diagnostics()`), for example
+`gradient: unsupported color space "CMYK"; first stop used as solid fill`, in
+occurrence order and deterministically across runs; the output remains a valid
+PDF. Tests: `TestPDFGradientAxialStopsInOrder`,
+`TestPDFGradientRadialCenterRadius`,
+`TestPDFGradientUnsupportedColorSpaceFallsBack`,
+`TestPDFGradientInvalidStopsFallBack`.
+
+The DXF `entity.HatchGradient` model itself carries two colors plus angle,
+center and focus parameters; the scene maps linear/centered hatches to a
+two-stop `GradientFill`. Multi-stop gradients are passed directly to
+`Renderer.FillGradient`.
+
+## Visual conformance
+
+`render/visual_conformance_test.go` renders a curated fixture set through the
+raster and SVG backends and compares the result against checked-in goldens under
+`render/testdata/visual/`. Every scene is built with a fixed viewport
+(400×300), white background, explicit model extents (so the fit scale is fixed),
+and the entity line widths from the fixture, which keeps the comparison stable
+across runs.
+
+Fixtures (`visualCases`): `boundary_edges` (solid HATCH with a polyline outer
+loop and a typed line/arc hole), `embedded_spline` (ELLIPSE with an embedded
+spline payload), `complex_linetype` (dash pattern with an SHX shape element) and
+`pdf_gradient` (enhanced HATCH gradient). Each fixture must build without scene
+fallbacks; a non-empty fallback report fails the test.
+
+Comparison rules:
+
+- **SVG**: the document text must match the golden exactly; a mismatch reports
+  the fixture, backend and the first differing line with context.
+- **Raster (PNG)**: per-channel tolerance of 8/255 and a mismatch ratio of at
+  most 0.5% of pixels (`referenceTolerance`). Failures report the fixture,
+  backend, number of mismatched pixels, ratio, maximum channel delta and the
+  bounding region (`x=a..b y=c..d`) of the differences.
+
+Regenerate goldens after intentional rendering changes with:
+
+```
+go test ./render -run 'TestVisualConformance$' -update-visual-goldens
+```
+
+`TestVisualConformanceDetectsDeliberateChange` verifies the comparator itself:
+a single 5×5 deliberate pixel change must fail with the fixture name, backend
+and difference region in the error.
+
+Reference tolerances are recorded for linux/amd64 (the CI platform): 8/255 per
+channel and 0.5% mismatched pixels. Backends that rasterize with a different
+anti-aliasing implementation may need a larger tolerance, but the goldens and
+SVG output are platform independent.
 
 ## Known WIP and hazards
 
