@@ -218,7 +218,6 @@ func BenchmarkErrorCreation(b *testing.B) {
 func BenchmarkErrorString(b *testing.B) {
 	err := NewError(ErrorUndefinedLayer, SeverityError, "ENTITY", "123", "Benchmark error")
 
-
 	for b.Loop() {
 		_ = err.String()
 	}
@@ -653,9 +652,9 @@ func TestErrorCategoryStrings(t *testing.T) {
 
 func TestDrawingStatsExtended(t *testing.T) {
 	stats := &DrawingStats{
-		TotalEntities:   100,
-		EntityCounts:    make(map[string]int),
-		LayerCounts:     make(map[string]int),
+		TotalEntities: 100,
+		EntityCounts:  make(map[string]int),
+		LayerCounts:   make(map[string]int),
 	}
 
 	stats.EntityCounts["POINT"] = 50

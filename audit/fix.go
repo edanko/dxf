@@ -2,9 +2,9 @@
 package audit
 
 import (
-	"github.com/edanko/dxf/block"
 	"strings"
 
+	"github.com/edanko/dxf/block"
 	"github.com/edanko/dxf/drawing"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"

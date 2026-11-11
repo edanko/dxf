@@ -723,19 +723,10 @@ func (t *Turtle) GoTo(x, y, z float64) {
 // GetPath extracts the path from turtle commands
 func (t *Turtle) GetPath() []dxfmath.Vec3 {
 	var path []dxfmath.Vec3
-	currentPos := dxfmath.NewVec3(0, 0, 0)
 
 	for _, cmd := range t.commands {
-		switch cmd.Command {
-		case "move":
-			if len(cmd.Params) >= 3 {
-				currentPos = dxfmath.NewVec3(cmd.Params[0], cmd.Params[1], cmd.Params[2])
-			}
-		case "line":
-			if len(cmd.Params) >= 3 {
-				currentPos = dxfmath.NewVec3(cmd.Params[0], cmd.Params[1], cmd.Params[2])
-				path = append(path, currentPos)
-			}
+		if cmd.Command == "line" && len(cmd.Params) >= 3 {
+			path = append(path, dxfmath.NewVec3(cmd.Params[0], cmd.Params[1], cmd.Params[2]))
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"image/color"
 	"io"
 	"os"
 	"sort"
@@ -25,7 +26,6 @@ import (
 	"github.com/edanko/dxf/filemanagement"
 	"github.com/edanko/dxf/query"
 	"github.com/edanko/dxf/render"
-	"image/color"
 )
 
 const versionString = "dxf 1.0.0"
@@ -68,10 +68,6 @@ func usageError(format string, a ...any) error {
 
 func dataError(format string, a ...any) error {
 	return &exitError{code: 1, msg: fmt.Sprintf(format, a...)}
-}
-
-func missingError(format string, a ...any) error {
-	return &exitError{code: 3, msg: fmt.Sprintf(format, a...)}
 }
 
 func main() {

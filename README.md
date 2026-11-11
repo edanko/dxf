@@ -70,10 +70,16 @@ records, so ezdxf's automatically created defaults do not cause false diffs.
 Requirements:
 
 - Go toolchain
-- Python 3 with `ezdxf` installed (the reference version is `1.4.6b0`)
+- Python 3 with `ezdxf` installed (the reference version is `1.4.5`)
 - Optional: `uv` to create a temporary environment automatically
 
 Run the harness from the repository root:
+
+```sh
+make crosscheck
+```
+
+Or invoke the Go test directly:
 
 ```sh
 DXF_EZDXF_CROSSCHECK=1 go test -run TestEzdxfCrossCheck .
@@ -98,7 +104,9 @@ go test -run TestEzdxfCrossCheck .
 ```
 
 The harness is opt-in and is not part of the normal `go test ./...` run, so the
-Go library has no runtime Python dependency. See
+Go library has no runtime Python dependency. Fixtures that ezdxf itself cannot
+load (currently `testdata/tooling_fixture.dxf`, which intentionally keeps a
+malformed APPID table entry for recovery coverage) are skipped. See
 [`docs/parity/README.md`](docs/parity/README.md) for the full parity roadmap.
 
 # License

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"math"
 
 	"github.com/edanko/dxf/drawing"
 	"github.com/edanko/dxf/entity"

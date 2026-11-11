@@ -442,4 +442,3 @@ func (d *Drawing) EntitySpace(handleString string) string {
 	}
 	return "Model"
 }
-

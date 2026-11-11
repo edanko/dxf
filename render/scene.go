@@ -1,8 +1,12 @@
 package render
 
 import (
+	"fmt"
+	"image"
 	"image/color"
+	_ "image/jpeg"
 	"math"
+	"os"
 	"strings"
 
 	"github.com/edanko/dxf/addons/acadctb"
@@ -10,17 +14,12 @@ import (
 	"github.com/edanko/dxf/drawing"
 	"github.com/edanko/dxf/entity"
 	dxfmath "github.com/edanko/dxf/math"
+	"github.com/edanko/dxf/object"
 	"github.com/edanko/dxf/path"
 	"github.com/edanko/dxf/patterns"
 	"github.com/edanko/dxf/table"
 	"github.com/edanko/dxf/text2path"
-
-	"fmt"
-	"github.com/edanko/dxf/object"
 	"github.com/edanko/dxf/xref"
-	"image"
-	_ "image/jpeg"
-	"os"
 )
 
 // SceneOptions controls scene construction.
@@ -119,7 +118,6 @@ func BuildScene(d *drawing.Drawing, width, height float64, opts *SceneOptions) (
 		minX, maxX = vcx-halfW, vcx+halfW
 		minY, maxY = vcy-halfH, vcy+halfH
 		tx, ty = width/2-vcx*scale, height/2+vcy*scale
-		ok = true
 	} else if ok && width > 0 && height > 0 {
 		w, h := maxX-minX, maxY-minY
 		if w <= 0 {

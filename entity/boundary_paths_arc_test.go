@@ -94,9 +94,9 @@ func TestBoundaryPathLineEdgeArcInfo(t *testing.T) {
 func TestMPolygonEdgeTypesSurviveCopyTransformFormat(t *testing.T) {
 	m := NewMPolygon()
 	path := m.AddBoundaryPath(BOUNDARY_PATH_DEFAULT, true)
-	path.AddVertex2D(0, 0)                          // start of arc edge
-	path.AddArc(5, 5, 2, 0, math.Pi/2)              // arc edge (2 vertices)
-	path.AddVertex2D(20, 0)                         // line edge from arc end
+	path.AddVertex2D(0, 0)             // start of arc edge
+	path.AddArc(5, 5, 2, 0, math.Pi/2) // arc edge (2 vertices)
+	path.AddVertex2D(20, 0)            // line edge from arc end
 
 	arcCurve := func(mp *MPolygonEntity) (center dxfmath.Vec2, radius, a0, a1 float64, ccw, ok bool) {
 		// Vertices: [0] line-start, [1] arc start (bulge), [2] arc end,
@@ -213,4 +213,3 @@ func TestMPolygonTransformReflectionAndNonUniform(t *testing.T) {
 		t.Errorf("scaled vertex = %v, want 30", x)
 	}
 }
-

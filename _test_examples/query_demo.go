@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/drawing"
 	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/query"

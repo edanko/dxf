@@ -2,6 +2,7 @@ package entity
 
 import (
 	"fmt"
+
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/math"

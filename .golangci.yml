@@ -1,0 +1,23 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+# The standard linter set reports a large pre-existing backlog (mostly
+# errcheck and staticcheck quickfix suggestions). Start from a curated set
+# that passes today; enable more checks as the backlog is paid down.
+linters:
+  default: none
+  enable:
+    - govet
+    - ineffassign
+    - misspell
+
+formatters:
+  enable:
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -1,8 +1,9 @@
 package entity
 
 import (
-	dxfmath "github.com/edanko/dxf/math"
 	"math"
+
+	dxfmath "github.com/edanko/dxf/math"
 )
 
 // Curve represents a geometric curve interface for 3D modeling

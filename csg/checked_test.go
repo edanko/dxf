@@ -110,4 +110,3 @@ func TestPerformBooleanCheckedRejectsEmptyResult(t *testing.T) {
 		t.Errorf("XOR identical: error %q does not mention empty", err)
 	}
 }
-

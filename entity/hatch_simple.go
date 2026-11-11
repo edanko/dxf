@@ -2,13 +2,11 @@ package entity
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/lldxf"
-	stdmath "math"
-
-	"github.com/edanko/dxf/math"
 	dxfmath "github.com/edanko/dxf/math"
 )
 
@@ -45,33 +43,33 @@ const (
 
 // HatchPatternLine represents a line in a hatch pattern
 type HatchPatternLine struct {
-	Angle           float64   // 53 - Line angle in degrees
-	BasePoint       math.Vec2 // 43,44 - Origin point for line
-	Offset          math.Vec2 // 45,46 - Offset for next line
-	DashLengthItems []float64 // 49 - Dash pattern (positive=dash, negative=gap, 0=dot)
+	Angle           float64      // 53 - Line angle in degrees
+	BasePoint       dxfmath.Vec2 // 43,44 - Origin point for line
+	Offset          dxfmath.Vec2 // 45,46 - Offset for next line
+	DashLengthItems []float64    // 49 - Dash pattern (positive=dash, negative=gap, 0=dot)
 }
 
 // HatchGradientSimple represents gradient fill information
 type HatchGradientSimple struct {
-	Kind           int       // 450 - Gradient type
-	NumberOfColors int       // 453 - Number of colors (0=solid, 2=gradient)
-	Color1, Color2 math.Vec3 // Colors for gradient (RGB 0-255 each component)
-	ACI1, ACI2     int       // AutoCAD Color Index values
-	OneColor       int       // 452 - One/two color (0=two, 1=one)
-	Rotation       float64   // 460 - Gradient rotation in radians
-	Centered       float64   // 461 - Gradient centering (-1.0 to 1.0)
-	Tint           float64   // 462 - Color tint (0.0 to 1.0)
-	Name           string    // 470 - Gradient name
+	Kind           int          // 450 - Gradient type
+	NumberOfColors int          // 453 - Number of colors (0=solid, 2=gradient)
+	Color1, Color2 dxfmath.Vec3 // Colors for gradient (RGB 0-255 each component)
+	ACI1, ACI2     int          // AutoCAD Color Index values
+	OneColor       int          // 452 - One/two color (0=two, 1=one)
+	Rotation       float64      // 460 - Gradient rotation in radians
+	Centered       float64      // 461 - Gradient centering (-1.0 to 1.0)
+	Tint           float64      // 462 - Color tint (0.0 to 1.0)
+	Name           string       // 470 - Gradient name
 }
 
 // HatchColor represents color with ACI and RGB support
 type HatchColor struct {
-	ACI int       // AutoCAD Color Index (0-255, 256=BYLAYER)
-	RGB math.Vec3 // True color (0-255 each component)
+	ACI int          // AutoCAD Color Index (0-255, 256=BYLAYER)
+	RGB dxfmath.Vec3 // True color (0-255 each component)
 }
 
 // NewHatchColor creates a new color
-func NewHatchColor(aci int, rgb math.Vec3) HatchColor {
+func NewHatchColor(aci int, rgb dxfmath.Vec3) HatchColor {
 	return HatchColor{
 		ACI: aci,
 		RGB: rgb,
@@ -93,8 +91,8 @@ type BoundaryPath interface {
 	Type() int
 	PathTypeFlags() int
 	SourceBoundaryObjects() []string
-	ExportDXF(writer lldxf.TagWriter, ocs math.OCS, elevation float64) error
-	Transform(ocs math.OCS, elevation float64) BoundaryPath
+	ExportDXF(writer lldxf.TagWriter, ocs dxfmath.OCS, elevation float64) error
+	Transform(ocs dxfmath.OCS, elevation float64) BoundaryPath
 	IsValid() bool
 }
 
@@ -196,7 +194,7 @@ func (p *PolylinePath) SourceBoundaryObjects() []string {
 }
 
 // ExportDXF writes the polyline path to DXF
-func (p *PolylinePath) ExportDXF(writer lldxf.TagWriter, ocs math.OCS, elevation float64) error {
+func (p *PolylinePath) ExportDXF(writer lldxf.TagWriter, ocs dxfmath.OCS, elevation float64) error {
 	tags := lldxf.Tags{}
 
 	// Boundary path header
@@ -235,7 +233,7 @@ func (p *PolylinePath) ExportDXF(writer lldxf.TagWriter, ocs math.OCS, elevation
 }
 
 // Transform applies OCS transformation to the boundary path
-func (p *PolylinePath) Transform(ocs math.OCS, elevation float64) BoundaryPath {
+func (p *PolylinePath) Transform(ocs dxfmath.OCS, elevation float64) BoundaryPath {
 	transformed := &PolylinePath{
 		pathTypeFlags: p.pathTypeFlags,
 		isClosed:      p.isClosed,
@@ -261,14 +259,14 @@ func (p *PolylinePath) IsValid() bool {
 
 // Vertex3D represents a 3D point with optional bulge for boundary paths
 type Vertex3D struct {
-	Point math.Vec3
+	Point dxfmath.Vec3
 	Bulge float64
 }
 
 // NewVertex3D creates a new 3D vertex
 func NewVertex3D(x, y, z, bulge float64) Vertex3D {
 	return Vertex3D{
-		Point: math.NewVec3(x, y, z),
+		Point: dxfmath.NewVec3(x, y, z),
 		Bulge: bulge,
 	}
 }
@@ -297,14 +295,14 @@ func NewHatch() *Hatch {
 		patternLines: []HatchPatternLine{
 			{
 				Angle:           0,
-				BasePoint:       math.NewVec2(0, 0),
-				Offset:          math.NewVec2(0.125, 0),
+				BasePoint:       dxfmath.NewVec2(0, 0),
+				Offset:          dxfmath.NewVec2(0.125, 0),
 				DashLengthItems: []float64{0.125, -0.125, 0.125, -0.125, 0.0, -0.125, 0.125, -0.125, 0.0, -0.125},
 			},
 		},
 		solidFill:     true,
 		style:         HatchStyleNormal,
-		color:         NewHatchColor(1, math.NewVec3(255, 255, 255)),
+		color:         NewHatchColor(1, dxfmath.NewVec3(255, 255, 255)),
 		boundaryPaths: make([]BoundaryPath, 0),
 	}
 }
@@ -484,8 +482,8 @@ func (h *Hatch) Transform(m dxfmath.Matrix44) error {
 
 // BBox returns the axis-aligned bounding box of all polyline boundary paths.
 func (h *Hatch) bboxPaths() ([]float64, []float64) {
-	mins := []float64{stdmath.Inf(1), stdmath.Inf(1), stdmath.Inf(1)}
-	maxs := []float64{stdmath.Inf(-1), stdmath.Inf(-1), stdmath.Inf(-1)}
+	mins := []float64{math.Inf(1), math.Inf(1), math.Inf(1)}
+	maxs := []float64{math.Inf(-1), math.Inf(-1), math.Inf(-1)}
 	found := false
 	for _, bp := range h.boundaryPaths {
 		switch p := bp.(type) {
@@ -625,7 +623,7 @@ func (h *Hatch) SetStyle(style int) {
 // SetColor sets the hatch color (implements Entity interface)
 func (h *Hatch) SetColor(c color.ColorNumber) {
 	h.entityColor = c
-	h.color = NewHatchColor(int(c), math.NewVec3(float64(c&0xFF), float64((c>>8)&0xFF), float64((c>>16)&0xFF)))
+	h.color = NewHatchColor(int(c), dxfmath.NewVec3(float64(c&0xFF), float64((c>>8)&0xFF), float64((c>>16)&0xFF)))
 }
 func (h *Hatch) SetTransparency(transparency float64) {
 	h.transparency = transparency

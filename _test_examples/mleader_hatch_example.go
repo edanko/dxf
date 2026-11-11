@@ -7,7 +7,6 @@ import (
 	"github.com/edanko/dxf"
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/entity"
-	"github.com/edanko/dxf/math"
 )
 
 func main() {

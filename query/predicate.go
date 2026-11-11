@@ -2,8 +2,9 @@ package query
 
 import (
 	"fmt"
-	"github.com/edanko/dxf/entity"
 	"math"
+
+	"github.com/edanko/dxf/entity"
 )
 
 // Predicate is a compiled query test over an entity context.

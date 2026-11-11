@@ -1,8 +1,9 @@
 package math
 
-import "slices"
-
-import "math"
+import (
+	"math"
+	"slices"
+)
 
 // PolygonOrientation describes the winding direction of a polygon.
 type PolygonOrientation int

@@ -62,19 +62,36 @@ type parityObject struct {
 // Set DXF_EZDXF_SOURCE to a local ezdxf checkout (for example,
 // /home/egor/src/ezdxf) to match the reference version exactly. Set
 // DXF_EZDXF_PYTHON to reuse an existing interpreter instead of creating a venv.
+// ezdxfUnsupported lists fixtures that ezdxf refuses to load. They are kept
+// for the Go recovery tests but cannot participate in a semantic comparison.
+var ezdxfUnsupported = map[string]string{
+	"tooling_fixture.dxf": "duplicate APPID subclass marker leaves the table entry without a name in ezdxf",
+}
+
 func TestEzdxfCrossCheck(t *testing.T) {
 	if os.Getenv("DXF_EZDXF_CROSSCHECK") != "1" {
 		t.Skip("set DXF_EZDXF_CROSSCHECK=1 to run the ezdxf cross-check")
 	}
 
-	files, err := filepath.Glob("testdata/*.dxf")
+	allFiles, err := filepath.Glob("testdata/*.dxf")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) == 0 {
+	if len(allFiles) == 0 {
 		t.Fatal("no testdata fixtures")
 	}
-	sort.Strings(files)
+	sort.Strings(allFiles)
+	files := make([]string, 0, len(allFiles))
+	for _, file := range allFiles {
+		if reason, ok := ezdxfUnsupported[filepath.Base(file)]; ok {
+			t.Logf("skipping %s: %s", file, reason)
+			continue
+		}
+		files = append(files, file)
+	}
+	if len(files) == 0 {
+		t.Fatal("no comparable testdata fixtures")
+	}
 
 	python := ezdxfPython(t)
 	args := append([]string{"scripts/ezdxf_dump.py"}, files...)

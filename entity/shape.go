@@ -1,12 +1,13 @@
 package entity
 
 import (
+	"math"
+
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
 	dxfmath "github.com/edanko/dxf/math"
 	"github.com/edanko/dxf/table"
-	"math"
 )
 
 // Shape represents a DXF SHAPE entity (shape reference)

@@ -2,6 +2,7 @@ package text2path
 
 import (
 	"fmt"
+
 	"github.com/edanko/dxf/path"
 )
 

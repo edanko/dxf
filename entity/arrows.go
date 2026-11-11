@@ -1,10 +1,11 @@
 package entity
 
 import (
+	"math"
+
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
 	dxfmath "github.com/edanko/dxf/math"
-	"math"
 )
 
 // Arrow style types

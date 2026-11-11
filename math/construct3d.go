@@ -89,7 +89,6 @@ func (c *Construct3D) LineLineIntersection(p1, d1, p2, d2 Vec3) (point1, point2 
 
 	den := a*cc - b*b
 	if math.Abs(den) < 1e-10 {
-		parallel = true
 		return p1, p2, true
 	}
 

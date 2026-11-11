@@ -776,4 +776,3 @@ func (p *Parser) unexpected(expected string) error {
 	token := p.current()
 	return fmt.Errorf("expected %s at position %d, got %s", expected, token.Pos, token)
 }
-

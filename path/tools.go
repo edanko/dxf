@@ -583,7 +583,7 @@ func (t *Tools) offsetOpenPath(distance float64) *Path {
 			// First point - use direction of first segment
 			pNext := points[1]
 			dx = pNext.Y() - p.Y()
-			dy := -(pNext.X() - p.X())
+			dy = -(pNext.X() - p.X())
 			len := math.Sqrt(dx*dx + dy*dy)
 			if len > 0 {
 				dx = distance * dx / len
@@ -593,7 +593,7 @@ func (t *Tools) offsetOpenPath(distance float64) *Path {
 			// Last point - use direction of last segment
 			pPrev := points[i-1]
 			dx = p.Y() - pPrev.Y()
-			dy := -(p.X() - pPrev.X())
+			dy = -(p.X() - pPrev.X())
 			len := math.Sqrt(dx*dx + dy*dy)
 			if len > 0 {
 				dx = distance * dx / len
