@@ -55,10 +55,7 @@ func NewBinaryLoader(data []byte) (*BinaryLoader, error) {
 // detectVersion attempts to detect the DXF version and encoding
 func (bl *BinaryLoader) detectVersion() error {
 	// Look for $ACADVER in the first 1024 bytes
-	maxSearch := 1024
-	if len(bl.data) < maxSearch {
-		maxSearch = len(bl.data)
-	}
+	maxSearch := min(len(bl.data), 1024)
 
 	acadVer := []byte("$ACADVER")
 	pos := bytes.Index(bl.data[22:maxSearch], acadVer)

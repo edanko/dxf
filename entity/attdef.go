@@ -300,12 +300,3 @@ func (a *Attdef) String() string {
 		a.insertPoint[0], a.insertPoint[1], a.insertPoint[2],
 		a.height, flags)
 }
-
-// Helper function to copy slice
-func copySlice(dst, src []float64) {
-	if len(dst) >= len(src) {
-		for i := range src {
-			dst[i] = src[i]
-		}
-	}
-}

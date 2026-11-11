@@ -6,27 +6,9 @@ import (
 	dxfmath "github.com/edanko/dxf/math"
 )
 
-func createTriangleMesh(v1, v2, v3 dxfmath.Vec3) dxfmath.Mesh3D {
-	builder := dxfmath.NewMesh3DBuilder()
-	builder.AddVertex(v1)
-	builder.AddVertex(v2)
-	builder.AddVertex(v3)
-	builder.AddTriangle(0, 1, 2)
-	return builder.Build()
-}
-
 func TestMeshUnion(t *testing.T) {
-	mesh1 := createTriangleMesh(
-		dxfmath.NewVec3(0, 0, 0),
-		dxfmath.NewVec3(1, 0, 0),
-		dxfmath.NewVec3(0, 1, 0),
-	)
-
-	mesh2 := createTriangleMesh(
-		dxfmath.NewVec3(0.5, 0, 0),
-		dxfmath.NewVec3(1.5, 0, 0),
-		dxfmath.NewVec3(0.5, 1, 0),
-	)
+	mesh1 := Box(dxfmath.NewVec3(0, 0, 0), 2)
+	mesh2 := Box(dxfmath.NewVec3(1, 1, 1), 2)
 
 	result := MeshUnion(mesh1, mesh2)
 
@@ -39,17 +21,8 @@ func TestMeshUnion(t *testing.T) {
 }
 
 func TestMeshDifference(t *testing.T) {
-	mesh1 := createTriangleMesh(
-		dxfmath.NewVec3(0, 0, 0),
-		dxfmath.NewVec3(2, 0, 0),
-		dxfmath.NewVec3(0, 2, 0),
-	)
-
-	mesh2 := createTriangleMesh(
-		dxfmath.NewVec3(1, 0, 0),
-		dxfmath.NewVec3(3, 0, 0),
-		dxfmath.NewVec3(1, 2, 0),
-	)
+	mesh1 := Box(dxfmath.NewVec3(0, 0, 0), 2)
+	mesh2 := Box(dxfmath.NewVec3(1, 1, 1), 2)
 
 	result := MeshDifference(mesh1, mesh2)
 
@@ -90,17 +63,8 @@ func TestMeshIntersect(t *testing.T) {
 }
 
 func TestCSGMeshUnion(t *testing.T) {
-	mesh1 := createTriangleMesh(
-		dxfmath.NewVec3(0, 0, 0),
-		dxfmath.NewVec3(1, 0, 0),
-		dxfmath.NewVec3(0, 1, 0),
-	)
-
-	mesh2 := createTriangleMesh(
-		dxfmath.NewVec3(0.5, 0, 0),
-		dxfmath.NewVec3(1.5, 0, 0),
-		dxfmath.NewVec3(0.5, 1, 0),
-	)
+	mesh1 := Box(dxfmath.NewVec3(0, 0, 0), 2)
+	mesh2 := Box(dxfmath.NewVec3(1, 1, 1), 2)
 
 	csg := MeshToCSG(mesh1)
 	result := csg.MeshUnion(mesh2)
@@ -111,17 +75,8 @@ func TestCSGMeshUnion(t *testing.T) {
 }
 
 func TestCSGMeshDifference(t *testing.T) {
-	mesh1 := createTriangleMesh(
-		dxfmath.NewVec3(0, 0, 0),
-		dxfmath.NewVec3(2, 0, 0),
-		dxfmath.NewVec3(0, 2, 0),
-	)
-
-	mesh2 := createTriangleMesh(
-		dxfmath.NewVec3(1, 0, 0),
-		dxfmath.NewVec3(3, 0, 0),
-		dxfmath.NewVec3(1, 2, 0),
-	)
+	mesh1 := Box(dxfmath.NewVec3(0, 0, 0), 2)
+	mesh2 := Box(dxfmath.NewVec3(1, 1, 1), 2)
 
 	csg := MeshToCSG(mesh1)
 	result := csg.MeshDifference(mesh2)
@@ -162,44 +117,34 @@ func TestCSGMeshIntersect(t *testing.T) {
 }
 
 func TestMeshUnionNonOverlapping(t *testing.T) {
-	mesh1 := createTriangleMesh(
-		dxfmath.NewVec3(0, 0, 0),
-		dxfmath.NewVec3(1, 0, 0),
-		dxfmath.NewVec3(0, 1, 0),
-	)
-
-	mesh2 := createTriangleMesh(
-		dxfmath.NewVec3(10, 10, 0),
-		dxfmath.NewVec3(11, 10, 0),
-		dxfmath.NewVec3(10, 11, 0),
-	)
+	mesh1 := Box(dxfmath.NewVec3(0, 0, 0), 2)
+	mesh2 := Box(dxfmath.NewVec3(10, 10, 10), 2)
 
 	result := MeshUnion(mesh1, mesh2)
 
-	if len(result.Vertices) != 6 {
-		t.Errorf("Non-overlapping union should have 6 vertices, got %d", len(result.Vertices))
+	// Two disjoint closed boxes keep both of their surfaces.
+	if len(result.Vertices) != 16 {
+		t.Errorf("Non-overlapping union should have 16 vertices, got %d", len(result.Vertices))
 	}
-	if len(result.Faces) != 2 {
-		t.Errorf("Non-overlapping union should have 2 faces, got %d", len(result.Faces))
+	if len(result.Faces) != 24 {
+		t.Errorf("Non-overlapping union should have 24 faces, got %d", len(result.Faces))
+	}
+	if vol := Volume(result); vol < 15.9 || vol > 16.1 {
+		t.Errorf("Non-overlapping union volume = %v, want 16", vol)
 	}
 }
 
 func TestMeshDifferenceNoOverlap(t *testing.T) {
-	mesh1 := createTriangleMesh(
-		dxfmath.NewVec3(0, 0, 0),
-		dxfmath.NewVec3(1, 0, 0),
-		dxfmath.NewVec3(0, 1, 0),
-	)
-
-	mesh2 := createTriangleMesh(
-		dxfmath.NewVec3(10, 10, 0),
-		dxfmath.NewVec3(11, 10, 0),
-		dxfmath.NewVec3(10, 11, 0),
-	)
+	mesh1 := Box(dxfmath.NewVec3(0, 0, 0), 2)
+	mesh2 := Box(dxfmath.NewVec3(10, 10, 10), 2)
 
 	result := MeshDifference(mesh1, mesh2)
 
-	if len(result.Vertices) != 3 {
-		t.Errorf("Non-overlapping difference should have 3 vertices, got %d", len(result.Vertices))
+	// With no overlap the difference is just mesh1.
+	if len(result.Vertices) != 8 {
+		t.Errorf("Non-overlapping difference should have 8 vertices, got %d", len(result.Vertices))
+	}
+	if vol := Volume(result); vol < 7.9 || vol > 8.1 {
+		t.Errorf("Non-overlapping difference volume = %v, want 8", vol)
 	}
 }

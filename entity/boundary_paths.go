@@ -102,28 +102,20 @@ func (bp *MPolygonBoundaryPath) AddVertex2D(x, y float64) {
 	bp.AddVertex(x, y, 0.0)
 }
 
-// AddArc adds an arc using bulge calculation
+// AddArc adds a single arc edge using DXF bulge semantics: the start vertex
+// carries the bulge that bends the edge toward the end vertex, so an arc is
+// represented by exactly one polyline edge regardless of its sweep. Angles
+// are in radians; an end angle below the start angle sweeps clockwise and
+// produces a negative bulge.
 func (bp *MPolygonBoundaryPath) AddArc(centerX, centerY, radius, startAngle, endAngle float64) {
-	// Calculate arc vertices
-	segments := 16 // Number of segments for smooth arc
-	angleStep := (endAngle - startAngle) / float64(segments)
-
-	for i := 0; i <= segments; i++ {
-		angle := startAngle + float64(i)*angleStep
-		x := centerX + radius*math.Cos(angle)
-		y := centerY + radius*math.Sin(angle)
-
-		if i == 0 {
-			bp.AddVertex(x, y, 0) // Start vertex
-		} else if i == segments {
-			// Calculate bulge for arc
-			totalAngle := endAngle - startAngle
-			bulge := math.Tan(totalAngle / 4)
-			bp.Vertices[len(bp.Vertices)-1].Bulge = bulge
-		} else {
-			bp.AddVertex(x, y, 0)
-		}
-	}
+	span := endAngle - startAngle
+	bulge := math.Tan(span / 4)
+	sx := centerX + radius*math.Cos(startAngle)
+	sy := centerY + radius*math.Sin(startAngle)
+	ex := centerX + radius*math.Cos(endAngle)
+	ey := centerY + radius*math.Sin(endAngle)
+	bp.AddVertex(sx, sy, bulge)
+	bp.AddVertex(ex, ey, 0)
 }
 
 // GetVertex returns a vertex by index
@@ -147,6 +139,16 @@ func (bp *MPolygonBoundaryPath) hasBulge() int {
 		}
 	}
 	return 0
+}
+
+// hasAnyBulge reports whether any edge of any path carries a bulge.
+func (bp *BoundaryPaths) hasAnyBulge() bool {
+	for i := 0; i < bp.PathCount(); i++ {
+		if bp.GetPath(i).hasBulge() != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // clone creates a deep copy of boundary path
@@ -192,26 +194,51 @@ func (bv *BoundaryVertex) IsArc() bool {
 	return bv.Bulge != 0
 }
 
-// GetArcInfo returns arc information if bulge represents an arc
-func (bv *BoundaryVertex) GetArcInfo() (center dxfmath.Vec2, radius, startAngle, endAngle float64, ok bool) {
-	if bv.Bulge == 0 {
-		return dxfmath.Vec2{}, 0, 0, 0, false
+// ArcInfo returns the arc geometry of the edge that starts at vertex index:
+// its center, radius, start and end angles (radians, consistent with the
+// sweep direction), and whether the sweep is counter-clockwise. The arc is
+// defined by the bulge of vertex index bending the edge toward the following
+// vertex, which wraps around to the first vertex when the path is closed.
+// ok is false when the index is out of range, the edge is a straight line
+// (bulge 0), or the chord is degenerate.
+func (bp *MPolygonBoundaryPath) ArcInfo(index int) (center dxfmath.Vec2, radius, startAngle, endAngle float64, ccw, ok bool) {
+	if index < 0 || index >= len(bp.Vertices) {
+		return dxfmath.Vec2{}, 0, 0, 0, false, false
 	}
-
-	// Calculate arc parameters from bulge
-	// This is a simplified implementation
-	// In practice, you need adjacent vertices to calculate arc properly
-	bulge := bv.Bulge
-	theta := 4 * math.Atan(math.Abs(bulge))
-
-	// Radius and chord length relationship (simplified)
-	radius = 1.0 // This would be calculated from geometry
-	startAngle = 0
-	endAngle = theta
-
-	if bulge < 0 {
-		endAngle = -endAngle
+	next := index + 1
+	if next >= len(bp.Vertices) {
+		if !bp.IsClosed {
+			return dxfmath.Vec2{}, 0, 0, 0, false, false
+		}
+		next = 0
 	}
+	return bp.Vertices[index].GetArcInfo(dxfmath.NewVec2(bp.Vertices[next].X, bp.Vertices[next].Y))
+}
 
-	return dxfmath.NewVec2(bv.X, bv.Y), radius, startAngle, endAngle, true
+// GetArcInfo returns the arc geometry of the edge defined by this vertex's
+// bulge bending toward the given edge end point: center, radius, start and
+// end angles (radians, consistent with the sweep direction), and whether the
+// sweep is counter-clockwise. ok is false when the vertex is a straight line
+// (bulge 0) or the chord is degenerate.
+func (bv *BoundaryVertex) GetArcInfo(end dxfmath.Vec2) (center dxfmath.Vec2, radius, startAngle, endAngle float64, ccw, ok bool) {
+	bulge := dxfmath.Bulge(bv.Bulge)
+	if !bulge.IsArc() {
+		return dxfmath.Vec2{}, 0, 0, 0, false, false
+	}
+	start := dxfmath.NewVec2(bv.X, bv.Y)
+	center = bulge.Center(start, end)
+	radius = bulge.Radius(start.Distance(end))
+	if math.IsInf(radius, 0) {
+		return dxfmath.Vec2{}, 0, 0, 0, false, false
+	}
+	startAngle = math.Atan2(start.Y()-center.Y(), start.X()-center.X())
+	endAngle = math.Atan2(end.Y()-center.Y(), end.X()-center.X())
+	ccw = !bulge.IsClockwise()
+	if ccw && endAngle < startAngle {
+		endAngle += 2 * math.Pi
+	}
+	if !ccw && endAngle > startAngle {
+		endAngle -= 2 * math.Pi
+	}
+	return center, radius, startAngle, endAngle, ccw, true
 }

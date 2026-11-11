@@ -3,10 +3,12 @@ package entity
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
+	dxfmath "github.com/edanko/dxf/math"
 )
 
 // Sun represents a DXF SUN entity for realistic outdoor lighting
@@ -59,24 +61,21 @@ func NewSun() *Sun {
 	return sun
 }
 
-// NewSunWithDateTime creates a sun with specific date and time
+// NewSunWithDateTime creates a sun with specific date and time. The integer
+// Julian day stored on the entity is the noon Julian day of the calendar
+// date (computed with the shared math package civil-to-Julian conversion),
+// and the time of day is stored separately as seconds past midnight.
 func NewSunWithDateTime(year, month, day, hour, minute, second int) *Sun {
 	sun := NewSun()
-
-	// Calculate Julian day (simplified calculation)
-	// For simplicity, using a more basic calculation
-	yearAdj := year
-	monthAdj := month
-	if month <= 2 {
-		yearAdj = year - 1
-		monthAdj = month + 12
-	}
-	a := yearAdj / 100
-	b := a / 4
-	c := 2 - a + b
-	julianDay := int(365.25*float64(yearAdj) + 30.6001*float64(monthAdj) + float64(day) + float64(c) + 1720995)
-
-	sun.JulianDay = julianDay
+	jd := dxfmath.CivilToJulian(dxfmath.CivilDateTime{
+		Year:   year,
+		Month:  month,
+		Day:    day,
+		Hour:   12,
+		Minute: 0,
+		Second: 0,
+	})
+	sun.JulianDay = int(jd)
 	sun.Time = float64(hour*3600 + minute*60 + second)
 	return sun
 }
@@ -103,39 +102,132 @@ func (s *Sun) SetShadowProperties(cast bool, shadowType ShadowType, mapSize, sof
 	s.ShadowSoftness = softness
 }
 
-// CalculatePosition calculates sun position based on date, time, and location
+// CalculatePosition calculates the sun position from the stored date and
+// time using the NOAA General Solar Position Calculations. An absolute
+// Julian day (>2000000) is converted back to its calendar date; a
+// day-of-year value (1-366) is used directly. The stored time of day is
+// treated as UTC (timezone 0).
 func (s *Sun) CalculatePosition(latitude, longitude float64) (elevation, azimuth float64) {
-	// Simplified sun position calculation
-	// In a real implementation, this would use more complex astronomical calculations
+	h, m, sec := s.GetTimeHoursMinutes()
+	if s.JulianDay > 2000000 {
+		civil := dxfmath.JulianToCivil(float64(s.JulianDay))
+		// JulianToCivil returns the noon instant of the stored day; the
+		// time of day comes from the separate Time field.
+		elevation, azimuth, _ = CalculateSolarPosition(civil.Year, civil.Month, civil.Day, h, m, sec, latitude, longitude)
+		return elevation, azimuth
+	}
+	elevation, azimuth = solarPositionFromDayOfYear(s.JulianDay, s.Time/3600.0, latitude, longitude)
+	return elevation, azimuth
+}
 
-	// Convert Julian day to day of year
-	dayOfYear := s.JulianDay % 1000 // Simplified
+// CalculateSolarPosition computes the sun's elevation and azimuth angles for
+// a calendar date, time of day, and geographic location using the documented
+// NOAA General Solar Position Calculations ("General Solar Position
+// Calculations", NOAA Global Monitoring Division): a fractional-year
+// expansion for the equation of time and solar declination, a time offset
+// from the equation of time and longitude, and the standard zenith/azimuth
+// spherical formulas. The time of day is treated as UTC (timezone 0), so
+// solar noon occurs when the true solar time is 12:00.
+//
+// It returns an error naming the offending field when the date or time is
+// invalid (for example month 13 or day 30 of February).
+func CalculateSolarPosition(year, month, day, hour, minute, second int, latitude, longitude float64) (elevation, azimuth float64, err error) {
+	if err := ValidateDateTime(year, month, day, hour, minute, second); err != nil {
+		return 0, 0, err
+	}
+	hourFraction := float64(hour) + float64(minute)/60.0 + float64(second)/3600.0
+	t := time.Date(year, time.Month(month), day, hour, minute, second, 0, time.UTC)
+	elevation, azimuth = solarPositionFromDayOfYear(t.YearDay(), hourFraction, latitude, longitude)
+	return elevation, azimuth, nil
+}
 
-	// Solar declination (simplified)
-	declination := 23.45 * math.Sin((360.0/365.0*float64(dayOfYear-81))*math.Pi/180.0)
+// ValidateDateTime reports an error naming the offending field when the
+// calendar date or wall-clock time is invalid.
+func ValidateDateTime(year, month, day, hour, minute, second int) error {
+	if month < 1 || month > 12 {
+		return fmt.Errorf("invalid month: %d (must be 1-12)", month)
+	}
+	days := daysInMonth(year, month)
+	if day < 1 || day > days {
+		return fmt.Errorf("invalid day: %d (month %d of year %d has %d days)", day, month, year, days)
+	}
+	if hour < 0 || hour > 23 {
+		return fmt.Errorf("invalid hour: %d (must be 0-23)", hour)
+	}
+	if minute < 0 || minute > 59 {
+		return fmt.Errorf("invalid minute: %d (must be 0-59)", minute)
+	}
+	if second < 0 || second > 59 {
+		return fmt.Errorf("invalid second: %d (must be 0-59)", second)
+	}
+	return nil
+}
 
-	// Hour angle
-	hours := s.Time / 3600.0
-	hourAngle := 15.0 * (hours - 12.0) // 15 degrees per hour from solar noon
+// daysInMonth returns the number of days in the given month of a year.
+func daysInMonth(year, month int) int {
+	return time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Day()
+}
 
-	// Solar elevation angle
-	latitudeRad := latitude * math.Pi / 180.0
-	elevation = math.Asin(
-		math.Sin(declination*math.Pi/180.0)*math.Sin(latitudeRad)+
-			math.Cos(declination*math.Pi/180.0)*math.Cos(latitudeRad)*math.Cos(hourAngle*math.Pi/180.0),
-	) * 180.0 / math.Pi
+// solarPositionFromDayOfYear implements the NOAA General Solar Position
+// Calculations from a day of year (1-366) and the fractional hour of the
+// day. See CalculateSolarPosition for the documented model.
+func solarPositionFromDayOfYear(dayOfYear int, hourFraction, latitude, longitude float64) (elevation, azimuth float64) {
+	// Fractional year in radians (NOAA): gamma = 2*pi/365*(d-1+(h-12)/24).
+	gamma := 2 * math.Pi / 365.0 * (float64(dayOfYear-1) + (hourFraction-12.0)/24.0)
 
-	// Solar azimuth angle
-	azimuth = math.Atan2(
-		-math.Cos(declination*math.Pi/180.0)*math.Sin(hourAngle*math.Pi/180.0),
-		math.Cos(declination*math.Pi/180.0)*math.Cos(latitudeRad)*math.Sin(hourAngle*math.Pi/180.0)-
-			math.Sin(declination*math.Pi/180.0)*math.Sin(latitudeRad),
-	) * 180.0 / math.Pi
+	// Equation of time in minutes.
+	eqTime := 229.18 * (0.000075 +
+		0.001868*math.Cos(gamma) -
+		0.032077*math.Sin(gamma) -
+		0.014615*math.Cos(2*gamma) -
+		0.040849*math.Sin(2*gamma))
 
+	// Solar declination in radians.
+	decl := 0.006918 -
+		0.399912*math.Cos(gamma) +
+		0.070257*math.Sin(gamma) -
+		0.006758*math.Cos(2*gamma) +
+		0.000907*math.Sin(2*gamma) -
+		0.002697*math.Cos(3*gamma) +
+		0.00148*math.Sin(3*gamma)
+
+	// Time offset and true solar time in minutes (timezone 0: the stored
+	// time is treated as UTC).
+	timeOffset := eqTime + 4.0*longitude
+	tst := hourFraction*60.0 + timeOffset
+
+	// Hour angle in degrees.
+	ha := tst/4.0 - 180.0
+
+	latRad := latitude * math.Pi / 180.0
+	haRad := ha * math.Pi / 180.0
+	declRad := decl
+
+	// Zenith angle.
+	cosZenith := math.Sin(latRad)*math.Sin(declRad) +
+		math.Cos(latRad)*math.Cos(declRad)*math.Cos(haRad)
+	if cosZenith > 1 {
+		cosZenith = 1
+	} else if cosZenith < -1 {
+		cosZenith = -1
+	}
+	zenith := math.Acos(cosZenith)
+	elevation = 90.0 - zenith*180.0/math.Pi
+
+	// Azimuth measured clockwise from north (NOAA formula plus 180 degrees
+	// so that solar noon on the northern-hemisphere equator side reports
+	// due south).
+	azRad := math.Atan2(
+		math.Sin(haRad),
+		math.Cos(haRad)*math.Sin(latRad)-math.Tan(declRad)*math.Cos(latRad),
+	)
+	azimuth = azRad*180.0/math.Pi + 180.0
 	if azimuth < 0 {
 		azimuth += 360.0
 	}
-
+	if azimuth >= 360.0 {
+		azimuth -= 360.0
+	}
 	return elevation, azimuth
 }
 

@@ -4,7 +4,6 @@ package drawing
 import (
 	"fmt"
 	"maps"
-	"math"
 	"sync"
 
 	"github.com/edanko/dxf/entity"
@@ -405,18 +404,21 @@ func (db *EntityDatabase) GetEntitiesInRadius(cx, cy, radius float64) []entity.E
 func PointInPolygon(px, py float64, polygon []struct{ X, Y float64 }) bool {
 	inside := false
 	n := len(polygon)
-	for i, j := 0, n-1; i < n; j = i {
+	for i, j := 0, n-1; i < n; i++ {
 		pi := polygon[i]
 		pj := polygon[j]
 		if ((pi.Y > py) != (pj.Y > py)) &&
 			(px < (pj.X-pi.X)*(py-pi.Y)/(pj.Y-pi.Y)+pi.X) {
 			inside = !inside
 		}
+		j = i
 	}
 	return inside
 }
 
-// GetEntitiesInPolygon returns all entities within the specified polygon
+// GetEntitiesInPolygon returns all entities whose real bounding box overlaps
+// the polygon region: an entity is selected when any part of its box lies
+// inside the polygon or on the polygon boundary.
 func (db *EntityDatabase) GetEntitiesInPolygon(polygon []struct{ X, Y float64 }) []entity.Entity {
 	if len(polygon) < 3 {
 		return nil
@@ -425,34 +427,62 @@ func (db *EntityDatabase) GetEntitiesInPolygon(polygon []struct{ X, Y float64 })
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	var minX, minY, maxX, maxY float64 = math.MaxFloat64, math.MaxFloat64, -math.MaxFloat64, -math.MaxFloat64
-	for _, p := range polygon {
-		if p.X < minX {
-			minX = p.X
-		}
-		if p.X > maxX {
-			maxX = p.X
-		}
-		if p.Y < minY {
-			minY = p.Y
-		}
-		if p.Y > maxY {
-			maxY = p.Y
-		}
-	}
-
 	var entities []entity.Entity
 	for _, ent := range db.entities {
 		minBbox, maxBbox := ent.BBox()
 		if len(minBbox) >= 2 && len(maxBbox) >= 2 {
-			cx := (minBbox[0] + maxBbox[0]) / 2
-			cy := (minBbox[1] + maxBbox[1]) / 2
-			if PointInPolygon(cx, cy, polygon) {
+			if bboxIntersectsPolygon(minBbox[0], minBbox[1], maxBbox[0], maxBbox[1], polygon) {
 				entities = append(entities, ent)
 			}
 		}
 	}
 	return entities
+}
+
+// bboxIntersectsPolygon reports whether the axis-aligned box overlaps the
+// polygon area or boundary. It checks box corners inside the polygon,
+// polygon vertices inside the box, and polygon edges crossing the box edges.
+func bboxIntersectsPolygon(minX, minY, maxX, maxY float64, polygon []struct{ X, Y float64 }) bool {
+	for _, c := range [4][2]float64{{minX, minY}, {maxX, minY}, {maxX, maxY}, {minX, maxY}} {
+		if PointInPolygon(c[0], c[1], polygon) {
+			return true
+		}
+	}
+	for _, p := range polygon {
+		if p.X >= minX && p.X <= maxX && p.Y >= minY && p.Y <= maxY {
+			return true
+		}
+	}
+	boxEdges := [4][2][2]float64{
+		{{minX, minY}, {maxX, minY}},
+		{{maxX, minY}, {maxX, maxY}},
+		{{maxX, maxY}, {minX, maxY}},
+		{{minX, maxY}, {minX, minY}},
+	}
+	for i, j := 0, len(polygon)-1; i < len(polygon); i++ {
+		edge := [2][2]float64{{polygon[j].X, polygon[j].Y}, {polygon[i].X, polygon[i].Y}}
+		for _, boxEdge := range boxEdges {
+			if segmentsIntersect(edge, boxEdge) {
+				return true
+			}
+		}
+		j = i
+	}
+	return false
+}
+
+// segmentsIntersect reports whether the two closed segments properly cross
+// (shared endpoints are not treated as a crossing).
+func segmentsIntersect(a, b [2][2]float64) bool {
+	cross := func(p, q, r [2]float64) float64 {
+		return (q[0]-p[0])*(r[1]-p[1]) - (q[1]-p[1])*(r[0]-p[0])
+	}
+	d1 := cross(a[0], a[1], b[0])
+	d2 := cross(a[0], a[1], b[1])
+	d3 := cross(b[0], b[1], a[0])
+	d4 := cross(b[0], b[1], a[1])
+	return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+		((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
 }
 
 // GetSpatialIndex returns the spatial index for external use

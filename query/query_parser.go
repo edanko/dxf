@@ -777,25 +777,3 @@ func (p *Parser) unexpected(expected string) error {
 	return fmt.Errorf("expected %s at position %d, got %s", expected, token.Pos, token)
 }
 
-// getEntityProperty returns an entity property value
-func getEntityProperty(ent entity.Entity, propName string) any {
-	switch strings.ToLower(propName) {
-	case "layer":
-		if layer := ent.Layer(); layer != nil {
-			return layer.Name()
-		}
-	case "type":
-		return ent.DXFType()
-	case "handle":
-		return ent.Handle()
-	case "color":
-		if col, ok := colorValue(ent); ok {
-			return col
-		}
-	case "linetype":
-		if l, ok := ent.(entity.LinetypeReader); ok {
-			return l.Linetype()
-		}
-	}
-	return nil
-}

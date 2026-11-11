@@ -130,8 +130,7 @@ func TestPolylineFormat(t *testing.T) {
 	p.SetLayer(table.NewLayer("0", 0, nil))
 	p.AddVertex(1, 2, 3)
 
-	var f format.Formatter
-	f = format.NewASCII()
+	f := format.NewASCII()
 
 	p.Format(f)
 
@@ -251,8 +250,7 @@ func TestSplineFormat(t *testing.T) {
 	s.AddControlPoint(1, 0, 0)
 	s.SetLayer(table.NewLayer("0", 0, nil))
 
-	var f format.Formatter
-	f = format.NewASCII()
+	f := format.NewASCII()
 
 	s.Format(f)
 

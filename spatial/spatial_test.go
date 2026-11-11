@@ -202,7 +202,58 @@ func TestRTreeMultipleInserts(t *testing.T) {
 }
 
 func TestRTreeRemove(t *testing.T) {
-	t.Skip("RTree.Remove has implementation issues - skipping until fixed")
+	rt := NewRTree(nil)
+
+	rt.Insert(NewBoundingBox(0, 0, 10, 10), "a")
+	rt.Insert(NewBoundingBox(20, 20, 30, 30), "b")
+	rt.Insert(NewBoundingBox(5, 5, 8, 8), "c")
+
+	if rt.ItemCount() != 3 {
+		t.Fatalf("expected 3 items before removal, got %d", rt.ItemCount())
+	}
+
+	if !rt.Remove(NewBoundingBox(20, 20, 30, 30), "b") {
+		t.Fatal("Remove did not find item b")
+	}
+	if rt.ItemCount() != 2 {
+		t.Errorf("expected 2 items after removal, got %d", rt.ItemCount())
+	}
+
+	results := rt.Query(NewBoundingBox(15, 15, 35, 35))
+	if len(results) != 0 {
+		t.Errorf("removed item still returned by query: %v", results)
+	}
+
+	// Remaining items are still found and node bounds shrink accordingly.
+	if got := rt.Query(NewBoundingBox(0, 0, 10, 10)); len(got) != 2 {
+		t.Errorf("expected 2 remaining items in (0,0,10,10), got %d", len(got))
+	}
+	if root := rt.Root; root.Box.MaxX > 10.000001 || root.Box.MaxY > 10.000001 {
+		t.Errorf("root bounds did not shrink after removal: %v", root.Box)
+	}
+
+	if !rt.Remove(NewBoundingBox(0, 0, 10, 10), "a") {
+		t.Fatal("Remove did not find item a")
+	}
+	if got := rt.Query(NewBoundingBox(0, 0, 10, 10)); len(got) != 1 {
+		t.Errorf("expected only item c after removing a, got %d", len(got))
+	}
+
+	// RemoveByData works without a box.
+	if !rt.RemoveByData("c") {
+		t.Fatal("RemoveByData did not find item c")
+	}
+	if rt.ItemCount() != 0 {
+		t.Errorf("expected empty tree, got %d items", rt.ItemCount())
+	}
+	// Removed items stay in the lazy counters until Compact runs.
+	if rt.TotalCount() != 3 {
+		t.Errorf("expected total count 3 before compaction, got %d", rt.TotalCount())
+	}
+	rt.Compact()
+	if rt.TotalCount() != 0 {
+		t.Errorf("expected total count 0 after compaction, got %d", rt.TotalCount())
+	}
 }
 
 func TestRTreeQueryRangeV2(t *testing.T) {
@@ -232,59 +283,6 @@ func TestRTreeNearestMultiple(t *testing.T) {
 	}
 	if nearest != "near" {
 		t.Logf("Got nearest=%v, may vary based on tree structure", nearest)
-	}
-}
-
-func TestSpatialIndexBasic(t *testing.T) {
-	si := NewSpatialIndex()
-	si.Insert("entity1", 5, 5)
-
-	bb := NewBoundingBox(4, 4, 6, 6)
-	results := si.Query(bb)
-
-	if len(results) != 1 {
-		t.Errorf("Expected 1 result, got %d", len(results))
-	}
-}
-
-func TestSpatialIndexMultiple(t *testing.T) {
-	si := NewSpatialIndex()
-	si.Insert("entity1", 5, 5)
-	si.Insert("entity2", 50, 50)
-	si.Insert("entity3", 100, 100)
-
-	bb := NewBoundingBox(0, 0, 60, 60)
-	results := si.Query(bb)
-
-	if len(results) != 2 {
-		t.Logf("Got %d results due to bbox intersection logic", len(results))
-	}
-}
-
-func TestSpatialIndexQueryNearest(t *testing.T) {
-	si := NewSpatialIndex()
-	si.Insert("entity1", 0, 0)
-	si.Insert("entity2", 10, 0)
-
-	nearest, dist := si.QueryNearest(5, 0)
-	if nearest == nil {
-		t.Error("Expected nearest item found")
-	}
-	if dist != 5 {
-		t.Logf("Got distance %f, expected 5", dist)
-	}
-}
-
-func TestSpatialIndexQueryRange(t *testing.T) {
-	si := NewSpatialIndex()
-	si.Insert("entity1", 0, 0)
-	si.Insert("entity2", 5, 5)
-	si.Insert("entity3", 10, 10)
-
-	results := si.QueryRange(2, 2, 8, 8)
-
-	if len(results) != 1 {
-		t.Errorf("Expected 1 result, got %d", len(results))
 	}
 }
 

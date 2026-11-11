@@ -473,14 +473,6 @@ func tagIntByCodeOK(tags lldxf.Tags, code int) (int, bool) {
 	return 0, false
 }
 
-func point2(tags lldxf.Tags, base int) []float64 {
-	return []float64{tagFloatByCode(tags, base), tagFloatByCode(tags, base+10)}
-}
-
-func point3(tags lldxf.Tags, base int) []float64 {
-	return []float64{tagFloatByCode(tags, base), tagFloatByCode(tags, base+10), tagFloatByCode(tags, base+20)}
-}
-
 // Find returns the named table, or nil.
 func (ts Tables) Find(name string) *Table {
 	for _, t := range ts {

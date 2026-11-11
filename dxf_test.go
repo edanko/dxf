@@ -2,8 +2,6 @@ package dxf
 
 import (
 	"bytes"
-	"crypto/sha1"
-	"fmt"
 	"io"
 	"math"
 	"os"
@@ -63,23 +61,6 @@ func checkEntities(t *testing.T, expected, got entity.Entities) bool {
 		}
 	}
 	return true
-}
-
-func hashBytes(b []byte) string {
-	return fmt.Sprintf("%x", sha1.Sum(b))
-}
-func hashFile(filename string) (string, error) {
-	tfile := filepath.Join("testdata", filename)
-	f, err := os.Open(tfile)
-	if err != nil {
-		return "", err
-	}
-	text, err := io.ReadAll(f)
-	f.Close()
-	if err != nil {
-		return "", err
-	}
-	return hashBytes(text), nil
 }
 
 func TestFromStringData(t *testing.T) {

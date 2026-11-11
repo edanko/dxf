@@ -4,7 +4,10 @@ import (
 	"math"
 )
 
-// TreeNode represents a node in the R-tree
+// TreeNode represents a node in the R-tree. Internal nodes (Leaf == false)
+// organize the tree and carry a bounding box covering their children; item
+// nodes (Leaf == true) hold a single indexed item in Data together with its
+// bounding box.
 type TreeNode struct {
 	// Bounding box
 	Box *BoundingBox
@@ -13,7 +16,7 @@ type TreeNode struct {
 	Children []*TreeNode
 	Parent   *TreeNode
 	Leaf     bool
-	Data     any  // For leaf nodes (could be entity reference)
+	Data     any  // Item for leaf nodes (could be entity reference)
 	Removed  bool // Flag for lazy removal
 }
 
@@ -29,7 +32,7 @@ func NewTreeNode(box *BoundingBox, leaf bool, data any) *TreeNode {
 	}
 }
 
-// IsLeaf returns true if this is a leaf node
+// IsLeaf returns true if this is an item node
 func (n *TreeNode) IsLeaf() bool {
 	return n.Leaf
 }
@@ -61,7 +64,9 @@ func (n *TreeNode) RemoveChild(child *TreeNode) bool {
 	return false
 }
 
-// RTree represents an R-tree for spatial indexing
+// RTree represents an R-tree for spatial indexing. Item nodes are held
+// under internal nodes; an internal node's bounding box always covers the
+// boxes of its children.
 type RTree struct {
 	Root      *TreeNode
 	MaxItems  int
@@ -102,33 +107,28 @@ func NewRTree(options *RTreeOptions) *RTree {
 // Insert adds an item to the R-tree
 func (rt *RTree) Insert(box *BoundingBox, data any) {
 	if rt.Root == nil {
-		rt.Root = NewTreeNode(box, true, data)
-		rt.itemCount++
-		return
+		// The root is an internal node that holds item nodes as children,
+		// so queries and removals treat every item the same way.
+		rt.Root = NewTreeNode(box, false, nil)
 	}
 
 	rt.insertRecursive(rt.Root, box, data)
 	rt.itemCount++
 }
 
+// insertRecursive adds an item node under the given internal node,
+// descending into containing internal children when possible.
 func (rt *RTree) insertRecursive(node *TreeNode, box *BoundingBox, data any) {
-	if node.IsLeaf() {
-		newNode := NewTreeNode(box, true, data)
-		newNode.Parent = node
-		node.AddChild(newNode)
-		node.Box = node.Box.Extend(box)
-	} else {
-		for _, child := range node.Children {
-			if child.Box.ContainsBox(box) {
-				rt.insertRecursive(child, box, data)
-				child.Box = child.Box.Extend(box)
-				return
-			}
+	for _, child := range node.Children {
+		if !child.Leaf && child.Box.ContainsBox(box) {
+			rt.insertRecursive(child, box, data)
+			return
 		}
-		newNode := NewTreeNode(box, true, data)
-		newNode.Parent = node
-		node.AddChild(newNode)
 	}
+	newNode := NewTreeNode(box, true, data)
+	newNode.Parent = node
+	node.AddChild(newNode)
+	node.Box = node.Box.Extend(box)
 }
 
 // Remove removes an item from the R-tree by data and box
@@ -156,35 +156,30 @@ func (rt *RTree) removeRecursive(node *TreeNode, box *BoundingBox, data any) boo
 		return false
 	}
 
-	if node.IsLeaf() {
-		// Search through children for matching item
-		for i, child := range node.Children {
-			if !child.Removed && child.Data == data && child.Box.ContainsBox(box) {
-				child.Removed = true
-				node.Children = append(node.Children[:i], node.Children[i+1:]...)
-
-				// Update parent's bounding box
-				rt.updateBoundingBoxes(node)
-
-				return true
+	if node.Leaf {
+		if !node.Removed && node.Data == data && (box == nil || node.Box.ContainsBox(box)) {
+			node.Removed = true
+			if node.Parent != nil {
+				node.Parent.RemoveChild(node)
+				rt.updateBoundingBoxes(node.Parent)
 			}
+			return true
 		}
-	} else {
-		// Search in children
-		for _, child := range node.Children {
-			if child.Box.Intersects(box) {
-				if rt.removeRecursive(child, box, data) {
-					// Update bounding boxes after removal
-					rt.updateBoundingBoxes(node)
-					return true
-				}
+		return false
+	}
+
+	for _, child := range node.Children {
+		if box == nil || child.Box.Intersects(box) {
+			if rt.removeRecursive(child, box, data) {
+				return true
 			}
 		}
 	}
 	return false
 }
 
-// updateBoundingBoxes recalculates bounding boxes from children
+// updateBoundingBoxes recalculates bounding boxes from children and
+// propagates the change up to the root.
 func (rt *RTree) updateBoundingBoxes(node *TreeNode) {
 	if node == nil || len(node.Children) == 0 {
 		return
@@ -220,6 +215,7 @@ func (rt *RTree) cleanup() {
 	// Clear the tree
 	rt.Root = nil
 	rt.removed = 0
+	rt.itemCount = 0
 
 	// Rebuild with remaining items
 	for _, item := range items {
@@ -236,19 +232,18 @@ func (rt *RTree) collectItems(node *TreeNode, items *[]struct {
 		return
 	}
 
-	if node.IsLeaf() {
-		for _, child := range node.Children {
-			if !child.Removed {
-				*items = append(*items, struct {
-					box  *BoundingBox
-					data any
-				}{child.Box, child.Data})
-			}
+	if node.Leaf {
+		if !node.Removed && node.Data != nil {
+			*items = append(*items, struct {
+				box  *BoundingBox
+				data any
+			}{node.Box, node.Data})
 		}
-	} else {
-		for _, child := range node.Children {
-			rt.collectItems(child, items)
-		}
+		return
+	}
+
+	for _, child := range node.Children {
+		rt.collectItems(child, items)
 	}
 }
 
@@ -275,21 +270,21 @@ func (rt *RTree) removeByDataRecursive(node *TreeNode, data any) bool {
 		return false
 	}
 
-	if node.IsLeaf() {
-		for i, child := range node.Children {
-			if !child.Removed && child.Data == data {
-				child.Removed = true
-				node.Children = append(node.Children[:i], node.Children[i+1:]...)
-				rt.updateBoundingBoxes(node)
-				return true
+	if node.Leaf {
+		if !node.Removed && node.Data == data {
+			node.Removed = true
+			if node.Parent != nil {
+				node.Parent.RemoveChild(node)
+				rt.updateBoundingBoxes(node.Parent)
 			}
+			return true
 		}
-	} else {
-		for _, child := range node.Children {
-			if rt.removeByDataRecursive(child, data) {
-				rt.updateBoundingBoxes(node)
-				return true
-			}
+		return false
+	}
+
+	for _, child := range node.Children {
+		if rt.removeByDataRecursive(child, data) {
+			return true
 		}
 	}
 	return false
@@ -319,26 +314,27 @@ func (rt *RTree) Query(box *BoundingBox) []any {
 
 // queryRecursive performs recursive R-tree query
 func (rt *RTree) queryRecursive(node *TreeNode, box *BoundingBox, results *[]any) {
-	if node == nil {
+	if node == nil || node.Removed {
 		return
 	}
 
-	if node.Box.Intersects(box) {
-		if node.IsLeaf() {
-			for _, child := range node.Children {
-				if !child.Removed {
-					*results = append(*results, child.Data)
-				}
-			}
-		} else {
-			for _, child := range node.Children {
-				rt.queryRecursive(child, box, results)
-			}
+	if node.Leaf {
+		// Item node: return the item when its box intersects the query.
+		if node.Data != nil && node.Box.Intersects(box) {
+			*results = append(*results, node.Data)
 		}
+		return
+	}
+
+	if node.Box != nil && !node.Box.Intersects(box) {
+		return
+	}
+	for _, child := range node.Children {
+		rt.queryRecursive(child, box, results)
 	}
 }
 
-// queryRange finds all items within the given range
+// QueryRange finds all items within the given range
 func (rt *RTree) QueryRange(minX, minY, maxX, maxY float64) []any {
 	var results []any
 	searchBox := NewBoundingBox(minX, minY, maxX, maxY)
@@ -346,7 +342,8 @@ func (rt *RTree) QueryRange(minX, minY, maxX, maxY float64) []any {
 	return results
 }
 
-// queryNearest finds the nearest item to the given point
+// QueryNearest finds the nearest item to the given point, using the
+// distance from the point to each item's bounding box.
 func (rt *RTree) QueryNearest(x, y float64) (any, float64) {
 	var nearest any
 	minDist := math.Inf(1)
@@ -357,102 +354,27 @@ func (rt *RTree) QueryNearest(x, y float64) (any, float64) {
 
 // queryNearestRecursive performs recursive nearest neighbor search
 func (rt *RTree) queryNearestRecursive(node *TreeNode, x, y float64, nearest *any, minDist *float64) {
-	if node == nil {
+	if node == nil || node.Removed {
 		return
 	}
 
-	if node.IsLeaf() {
-		for _, child := range node.Children {
-			if child.Removed {
-				continue
-			}
-			if child.Box != nil {
-				centerX, centerY := child.Box.Center()
-				dist := math.Sqrt((x-centerX)*(x-centerX) + (y-centerY)*(y-centerY))
-				if dist < *minDist {
-					*nearest = child.Data
-					*minDist = dist
-				}
+	if node.Leaf {
+		if node.Data != nil && node.Box != nil {
+			dist := node.Box.DistanceToPoint(x, y)
+			if dist < *minDist {
+				*nearest = node.Data
+				*minDist = dist
 			}
 		}
-	} else {
-		for _, child := range node.Children {
-			rt.queryNearestRecursive(child, x, y, nearest, minDist)
-		}
+		return
 	}
-}
 
-// splitLeafNode splits a leaf node when it becomes full
-func (rt *RTree) splitLeafNode(node *TreeNode, box *BoundingBox, data any) (*TreeNode, *TreeNode) {
-	// Create bounding box for all existing items
-	allBounds := make([]*BoundingBox, 0, len(node.Children))
+	// Prune subtrees whose bounds are farther than the best match so far.
+	if node.Box != nil && node.Box.DistanceToPoint(x, y) > *minDist {
+		return
+	}
 	for _, child := range node.Children {
-		allBounds = append(allBounds, child.Box)
-	}
-	allBounds = append(allBounds, node.Box)
-
-	// Find best split axis
-	bestAxis, bestSplit := rt.findBestSplit(allBounds)
-
-	var leftNode, rightNode *TreeNode
-
-	// Create left and right nodes
-	if bestAxis == 0 {
-		// Split along X axis
-		leftBox := NewBoundingBox(node.Box.MinX, node.Box.MinY, bestSplit, node.Box.MaxY)
-		rightBox := NewBoundingBox(bestSplit, node.Box.MinY, node.Box.MaxX, node.Box.MaxY)
-
-		leftNode = NewTreeNode(leftBox, false, nil)
-		rightNode = NewTreeNode(rightBox, false, nil)
-	} else {
-		// Split along Y axis
-		leftBox := NewBoundingBox(node.Box.MinX, node.Box.MinY, node.Box.MaxX, bestSplit)
-		rightBox := NewBoundingBox(node.Box.MinX, bestSplit, node.Box.MaxX, node.Box.MaxY)
-
-		leftNode = NewTreeNode(leftBox, false, nil)
-		rightNode = NewTreeNode(rightBox, false, nil)
-	}
-
-	// Replace node with new children
-	node.Children = nil // Clear existing children
-	node.AddChild(leftNode)
-	if rightNode != nil {
-		node.AddChild(rightNode)
-	}
-
-	// Add new items
-	node.AddChild(NewTreeNode(box, true, data))
-
-	return leftNode, rightNode
-}
-
-// findBestSplit finds the best axis and position to split bounding boxes
-func (rt *RTree) findBestSplit(boxes []*BoundingBox) (int, float64) {
-	if len(boxes) == 0 {
-		return 0, 0
-	}
-
-	// Calculate overall bounds
-	minX, minY := boxes[0].MinX, boxes[0].MinY
-	maxX, maxY := boxes[0].MaxX, boxes[0].MaxY
-
-	for _, box := range boxes[1:] {
-		minX = math.Min(minX, box.MinX)
-		minY = math.Min(minY, box.MinY)
-		maxX = math.Max(maxX, box.MaxX)
-		maxY = math.Max(maxY, box.MaxY)
-	}
-
-	// Choose split axis with largest range
-	xRange := maxX - minX
-	yRange := maxY - minY
-
-	if xRange > yRange {
-		// Split on X axis
-		return 0, (minX + maxX) / 2
-	} else {
-		// Split on Y axis
-		return 1, (minY + maxY) / 2
+		rt.queryNearestRecursive(child, x, y, nearest, minDist)
 	}
 }
 
@@ -481,7 +403,7 @@ func (rt *RTree) calculateDepth(node *TreeNode) int {
 		return 0
 	}
 
-	if node.IsLeaf() {
+	if node.Leaf {
 		return 1
 	}
 
@@ -500,6 +422,7 @@ func (rt *RTree) calculateDepth(node *TreeNode) int {
 func (rt *RTree) Clear() {
 	rt.Root = nil
 	rt.itemCount = 0
+	rt.removed = 0
 }
 
 // BulkInsert adds multiple items to the R-tree
@@ -514,8 +437,8 @@ func (rt *RTree) BulkInsert(items []*BoundingBox, dataList []any) {
 // BulkQuery performs multiple range queries
 func (rt *RTree) BulkQuery(boxes []*BoundingBox) [][]any {
 	results := make([][]any, 0, len(boxes))
-	for i, box := range boxes {
-		results[i] = rt.Query(box)
+	for _, box := range boxes {
+		results = append(results, rt.Query(box))
 	}
 	return results
 }

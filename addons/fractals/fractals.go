@@ -392,7 +392,7 @@ func (p *SierpinskiPyramid) AddPyramidsTo(d *drawing.Drawing) error {
 
 func intPow(base, exponent int) int {
 	result := 1
-	for i := 0; i < exponent; i++ {
+	for range exponent {
 		result *= base
 	}
 	return result

@@ -151,7 +151,7 @@ func OctaveNoise2D(seed int64, octaves int, persistence float64) func(x, y float
 	p := NewPerlin(seed)
 	return func(x, y float64) float64 {
 		total, frequency, amplitude, norm := 0.0, 1.0, 1.0, 0.0
-		for i := 0; i < octaves; i++ {
+		for range octaves {
 			total += p.Noise2D(x*frequency, y*frequency) * amplitude
 			norm += amplitude
 			amplitude *= persistence
@@ -169,7 +169,7 @@ func OctaveNoise3D(seed int64, octaves int, persistence float64) func(x, y, z fl
 	p := NewPerlin(seed)
 	return func(x, y, z float64) float64 {
 		total, frequency, amplitude, norm := 0.0, 1.0, 1.0, 0.0
-		for i := 0; i < octaves; i++ {
+		for range octaves {
 			total += p.Noise3D(x*frequency, y*frequency, z*frequency) * amplitude
 			norm += amplitude
 			amplitude *= persistence

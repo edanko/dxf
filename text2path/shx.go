@@ -119,7 +119,7 @@ func parseSHXShapes(data []byte) (*SHXFont, error) {
 		number int
 		length int
 	}, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		index = append(index, struct {
 			number int
 			length int

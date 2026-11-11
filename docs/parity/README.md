@@ -91,8 +91,8 @@ openspec instructions <artifact> --change "<name>" --json
 | `text2path` | `addons/text2path.py` | `DONE` — TTF glyph outlines (`addons/text2path`) plus built-in vector fallback |
 | `query` | entity query and parser | expression language, selections, grouping, transforms, explode, traversal |
 | `audit` | auditor, recovery, block cycles | `DONE` — audit/fix/recover/r12strict, deterministic duplicate-handle repair, and block-cycle repair (`audit/duplicate_handle_fix.go`, `audit/block_cycle_check.go`) |
-| `spatial` | R-tree and entity spatial index | usable |
-| `layouts` | model/paper layouts and viewports | create/rename/delete/activate; block purge absent |
+| `spatial` | R-tree and entity spatial index | usable — R-tree queries/removal verified, `EntitySpatialIndex` box-backed |
+| `layouts` | model/paper layouts and viewports | create/rename/delete/activate; block purge via `PurgeUnusedBlocksReport` |
 | `xref` | xref manager and loader | `DONE` — attach/detach/bind/reload, relative paths + search paths, nested loading with cycle detection, BLOCK_RECORD xref flags (`xref_parity_e2e_test.go`) |
 | `factory` | entity factory/registry | usable |
 | `csg` | mesh boolean CSG | `DONE` — triangle-level booleans, primitives, volume (`csg/boolean_test.go`) |
@@ -134,6 +134,7 @@ must be verified before implementation starts.
 | Binary DXF read/write | `lldxf/tagger.py`, `tagwriter.py` | `DONE` — binary writer emits all sections + EOF with per-code int16/int32/int64/float/raw sizing; ASCII/binary tag streams are value-identical (`TestBinaryASCIIEquivalence`) |
 | Encoding/codepage handling | `lldxf/encoding.py`, `tools/codepage.py` | `DONE` — codepage-aware decode on load (ANSI_1252 etc.), UTF-8 for R2007+, codepage output for older targets (`TestCodepageDecoding`, `TestUTF8AndCodepageOutput`) |
 | File management (temp/backup/zip) | `filemanagement.py`, `tools/zipmanager.py` | `DONE` — atomic write + optional backup (`filemanagement`); ZIP manager creates/reads/extracts archives with entry validation, traversal/symlink rejection, and atomic output (`TestZipRoundTripPreservesEntries`, `TestExtractZipRejectsTraversal`; `filemanagement/zip.go`) |
+| JSON document serialization | `document.py` equivalent (not in ezdxf) | `DONE` — `Drawing.ToJSON` emits a versioned envelope (`JSONEnvelopeVersion`) with metadata and an embedded ASCII DXF payload; `Drawing.FromJSON` validates version and payload, loads through the registered document loader, and replaces the receiver only on success; missing payload/unknown version/name the failing field and leave the receiver unchanged, unrepresentable target versions fail `ToJSON` (`TestJSONEnvelopeRoundTrip`, `dxf_json_test.go`) |
 
 ### 2. Entities
 
@@ -167,6 +168,24 @@ matrix-composition tests; `BBox` including INSERT block content
 (`TestInsertBBoxContent`); `Explode` for INSERT, POLYLINE, HATCH (boundary
 polylines), DIMENSION, LEADER, MLEADER (`explode_roundtrip_test.go`).
 
+Entity geometry conversions and transforms now match their documented
+algorithms: `Ellipse.ToBezier` decomposes an ellipse or ellipse arc into
+cubic Bézier segments with the standard arc-to-cubic conversion (four
+quarter-arc segments for a full ellipse; degenerate axes and embedded
+splines are rejected with named errors, `TestEllipseToBezierMatchesEllipse`);
+`Solid3d.Transform` moves the center, bounding box corners, and extrusion
+direction, composes the ACIS placement (`Solid3d.Placement`) and re-derives
+its inverse while the SAT/SAB payload stays in local coordinates, rejecting
+singular matrices (`TestSolid3dTransformGeometryAndPayload`);
+`MPolygonEntity.Transform` transforms boundary vertices with bulge edges
+preserved (reflection negates the sweep, non-uniform scale is rejected,
+`TestMPolygonEdgeTypesSurviveCopyTransformFormat`); boundary-path arcs are
+single bulge edges whose center/radius/angles derive from `math.Bulge`
+(`MPolygonBoundaryPath.ArcInfo`, `TestBoundaryPathAddArcBulgeEdge`); and
+`Sun.CalculatePosition` implements the NOAA General Solar Position
+Calculations with named-field errors for invalid dates
+(`entity.CalculateSolarPosition`, `TestCalculateSolarPositionKnownDate`).
+
 ACIS payloads: text SAT payloads on 3DSOLID/REGION/BODY are retained and
 round-trip verbatim (`acis_roundtrip_test.go`); the loader reports SAT format,
 ACIS version, record count, body count, and history/end markers
@@ -198,7 +217,7 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | GROUP | `entities/dxfgroups.py` | `PARTIAL` — typed round trip (`TestGroup*`) |
 | LAYOUT, PLOTSETTINGS | `entities/layout.py`, `dxfobjects/plotsettings.py` | `PARTIAL` — typed name/block record/flags, retained round trip; typed when loaded from ENTITIES (`TestLayoutObjectInEntitiesTyped`) |
 | MLINESTYLE, MLEADERSTYLE, TABLESTYLE | `entities/mlinestyle.py`, `mleader.py`, `table.py` | `PARTIAL` — typed name/description/flags, retained round trip; MLEADERSTYLECOLLECTION/MLINESTYLECOLLECTION typed (`TestStandardObjectTypedModels`) |
-| MATERIAL, VISUALSTYLE, SUN, LIGHT, GEODATA | `entities/material.py`, `visualstyle.py`, `sun.py`, `light.py`, `geodata.py` | `PARTIAL` — typed name/description/flags, retained round trip |
+| MATERIAL, VISUALSTYLE, SUN, LIGHT, GEODATA | `entities/material.py`, `visualstyle.py`, `sun.py`, `light.py`, `geodata.py` | `PARTIAL` — typed name/description/flags, retained round trip; SUN carries a NOAA solar position calculation with validated calendar dates (`entity.CalculateSolarPosition`, `TestCalculateSolarPositionKnownDate`) |
 | SPATIAL_FILTER, IDBUFFER, RASTERVARIABLES, WIPEOUTVARIABLES | `entities/spatial_filter.py`, `idbuffer.py` | `PARTIAL` — typed models, retained round trip; RASTERVARIABLES constructor (`object.NewRasterVariables`) |
 | SORTENTSTABLE, FIELDLIST, IMAGEDEF, IMAGEDEF_REACTOR, UNDERLAYDEFINITION, PDF/DWF/DGN DEFINITION | `entities/sortentstable.py`, `field.py`, `image.py`, `underlay.py` | `DONE` — typed sort order, entity handles, filename/size plus constructors and the Page accessor (`object.NewImageDef`, `object.NewUnderlayDef`, `TestImageDefPathAndSize`, `TestSortEntsTableOrder`, `TestUnderlayEntityRoundTrip`) |
 | ACAD_PROXY_ENTITY, ACAD_XREC_ROUNDTRIP | `entities/acad_proxy_entity.py` | `DONE` — embedded entity records extract through `entity.ExtractProxyGraphics`; `entity.DecodeProxyPrimitives` decodes circle/arc/polyline/text/colour/transform opcodes, applies the matrix stack, and reports unknown opcodes with their byte offset while keeping earlier primitives (`TestDecodeProxyPrimitives`) |
@@ -215,10 +234,10 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | `layout.add_*` factory methods for every entity | `graphicsfactory.py` | `DONE` — typed `Add<Type>` methods on every space for all supported entity types plus `AddGeneric` by DXF type (`TestFacadeAddEntityTypes`) |
 | `dxfattribs` handling | `gfxattribs.py` | `DONE` — functional entity options (`WithLayer`, `WithColor`, `WithLinetype`, `WithLineweight`, `WithInvisible`, `WithLTScale`, `WithOwner`, `WithAttribs`) applied at add time, layers auto-created (`TestFacadeEntityOptions`) |
 | Entity linking (INSERT/ATTRIB/SEQEND, POLYLINE/VERTEX) | `entitydb.py`, `entities/subentity.py` | `DONE` — loader links ATTRIB/SEQEND to INSERT, `GetAttribute` access, options attach attribs at insert time (`TestFacadeInsertAttribsReload`, `TestFacadeInsertAttribsExplode`) |
-| Entity copy/transform/explode | `entities/copy.py`, `transform.py`, `explode.py` | `DONE` — `Copy()` deep clones (basis of transactions), per-entity matrix `Transform`, `Insert.Explode` (`TestFacadeInsertAttribsExplode`, `TestFacadeTransactions`) |
-| Blocks: create, insert, explode, purge, rename | `blkrefs.py`, `entities/block.py` | `PARTIAL` — create/insert/explode and layout rename (block+BLOCK_RECORD); purge `ABSENT` (`TestFacadeBlockRoundTrip`) |
+| Entity copy/transform/explode | `entities/copy.py`, `transform.py`, `explode.py` | `DONE` — `Copy()` deep clones (basis of transactions), per-entity matrix `Transform`, `Insert.Explode` (`TestFacadeInsertAttribsExplode`, `TestFacadeTransactions`); MPolygon copy isolates embedded state, boundary paths, pattern (incl. dash items), gradient, and seeds (`TestCopyIsolation`) |
+| Blocks: create, insert, explode, purge, rename | `blkrefs.py`, `entities/block.py` | `DONE` — create/insert/explode and layout rename (block+BLOCK_RECORD); purge via recursive INSERT reachability from model and paper layouts (`PurgeUnusedBlocksReport` names removed blocks with reasons, keeps standard/layout-owned/xref blocks, resolves block names through `entity.Insert.BlockName`; `TestPurgeUnusedBlocksReport`, `TestPurgeUnusedBlocksUsedFromPaperLayoutOnly`) |
 | Header variable API | `document.py` | `PARTIAL` — `d.Header()` accessor with typed `Variable(name)`, `RecalcExtents` writes EXTMIN/EXTMAX (`TestFacadeSelectionAndExtents`) |
-| Query/select API | `query.py`, `select.py` | `DONE` — `SelectByType`/`SelectByLayer`/`SelectInExtents` over model space, `Extents`/`LayoutExtents` (`TestFacadeSelectionAndExtents`) |
+| Query/select API | `query.py`, `select.py` | `DONE` — `SelectByType`/`SelectByLayer`/`SelectInExtents` over model space, `Extents`/`LayoutExtents` (`TestFacadeSelectionAndExtents`); polygon selection honors real entity bounding-box geometry against the polygon area and boundary (`GetEntitiesInPolygon`; `TestGetEntitiesInPolygonUsesRealGeometry`) |
 | Transaction/undo model | `entitydb.py` | `DONE` — `BeginTransaction`/`Commit`/`Rollback` with snapshot restore of entities and layout ownership (`TestFacadeTransactions`) |
 
 ### 5. Math and geometry
@@ -236,7 +255,7 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | Triangulation (earcut, Delaunay) | `math/_mapbox_earcut.py`, `triangulation.py` | `DONE` — ear-clip with holes, deterministic hole-bridge candidate search, post-triangulation area verification, Delaunay, degenerate-input handling, diagnostics (`TestTriangulatePolygonWithHole`, `TestTriangulateCenteredHoleNoExteriorBay`, `TestTriangulateDisjointHolesAreaParity`, `TestTriangulateDegenerateInput`) |
 | Clipping (polygon, line, portal) | `math/clipping.py`, `tools/clipping_portal.py` | `DONE` — polygon clipping to rect/convex windows; portal clipping for line segments and quadratic/cubic Bezier curves returning visible sub-segments (`TestClipPolygonToRect`, `TestClipPolygonToConvex`, `TestClipSegmentOutsideToInside`, `TestClipQuadraticToPortal`, `TestClipCubicToPortal`) |
 | Shape/construct2d/3d | `math/shape.py`, `construct2d.py`, `construct3d.py` | `DONE` — construct2d/construct3d helpers incl. 3-point circles, line intersections, point-line distances (`TestConstruct2DCircleFrom3Points`, `TestConstruct3DLineLineIntersection`, `TestConstruct3DTriangleArea`); `Shape` container stores an outer boundary and holes, preserves orientation, computes area/containment/centroid/bbox, and normalizes winding (`TestShapeAreaWithHole`, `TestShapeContainment`, `TestShapeNormalizedOrientation`) |
-| R-tree | `math/rtree.py` | `DONE`-ish (`spatial`) |
+| R-tree | `math/rtree.py` | `DONE` — `spatial.RTree` with item/internal node semantics, box-distance nearest queries with subtree pruning, working remove + lazy compaction (`TestRTreeRemove`, `TestRTreeQueryRangeV2`); `EntitySpatialIndex` inserts entity bounding boxes and reports remove/reinsert correctly (`TestEntitySpatialIndexRangeExcludesDistant`, `TestEntitySpatialIndexNearestUsesBoxDistance`); boolean meshes: `csg.PerformBooleanChecked` (union/intersection/difference/XOR on closed meshes, input validation for open/non-manifold/invalid meshes, empty-result errors) on a BSP-based engine (`csg.PerformBooleanChecked` tests); `math.PerformBoolean` deprecated |
 | Perlin noise, clustering, parametrization | `math/perlin.py`, `clustering.py`, `parametrize.py` | `DONE` — seeded deterministic Perlin 2D/3D with octave variants (`TestPerlinDeterministic2D`, `TestPerlinRange2D`), point clustering with membership and centroids (`TestClusterPointsTwoGroups`, `TestClusterMembershipPartition`), arc-length parametrization (`TestParameterizeMonotonic`) |
 | Intersections, curve tools, legacy math | `math/curvetools.py`, `legacy.py` | `DONE` — typed line/segment/Bezier/ray-plane results with parallel, coincident, and tangent handling (`TestIntersectSegmentSegment2D`, `TestIntersectLineBezier2D`, `TestIntersectBezierBezier2D`, `TestIntersectRayPlane`, `TestIntersectLineLine3D`) |
 
@@ -266,6 +285,7 @@ Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB f
 |---|---|---|
 | Audit protocol and fixers | `audit.py` | `DONE` — pluggable check registry (handles, owners, tables, references, xdata, reactors, extension dictionaries, extents, entity invariant hooks), safe fixers with re-audit, bounded report with severity counts and JSON (`TestRegistryCodes`, `TestCleanDocumentZeroErrors`, `TestReferenceIntegrity`, `TestTableIntegrity`, `audit/parity_test.go`) |
 | Recover damaged files | `recover.py` | `DONE` — `RecoverFile`/`RecoverReader` merge loader recovery (truncated sections, skipped malformed records) with a full audit pass; report attached to the document (`TestRecoverTruncatedFile`, `TestRecoverMalformedEntity`, `audit/recover.go`) |
+| File audit | `audit.py` | `DONE` — `ComprehensiveAuditor.AuditFile`/`AuditFileComprehensive` load the file through the normal DXF loader and audit its real entities, tables, blocks, and objects; missing/unreadable files and malformed strict loads return the load error identifying the path (`TestAuditFileComprehensiveLoadsRealFile`, `audit/auditor_comprehensive_test.go`) |
 | R12 strict checker | `r12strict.py` | `DONE` — strict R12 audit flags OBJECTS/CLASSES sections and opaque object sections against the version profile (`TestStrictR12RejectsObjects`); the sanitizing mode is `drawing/r12strict.go` |
 | Tag/validator checks | `lldxf/validator.py`, `lldxf/repair.py` | `DONE` — pre-bind validation reports section terminators, required handles, numeric ranges, and duplicate handles with code/value/handle; recover mode inserts missing ENDBLK/ENDSEC and assigns fresh handles, then re-validates (`TestTagValidationReportsCodeValueHandle`, `TestRepairInsertsMissingBlockTerminator`) |
 | Orphan/cycle repair | `audit.py` | `DONE` — missing/dangling owners and missing table entries fixed; duplicate handles repaired deterministically with references left untouched when ambiguous; INSERT cycles broken by removing the closing edge while retaining block definitions (`TestDuplicateHandleNamesBothObjects`, `TestBlockCycleRepair`) |
@@ -440,8 +460,19 @@ on complete data; add-ons and CLI depend on everything.
 
 ## Known WIP and hazards
 
-- `drawing.FromJSON` is a no-op.
-- No known math gaps remain from changes 5 and 15.
+- JSON serialization: `Drawing.ToJSON`/`FromJSON` round-trip through the
+  versioned envelope with an embedded ASCII DXF payload; unsupported envelope
+  versions and missing payloads are rejected with the field named.
+- API change from `stub-cleanup-parity`: `Solid3d.Transform` is now the
+  matrix-transform method (matching the entity `Transform` interface); the
+  ACIS placement field is renamed to `Solid3d.Placement`. `Ellipse.ToBezier`
+  returns a `[]*Bezier` decomposition with an error instead of a single
+  quarter-arc cubic. `BoundaryVertex.GetArcInfo` takes the edge end point;
+  `math.PerformBoolean` is deprecated in favor of `csg.PerformBooleanChecked`.
+- No known math gaps remain from changes 5 and 15. Boolean meshes now run
+  through `csg.PerformBooleanChecked` (BSP engine with input validation);
+  `math.PerformBoolean` is deprecated. The legacy point-based
+  `spatial.SpatialIndex` was removed; use `spatial.EntitySpatialIndex`.
 - Rendering gaps closed by change 16: DIMENSION block content with measured
   text, mesh/polyface face rendering, all arrow heads, CTB/STB plot-style
   overrides, SHX loading/metrics, and ISO hatch patterns.
@@ -493,5 +524,6 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-11 | change 16 `render-plot-font-parity` | done | DIMENSION entities render referenced dimension blocks fully with measured text fallback; MESH and POLYFACE/POLYMESH faces emit closed filled or wireframe paths; all arrow-head styles (closed/open, arch tick, oblique, box, diamond, circle, dot) implemented; shared STB/binary CTB plot-style model with color, true color, lineweight and screening overrides applied during scene building; SHX shape/unifont loader with glyph metrics and TTF advance/ascent/descent metrics API; ISO `ACAD_ISO02W100`–`ACAD_ISO15W100` hatch patterns with lookup and render expansion. Tests: `render/entities_parity_test.go`, `render/render_test.go`, `addons/acadctb/binary_test.go`, `addons/acadctb/stb_test.go`, `text2path/shx_test.go`, `text2path/metrics_test.go`, `patterns/patterns_test.go`. |
 | 2026-11-11 | change `core-fidelity-parity` | done | Ordered per-record retention for entities/tables/blocks/objects; positioned comments; per-type entity/table/object conformance matrices and golden round trips; deep-copy isolation for base tags/XDATA, ACIS bodies/regions, and MPolygon state; decoded proxy bounding boxes and empty-selection bounds; pre-bind tag validation and recover repair (terminators, handles, ranges); deterministic duplicate-handle and block-cycle repair. Remaining limitation: ambiguous references to a repaired duplicate handle are left unresolved and reported. Tests: `retention_comments_test.go`, `conformance_test.go`, `table_object_conformance_test.go`, `entity/copy_isolation_test.go`, `entity/proxy_bbox_test.go`, `query/empty_bounds_test.go`, `tag_validation_test.go`, `audit/block_cycle_fix_test.go`. |
 | 2026-11-11 | change `tooling-completeness-parity` | done | `query.MakePrimitive`/`RecursiveDecompose` with path, mesh and diagnostic conversions; dynamic-block resolution; `entity.UserRecord`/`BinaryRecord`; proxy graphics primitive opcodes; measured TEXT/MTEXT `Size`/`MTextSize` and anchor layout; PAT parser/registry/scaling/measurement conversion and clipped hatch expansion; immutable `edges` graph with loops/chains/entity boundaries; native DWG version/section metadata; Julian conversion; raw section loading; ACIS SAT mesh decoding and meshex geometry/loop export. Fuzz targets cover DWG metadata, PAT and proxy decoding; `testdata/tooling_fixture.dxf` exercises the combined scope. Tests: `query/primitive_test.go`, `drawing/dynamic_block_test.go`, `entity/user_record_test.go`, `entity/proxy_primitives_test.go`, `addons/text2path/size_test.go`, `patterns/pat_test.go`, `edges/edges_test.go`, `addons/dwg/metadata_test.go`, `math/julian_test.go`, `lldxf/raw_sections_test.go`, `entity/acis_mesh_test.go`, `addons/meshex/geometry_test.go`, `tooling_fixture_test.go`. |
+| 2026-11-11 | change `stub-cleanup-parity` | done | Replaced silent stubs with real behavior across five sections: (1) `Drawing.ToJSON`/`FromJSON` versioned envelope over an embedded ASCII DXF payload, SHA-256 `HashDrawing`, `Drawing.DeepCopy` via ASCII round trip, and the load path now advances the handle generator past loaded handles (`Drawing.ObserveLoadedHandles`) so new entities never collide. (2) boolean checks via `csg.PerformBooleanChecked` (BSP engine, input validation, `math.PerformBoolean` deprecated); `spatial.RTree` rewritten with item/internal node semantics; legacy point-based `SpatialIndex` removed; `EntitySpatialIndex` box-backed with reinsert-replace. (3) `PurgeUnusedBlocksReport` recursive INSERT reachability (keeps reserved/layout-owned/xref blocks); `GetEntitiesInPolygon` real bbox-vs-polygon; `Pattern.Clone` deep-copies dash items; pre-existing infinite loop in `PointInPolygon` fixed. (4) `Ellipse.ToBezier` returns `[]*Bezier` with `ErrDegenerateEllipse`; `Solid3d.Placement` rename + real `Solid3d.Transform` (singular-matrix reject); boundary-path bulge arcs (`ArcInfo`/`BoundaryVertex.GetArcInfo`); `MPolygonEntity.Transform` (reflection negates bulges, non-uniform scale rejected); real 72/73 edge flags on export; NOAA `CalculateSolarPosition` with validated dates. (5) Body/Solid3d `GetBoundingBox` placeholders removed; block-cycle audit wired to `findBlockCycles`; professional entity-DB snapshot counter via `handle.HandleGenerator.Value`/`ObserveValue`. Accepted limitation: BSP boolean results may contain T-junction edges (volume exact). Tests: `dxf_json_test.go`, `drawing_deepcopy_test.go`, `csg/boolean_test.go`, `spatial/*_test.go`, `drawing/purge_test.go`, `drawing/polygon_select_test.go`, `entity/ellipse_bezier_test.go`, `entity/solid3d_transform_test.go`, `entity/boundary_paths_arc_test.go`, `entity/mpolygon_transform_test.go`, `entity/sun_test.go`, `drawing_deepcopy_test.go`, `audit/block_cycle_check_test.go`, `handle/handle_test.go`. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

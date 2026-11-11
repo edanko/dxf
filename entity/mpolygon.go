@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/edanko/dxf/color"
@@ -372,3 +373,51 @@ func (m *MPolygonEntity) Clone() *MPolygonEntity {
 // Copy returns an independent copy of the MPOLYGON, including its boundary
 // paths, fill pattern, gradient, and seed points.
 func (m *MPolygonEntity) Copy() Entity { return m.Clone() }
+
+// Transform applies an affine matrix to the MPOLYGON defining geometry: all
+// boundary vertices, the elevation point, the extrusion direction, and the
+// pattern offset vector. Bulge edges keep their curve: translation, rotation
+// and uniform scaling preserve bulge values, while a reflection negates them
+// because the sweep direction mirrors. A non-uniform scale is rejected with
+// ErrNonUniformScale when the polygon carries bulge edges, since circular
+// arcs would become elliptical and the bulge form cannot represent them.
+func (m *MPolygonEntity) Transform(mat dxfmath.Matrix44) error {
+	if m == nil {
+		return fmt.Errorf("mpolygon transform: nil polygon")
+	}
+	det := mat.Determinant()
+	if math.Abs(det) < 1e-12 {
+		return fmt.Errorf("mpolygon transform: singular matrix (determinant %g)", det)
+	}
+	hasBulges := m.paths.hasAnyBulge()
+	if hasBulges && !IsUniformScale(mat, 1e-9) {
+		return fmt.Errorf("%w: mpolygon bulge edges do not survive non-uniform scale", ErrNonUniformScale)
+	}
+
+	reflect := det < 0
+	for i := 0; i < m.paths.PathCount(); i++ {
+		path := m.paths.GetPath(i)
+		for j := range path.Vertices {
+			v := mat.MulVec(dxfmath.NewVec3(path.Vertices[j].X, path.Vertices[j].Y, 0))
+			path.Vertices[j].X = v.X()
+			path.Vertices[j].Y = v.Y()
+			if reflect {
+				path.Vertices[j].Bulge = -path.Vertices[j].Bulge
+			}
+		}
+	}
+
+	m.dxf.Elevation = mat.MulVec(m.dxf.Elevation)
+
+	e := m.dxf.Extrusion
+	ev := transformLinear(mat, e)
+	if l := ev.Length(); l > 0 {
+		ev = ev.Mul(1 / l)
+	}
+	m.dxf.Extrusion = ev
+
+	o := m.dxf.OffsetVector
+	ov := transformLinear(mat, dxfmath.NewVec3(o.X(), o.Y(), 0))
+	m.dxf.OffsetVector = dxfmath.NewVec2(ov.X(), ov.Y())
+	return nil
+}

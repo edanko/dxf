@@ -346,7 +346,7 @@ func poly(a, b, c, d, t float64) float64 {
 
 func bisect(a, b, c, d, lo, hi float64) float64 {
 	flo := poly(a, b, c, d, lo)
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		mid := (lo + hi) / 2
 		fmid := poly(a, b, c, d, mid)
 		if flo*fmid <= 0 {

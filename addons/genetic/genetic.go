@@ -411,7 +411,7 @@ func (RandomSwapMutate) Mutate(rng *rand.Rand, dna DNA, rate float64) {
 	if length < 2 {
 		return
 	}
-	for i := 0; i < length; i++ {
+	for i := range length {
 		if rng.Float64() < rate {
 			j := rng.Intn(length)
 			if j == i {
@@ -696,10 +696,7 @@ func (s *TournamentSelection) Pick(rng *rand.Rand, count int) []DNA {
 	if len(s.pool) == 0 {
 		return nil
 	}
-	subset := s.Candidates
-	if subset < 1 {
-		subset = 1
-	}
+	subset := max(s.Candidates, 1)
 	out := make([]DNA, 0, count)
 	for len(out) < count {
 		best := s.pool[rng.Intn(len(s.pool))]

@@ -32,10 +32,7 @@ func (r *BinaryRecord) Compile() ([]XRecordTag, error) {
 	}
 	tags := []XRecordTag{{Code: 302, Value: binaryRecordOpen}, {Code: 1, Value: r.Name}}
 	for start := 0; start < len(r.Data); start += MaxBinaryRecordChunk {
-		end := start + MaxBinaryRecordChunk
-		if end > len(r.Data) {
-			end = len(r.Data)
-		}
+		end := min(start+MaxBinaryRecordChunk, len(r.Data))
 		tags = append(tags, XRecordTag{Code: 310, Value: strings.ToUpper(hex.EncodeToString(r.Data[start:end]))})
 	}
 	tags = append(tags, XRecordTag{Code: 302, Value: binaryRecordClose})

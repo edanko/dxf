@@ -209,7 +209,7 @@ func containsSubstring(s, substr string) bool {
 
 // BenchmarkErrorCreation benchmarks error creation performance
 func BenchmarkErrorCreation(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = NewError(ErrorUndefinedLayer, SeverityError, "ENTITY", "123", "Benchmark error")
 	}
 }
@@ -218,8 +218,8 @@ func BenchmarkErrorCreation(b *testing.B) {
 func BenchmarkErrorString(b *testing.B) {
 	err := NewError(ErrorUndefinedLayer, SeverityError, "ENTITY", "123", "Benchmark error")
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_ = err.String()
 	}
 }
@@ -656,9 +656,6 @@ func TestDrawingStatsExtended(t *testing.T) {
 		TotalEntities:   100,
 		EntityCounts:    make(map[string]int),
 		LayerCounts:     make(map[string]int),
-		InvalidEntities: 10,
-		TotalErrors:     20,
-		TotalWarnings:   5,
 	}
 
 	stats.EntityCounts["POINT"] = 50

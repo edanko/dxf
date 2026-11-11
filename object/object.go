@@ -59,18 +59,6 @@ func (b *BaseObject) SetExtDictHandle(h string) { b.xdict = h }
 // ExtDictHandle returns the extension dictionary handle.
 func (b *BaseObject) ExtDictHandle() string { return b.xdict }
 
-// formatReactors writes the {ACAD_REACTORS group from the parsed links.
-func (b *BaseObject) formatReactors(f format.Formatter) {
-	if len(b.reactors) == 0 {
-		return
-	}
-	f.WriteString(102, "{ACAD_REACTORS")
-	for _, r := range b.reactors {
-		f.WriteString(330, r)
-	}
-	f.WriteString(102, "}")
-}
-
 // RetainUnhandled records codes the typed model does not emit. emitted lists
 // the codes Format writes itself; 0/5 are always handled by the base.
 func (b *BaseObject) RetainUnhandled(tags lldxf.Tags, emitted map[int]bool) {

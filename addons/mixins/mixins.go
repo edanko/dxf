@@ -10,6 +10,7 @@ package mixins
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 
 	"github.com/edanko/dxf/addons"
@@ -31,9 +32,7 @@ func NewSubscriptAttributes() *SubscriptAttributes {
 // NewSubscriptAttributesFrom creates a mixin with a copy of initial.
 func NewSubscriptAttributesFrom(initial map[string]any) *SubscriptAttributes {
 	mixin := NewSubscriptAttributes()
-	for key, value := range initial {
-		mixin.values[key] = value
-	}
+	maps.Copy(mixin.values, initial)
 	return mixin
 }
 

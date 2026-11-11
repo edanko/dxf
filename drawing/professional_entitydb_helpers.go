@@ -251,7 +251,7 @@ func (db *ProfessionalEntityDB) CreateSnapshot() *DatabaseSnapshot {
 	return &DatabaseSnapshot{
 		Timestamp:     time.Now(),
 		Entities:      entities,
-		HandleCounter: 0, // TODO: Implement proper handle counter access
+		HandleCounter: db.handles.Value(),
 		Version:       db.version,
 	}
 }
@@ -282,7 +282,9 @@ func (db *ProfessionalEntityDB) restoreSnapshotInternal(snapshot *DatabaseSnapsh
 		}
 	}
 
-	// Restore handle counter (this needs proper implementation)
+	// Restore the handle counter so newly issued handles never collide with
+	// restored ones, and bump past any retained handle.
+	db.handles.ObserveValue(snapshot.HandleCounter)
 	db.version = snapshot.Version
 
 	// Rebuild indexes

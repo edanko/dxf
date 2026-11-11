@@ -26,6 +26,14 @@ func (bb *BoundingBox) Contains(x, y float64) bool {
 		y >= bb.MinY && y <= bb.MaxY
 }
 
+// DistanceToPoint returns the Euclidean distance from the point to the
+// closest point of the box (zero when the point is inside the box).
+func (bb *BoundingBox) DistanceToPoint(x, y float64) float64 {
+	dx := math.Max(math.Max(bb.MinX-x, 0), x-bb.MaxX)
+	dy := math.Max(math.Max(bb.MinY-y, 0), y-bb.MaxY)
+	return math.Hypot(dx, dy)
+}
+
 // Intersects returns true if two bounding boxes intersect
 func (bb *BoundingBox) Intersects(other *BoundingBox) bool {
 	return bb.MaxX >= other.MinX && bb.MinX <= other.MaxX &&

@@ -116,9 +116,8 @@ func (r *Recoverer) RecoverFile(data []byte) (*RecoveryResult, error) {
 	r.Logger.LogMessage("Starting DXF file recovery")
 
 	// Step 1: Detect encoding
-	encoding := "utf-8"
 	if r.Options.DetectEncoding {
-		encoding = r.detectEncoding(data)
+		encoding := r.detectEncoding(data)
 		result.Encoding = encoding
 		result.Actions = append(result.Actions, fmt.Sprintf("Detected encoding: %s", encoding))
 	}

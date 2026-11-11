@@ -127,7 +127,7 @@ func readLocatorMetadata(data []byte, md *Metadata) (*Metadata, error) {
 		return nil, fmt.Errorf("DWG: implausible section count %d", count)
 	}
 	offset := 0x19
-	for i := uint32(0); i < count; i++ {
+	for i := range count {
 		if offset+9 > len(data) {
 			md.Diagnostics = append(md.Diagnostics, Diagnostic{
 				Code:    "truncated-section-locator",

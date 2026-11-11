@@ -265,9 +265,9 @@ func (bb BoundingBox) Corners() []Vec2 {
 
 	return []Vec2{
 		bb.Min,
-		Vec2{bb.Max.X(), bb.Min.Y()},
+		{bb.Max.X(), bb.Min.Y()},
 		bb.Max,
-		Vec2{bb.Min.X(), bb.Max.Y()},
+		{bb.Min.X(), bb.Max.Y()},
 	}
 }
 

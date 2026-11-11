@@ -181,7 +181,7 @@ func (v *EntityValidator) validateArc(a *entity.Arc, result *ValidationResult) {
 }
 
 func (v *EntityValidator) validateLwPolyline(lp *entity.LwPolyline, result *ValidationResult) {
-	if lp.Vertices == nil || len(lp.Vertices) == 0 {
+	if len(lp.Vertices) == 0 {
 		result.AddWarning("LWPOLYLINE has no vertices")
 	}
 
@@ -199,7 +199,7 @@ func (v *EntityValidator) validateLwPolyline(lp *entity.LwPolyline, result *Vali
 }
 
 func (v *EntityValidator) validateSpline(s *entity.Spline, result *ValidationResult) {
-	if s.Controls == nil || len(s.Controls) == 0 {
+	if len(s.Controls) == 0 {
 		result.AddError("spline has no control points")
 	}
 

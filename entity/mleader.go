@@ -859,7 +859,7 @@ func (m *MLeader) String() string {
 
 	var enhancedInfo string
 	if m.EnhancedContext != nil {
-		enhancedInfo = fmt.Sprintf(", EnhancedContext")
+		enhancedInfo = ", EnhancedContext"
 	}
 	if m.MText != nil {
 		enhancedInfo += fmt.Sprintf(", MText(%s)", m.MText.Content[:min(10, len(m.MText.Content))])

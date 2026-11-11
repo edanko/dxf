@@ -409,7 +409,8 @@ func (fg *FormGenerator) Sphere(radius float64, segments int, rings int) [][]dxf
 		for seg := 0; seg < segments; seg++ {
 			nextSeg := (seg + 1) % segments
 
-			if ring == 0 {
+			switch ring {
+			case 0:
 				// Top triangle
 				face := []dxfmath.Vec3{
 					vertices[0][0],       // Top pole
@@ -417,7 +418,7 @@ func (fg *FormGenerator) Sphere(radius float64, segments int, rings int) [][]dxf
 					vertices[1][nextSeg], // Ring vertex+1
 				}
 				faces = append(faces, face)
-			} else if ring == rings-1 {
+			case rings - 1:
 				// Bottom triangle
 				face := []dxfmath.Vec3{
 					vertices[rings][0],      // Bottom pole
@@ -425,7 +426,7 @@ func (fg *FormGenerator) Sphere(radius float64, segments int, rings int) [][]dxf
 					vertices[ring][seg],     // Ring vertex
 				}
 				faces = append(faces, face)
-			} else {
+			default:
 				// Middle quad
 				face := []dxfmath.Vec3{
 					vertices[ring][seg],       // Ring vertex

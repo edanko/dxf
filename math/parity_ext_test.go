@@ -302,7 +302,7 @@ func TestDecomposeRoundTrip(t *testing.T) {
 		if math.Abs(col.Length()-1) > 1e-9 {
 			t.Errorf("rotation column %d not unit: %v", j, col)
 		}
-		for k := 0; k < j; k++ {
+		for k := range j {
 			colK := Vec3{dec.Rotation.Get(0, k), dec.Rotation.Get(1, k), dec.Rotation.Get(2, k)}
 			if math.Abs(col.Dot(colK)) > 1e-9 {
 				t.Errorf("rotation columns %d, %d not orthogonal", j, k)

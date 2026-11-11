@@ -166,9 +166,10 @@ func ownerOfRecord(tags lldxf.Tags) string {
 		code := int(tag.Code())
 		if code == 102 {
 			v := strings.ToUpper(strings.TrimSpace(tagString(tag)))
-			if v == "{ACAD_REACTORS" {
+			switch v {
+			case "{ACAD_REACTORS":
 				inReactor = true
-			} else if v == "}" {
+			case "}":
 				inReactor = false
 			}
 			continue
@@ -187,9 +188,10 @@ func extDictOfRecord(tags lldxf.Tags) string {
 		code := int(tag.Code())
 		if code == 102 {
 			v := strings.ToUpper(strings.TrimSpace(tagString(tag)))
-			if v == "{ACAD_XDICTIONARY" {
+			switch v {
+			case "{ACAD_XDICTIONARY":
 				inXDict = true
-			} else if v == "}" {
+			case "}":
 				inXDict = false
 			}
 			continue
@@ -624,20 +626,6 @@ func firstIntByCode(tags lldxf.Tags, code int) (int, bool) {
 	for _, tag := range tags {
 		if int(tag.Code()) == code {
 			return toInt(tagString(tag))
-		}
-	}
-	return 0, false
-}
-
-// secondIntByCode returns the value of the second tag with the given code.
-func secondIntByCode(tags lldxf.Tags, code int) (int, bool) {
-	seen := 0
-	for _, tag := range tags {
-		if int(tag.Code()) == code {
-			seen++
-			if seen == 2 {
-				return toInt(tagString(tag))
-			}
 		}
 	}
 	return 0, false

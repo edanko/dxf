@@ -249,8 +249,7 @@ func TestLineFormat(t *testing.T) {
 	l.End = []float64{4, 5, 6}
 	l.SetLayer(table.NewLayer("0", 0, nil))
 
-	var f format.Formatter
-	f = format.NewASCII()
+	f := format.NewASCII()
 
 	l.Format(f)
 
@@ -593,8 +592,7 @@ func TestEntityFormat(t *testing.T) {
 	e := NewEntity(LINE)
 	e.SetLayer(table.NewLayer("0", 0, nil))
 
-	var f format.Formatter
-	f = format.NewASCII()
+	f := format.NewASCII()
 
 	e.Format(f)
 

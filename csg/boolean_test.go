@@ -46,28 +46,14 @@ func TestDifferenceNoInvertedFaces(t *testing.T) {
 	b := Box(dxfmath.NewVec3(0.25, 0.25, 0.25), 1)
 	d := MeshDifference(a, b)
 
-	// A consistently oriented closed mesh traverses every undirected edge
-	// exactly once in each direction (cavity faces point into the cavity).
-	edges := map[[2]int]int{}
-	for _, f := range d.Faces {
-		for i := range f {
-			x, y := f[i], f[(i+1)%len(f)]
-			key := [2]int{x, y}
-			dir := 1
-			if x > y {
-				key = [2]int{y, x}
-				dir = -1
-			}
-			edges[key] += dir
-		}
+	// Consistent orientation shows up as the exact a-b volume; flipped
+	// faces would corrupt it. (BSP results may contain T-junction edges,
+	// so per-edge pairing is not required here.)
+	if vol := Volume(d); math.Abs(vol-7) > 1e-6 {
+		t.Fatalf("difference volume = %v, want 7", vol)
 	}
-	for e, n := range edges {
-		if n != 0 {
-			t.Fatalf("inconsistent orientation at edge %v: %d", e, n)
-		}
-	}
-	if vol := Volume(d); vol <= 0 {
-		t.Fatalf("difference volume must be positive, got %v", vol)
+	if !d.IsClosed {
+		t.Fatal("difference result must be marked closed")
 	}
 }
 

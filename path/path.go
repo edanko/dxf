@@ -274,7 +274,8 @@ func (p *Path) String() string {
 
 	var result strings.Builder
 	for _, cmd := range p.commands {
-		result.WriteString(cmd.String() + " ")
+		result.WriteString(cmd.String())
+		result.WriteString(" ")
 	}
 	return result.String()
 }
@@ -389,7 +390,7 @@ func (p *Path) Approximate(maxDistance float64, minSegments int) *Path {
 }
 
 // approximateQuadraticCurve approximates a quadratic Bézier curve with line segments
-func (p *Path) approximateQuadraticCurve(start, ctrl, end dxfmath.Vec2, maxDistance float64, minSegments int, result *Path) {
+func (p *Path) approximateQuadraticCurve(start, ctrl, end dxfmath.Vec2, _ float64, minSegments int, result *Path) {
 	// Simple implementation - subdivide into segments
 	segments := max(minSegments, 4)
 
@@ -401,7 +402,7 @@ func (p *Path) approximateQuadraticCurve(start, ctrl, end dxfmath.Vec2, maxDista
 }
 
 // approximateCubicCurve approximates a cubic Bézier curve with line segments
-func (p *Path) approximateCubicCurve(start, ctrl1, ctrl2, end dxfmath.Vec2, maxDistance float64, minSegments int, result *Path) {
+func (p *Path) approximateCubicCurve(start, ctrl1, ctrl2, end dxfmath.Vec2, _ float64, minSegments int, result *Path) {
 	// Simple implementation - subdivide into segments
 	segments := max(minSegments, 8)
 

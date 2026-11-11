@@ -40,6 +40,10 @@ func (p *Pattern) Clone() *Pattern {
 	clone.Lines = make([]PatternLine, len(p.Lines))
 	for i, line := range p.Lines {
 		clone.Lines[i] = line
+		if len(line.DashItems) > 0 {
+			clone.Lines[i].DashItems = make([]float64, len(line.DashItems))
+			copy(clone.Lines[i].DashItems, line.DashItems)
+		}
 	}
 	return clone
 }

@@ -116,10 +116,7 @@ func splineToPath(spline *entity.Spline, options *Options) (*Path, error) {
 	if len(cps) < 2 {
 		return nil, fmt.Errorf("spline requires at least 2 control points, got %d", len(cps))
 	}
-	degree := min(spline.Degree, len(cps)-1)
-	if degree < 1 {
-		degree = 1
-	}
+	degree := max(min(spline.Degree, len(cps)-1), 1)
 	var bs *dxfmath.BSpline
 	if len(spline.Knots) >= degree+2 && len(spline.Weights) == len(cps) {
 		bs = dxfmath.NewBSplineWithKnots(cps, spline.Weights, spline.Knots, degree)
@@ -366,7 +363,7 @@ type infiniteLine interface {
 	GetPointsForDrawing(infiniteLineLength float64) (dxfmath.Vec3, dxfmath.Vec3)
 }
 
-func infiniteLineToPath(e infiniteLine, options *Options) (*Path, error) {
+func infiniteLineToPath(e infiniteLine, _ *Options) (*Path, error) {
 	length := 1e4
 	a, b := e.GetPointsForDrawing(length)
 	p := NewPath()

@@ -1,6 +1,10 @@
 package entity
 
-import "testing"
+import (
+	"testing"
+
+	dxfmath "github.com/edanko/dxf/math"
+)
 
 // TestCopyIsolation covers mutable families whose payloads are easy to share
 // accidentally: retained tags/XDATA on the base record, ACIS text and binary
@@ -54,11 +58,14 @@ func TestCopyIsolation(t *testing.T) {
 		path.AddVertex(1, 2, 0)
 		polygon.SetPatternFill("ANSI31", 0, 2)
 		polygon.SetPatternScale(2)
-		polygon.pattern = &Pattern{Lines: []PatternLine{{Angle: 45, BaseX: 1, BaseY: 2, OffsetX: 3, OffsetY: 4}}}
+		polygon.pattern = &Pattern{Lines: []PatternLine{{Angle: 45, BaseX: 1, BaseY: 2, OffsetX: 3, OffsetY: 4, DashItems: []float64{1.5, 0.5}}}}
+		polygon.seeds = []dxfmath.Vec2{dxfmath.NewVec2(3, 4)}
 
 		copied := polygon.Copy().(*MPolygonEntity)
 		copied.paths.GetPath(0).Vertices[0].X = 99
 		copied.SetPatternScale(7)
+		copied.pattern.Lines[0].DashItems[0] = 12.5
+		copied.seeds[0] = dxfmath.NewVec2(9, 9)
 
 		if polygon.paths.GetPath(0).Vertices[0].X != 1 {
 			t.Fatal("boundary path vertices shared")
@@ -68,6 +75,12 @@ func TestCopyIsolation(t *testing.T) {
 		}
 		if polygon.pattern == copied.pattern {
 			t.Fatal("fill pattern pointer shared")
+		}
+		if polygon.pattern.Lines[0].DashItems[0] != 1.5 {
+			t.Fatalf("pattern dash items shared: %v", polygon.pattern.Lines[0].DashItems)
+		}
+		if polygon.seeds[0].X() != 3 {
+			t.Fatalf("hatch seeds shared: %v", polygon.seeds)
 		}
 	})
 }

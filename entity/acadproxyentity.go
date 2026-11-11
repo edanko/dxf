@@ -130,7 +130,7 @@ func (a *AcadProxyEntity) BBox() ([]float64, []float64) {
 			max = []float64{cmax[0], cmax[1], 0}
 			continue
 		}
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			if cmin[i] < min[i] {
 				min[i] = cmin[i]
 			}

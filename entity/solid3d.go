@@ -23,8 +23,10 @@ type Solid3d struct {
 	satCodes   []int    // wire code per SAT line
 	acisInfo   ACISMetadata
 
-	// Transformation
-	Transform        *ACASTransform
+	// Transformation: ACIS local-to-world placement. The placement is
+	// composed by Transform, while the retained ACIS payload stays in local
+	// coordinates.
+	Placement        *ACASTransform
 	InverseTransform *ACASTransform
 
 	// Bounding box and properties
@@ -47,7 +49,7 @@ func NewSolid3d() *Solid3d {
 		HistoryHandle: nil,
 		SATData:       make([]byte, 0),
 		SATVersion:    ACISVersion22300,
-		Transform:     NewACASTransform(),
+		Placement:     NewACASTransform(),
 		boundingBox:   nil,
 		center:        dxfmath.NewVec3(0, 0, 0),
 		volume:        0.0,
@@ -77,41 +79,48 @@ func (s *Solid3d) SetSATData(data []byte) {
 	s.SATData = append([]byte(nil), data...)
 }
 
-// SetTransform sets the transformation matrix
+// SetTransform sets the transformation matrix and derives the inverse
+// transform from it.
 func (s *Solid3d) SetTransform(transform *ACASTransform) {
-	s.Transform = transform
-	// Calculate inverse transform (simplified)
-	s.InverseTransform = NewACASTransform() // Placeholder
+	s.Placement = transform
+	if transform == nil {
+		s.InverseTransform = nil
+		return
+	}
+	if inv, ok := transform.Inverse(); ok {
+		s.InverseTransform = inv
+		return
+	}
+	s.InverseTransform = nil
 }
 
-// GetBoundingBox calculates and returns the bounding box
+// GetBoundingBox returns the cached bounding box, or nil when no bounding
+// box is stored. The ACIS payload geometry is not decoded, so no box can be
+// derived from the placement alone; callers must handle nil.
 func (s *Solid3d) GetBoundingBox() *ACISBoundingBox {
-	if s.boundingBox != nil {
-		return s.boundingBox
-	}
-
-	// Calculate from geometry if not cached
-	// This is a simplified calculation
-	min := dxfmath.NewVec3(-1e6, -1e6, -1e6)
-	max := dxfmath.NewVec3(1e6, 1e6, 1e6)
-	s.boundingBox = NewACISBoundingBox(min, max)
 	return s.boundingBox
 }
 
-// GetCenter returns the geometric center
+// GetCenter returns the geometric center. When no center is cached and no
+// bounding box is stored, the origin of the ACIS placement is returned
+// instead of the former ±1e6 placeholder box.
 func (s *Solid3d) GetCenter() dxfmath.Vec3 {
 	if !(s.center.X() == 0 && s.center.Y() == 0 && s.center.Z() == 0) {
 		return s.center
 	}
-
-	// Calculate from bounding box if not set
-	bb := s.GetBoundingBox()
-	s.center = dxfmath.NewVec3(
-		(bb.Min.X()+bb.Max.X())/2,
-		(bb.Min.Y()+bb.Max.Y())/2,
-		(bb.Min.Z()+bb.Max.Z())/2,
-	)
-	return s.center
+	if s.boundingBox != nil {
+		s.center = dxfmath.NewVec3(
+			(s.boundingBox.Min.X()+s.boundingBox.Max.X())/2,
+			(s.boundingBox.Min.Y()+s.boundingBox.Max.Y())/2,
+			(s.boundingBox.Min.Z()+s.boundingBox.Max.Z())/2,
+		)
+		return s.center
+	}
+	origin := dxfmath.NewVec3(0, 0, 0)
+	if s.Placement != nil {
+		origin = s.Placement.Apply(origin)
+	}
+	return origin
 }
 
 // GetVolume returns the calculated volume
@@ -139,9 +148,14 @@ func (s *Solid3d) SetCenter(center dxfmath.Vec3) {
 	s.center = center
 }
 
-// BBox returns bounding box
+// BBox returns the cached bounding box; a zero-size box at the placement
+// origin when no box is stored (the ACIS payload geometry is not decoded).
 func (s *Solid3d) BBox() ([]float64, []float64) {
 	bb := s.GetBoundingBox()
+	if bb == nil {
+		o := s.GetCenter()
+		return []float64{o.X(), o.Y(), o.Z()}, []float64{o.X(), o.Y(), o.Z()}
+	}
 	return []float64{bb.Min.X(), bb.Min.Y(), bb.Min.Z()}, []float64{bb.Max.X(), bb.Max.Y(), bb.Max.Z()}
 }
 

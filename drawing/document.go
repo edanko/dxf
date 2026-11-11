@@ -239,6 +239,13 @@ func (d *Drawing) SetEntityLayer(e entity.Entity, name string) {
 	}
 }
 
+// ObserveLoadedHandles advances the handle generator past every handle
+// already present in the document. Call it after loading a drawing so that
+// newly created objects never reuse a handle from the loaded file.
+func (d *Drawing) ObserveLoadedHandles() {
+	d.observeHandles()
+}
+
 // observeHandles advances the handle generator past every handle already
 // present in the document, so newly created objects never reuse a handle.
 func (d *Drawing) observeHandles() {

@@ -720,9 +720,10 @@ func dashPattern(e entity.Entity, layer *table.Layer, ltscale float64) []float64
 	if layer != nil {
 		lt = layer.LineType
 	}
-	if name == "ByLayer" || name == "" {
+	switch name {
+	case "ByLayer", "":
 		// use layer linetype (already in lt)
-	} else if name == "ByBlock" || name == "Continuous" {
+	case "ByBlock", "Continuous":
 		lt = nil
 	}
 	if lt == nil || lt.TotalLength() <= 0 {
@@ -766,14 +767,6 @@ func MTextToPath(t *entity.MText) *path.Path {
 	dx, dy := mtextAnchorOffset(t)
 	p, _ := multiLineText(text, t.Height, t.Width, x+dx, y+dy, t.Rotation, nil)
 	return p
-}
-
-// vec2From converts the first two components of a float slice into a Vec2.
-func vec2From(v []float64) dxfmath.Vec2 {
-	if len(v) >= 2 {
-		return dxfmath.Vec2{v[0], v[1]}
-	}
-	return dxfmath.Vec2{}
 }
 
 // hatchBoundaryPath builds the boundary path of an enhanced hatch from its

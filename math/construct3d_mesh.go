@@ -125,7 +125,14 @@ const (
 	BooleanXOR
 )
 
-// PerformBoolean performs boolean operations on two meshes
+// PerformBoolean performs boolean operations on two meshes.
+//
+// Deprecated: this function only concatenates the input meshes for union
+// and returns one input unchanged for the other operations. Use
+// csg.PerformBooleanChecked instead, which computes real boolean geometry
+// and reports invalid, open, non-manifold, or empty results as errors:
+//
+//	result, err := csg.PerformBooleanChecked(mesh1, mesh2, dxfmath.BooleanUnion)
 func PerformBoolean(mesh1, mesh2 Mesh3D, operation BooleanOperation) Mesh3D {
 	// Simplified boolean operations - in practice would use robust algorithms like BSP trees
 	result := NewMesh3DBuilder()

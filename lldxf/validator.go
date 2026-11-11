@@ -135,9 +135,10 @@ func (v *Validator) extractHeaderInfo(tags Tags) {
 
 		switch code {
 		case 0:
-			if value == "SECTION" {
+			switch value {
+			case "SECTION":
 				inSection = true
-			} else if value == "ENDSEC" {
+			case "ENDSEC":
 				inSection = false
 				inHeader = false
 			}
@@ -201,7 +202,8 @@ func (v *Validator) validateStructure(tags Tags) {
 
 		switch code {
 		case 0:
-			if value == "SECTION" {
+			switch value {
+			case "SECTION":
 				hasSection = true
 				sectionCount++
 				// Check for section name
@@ -214,7 +216,7 @@ func (v *Validator) validateStructure(tags Tags) {
 				} else {
 					v.addError("MISSING_SECTION_NAME", "Missing section name after SECTION", "", fmt.Sprintf("tag %d", i))
 				}
-			} else if value == "ENDSEC" {
+			case "ENDSEC":
 				sectionCount--
 				if sectionCount < 0 {
 					v.addError("UNEXPECTED_ENDSEC", "Unexpected ENDSEC without matching SECTION", "", fmt.Sprintf("tag %d", i))

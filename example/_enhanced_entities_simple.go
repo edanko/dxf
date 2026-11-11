@@ -115,8 +115,16 @@ func ExampleEnhanced() {
 		tangent.X(), tangent.Y(), tangent.Z())
 
 	// Demonstrate ellipse operations
-	bezierCurve := ellipse.ToBezier()
-	fmt.Printf("Ellipse converted to Bézier with %d control points\n", len(bezierCurve.ControlPoints()))
+	bezierSegments, err := ellipse.ToBezier()
+	if err != nil {
+		log.Fatal("Error converting ellipse:", err)
+	}
+	controlPoints := 0
+	for _, seg := range bezierSegments {
+		controlPoints += len(seg.ControlPoints())
+	}
+	fmt.Printf("Ellipse converted to Bézier with %d segments / %d control points\n",
+		len(bezierSegments), controlPoints)
 
 	ellipsePoint := ellipse.PointAt(0.5) // Midpoint of ellipse
 	fmt.Printf("Ellipse midpoint: (%.2f, %.2f, %.2f)\n",

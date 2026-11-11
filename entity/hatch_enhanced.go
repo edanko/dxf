@@ -371,11 +371,12 @@ func (h *HatchEnhanced) Format(f format.Formatter) {
 		f.WriteInt(98, h.Gradient.Type)
 		f.WriteInt(63, int(h.Gradient.Color1))
 		f.WriteInt(64, int(h.Gradient.Color2))
-		if h.Gradient.Type == HatchGradientTypeLinear {
+		switch h.Gradient.Type {
+		case HatchGradientTypeLinear:
 			if h.Gradient.Angle != 0.0 {
 				f.WriteFloat(450, h.Gradient.Angle)
 			}
-		} else if h.Gradient.Type == HatchGradientTypeCylinder {
+		case HatchGradientTypeCylinder:
 			// Write center point for cylindrical gradient
 			if len(h.Gradient.Center) >= 2 {
 				f.WriteFloat(110, h.Gradient.Center[0]) // X

@@ -162,7 +162,7 @@ func (dt *DelaunayTriangulation) insertPoint(pointIndex int, point Point2D) {
 }
 
 // removeSuperTriangle removes triangles that use super-triangle vertices
-func (dt *DelaunayTriangulation) removeSuperTriangle(superTriangle *Triangle) {
+func (dt *DelaunayTriangulation) removeSuperTriangle(_ *Triangle) {
 	var newTriangles []*Triangle
 	originalPointCount := len(dt.points) - 3
 

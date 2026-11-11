@@ -414,41 +414,6 @@ func nodeCount(node *Node) int {
 	}
 }
 
-// reverseRingList reverses a circular linked list in place and returns the
-// new head (the old tail).
-func reverseRingList(head *Node) *Node {
-	if head == nil {
-		return nil
-	}
-	var tail *Node
-	cur := head
-	for {
-		cur.Prev, cur.Next = cur.Next, cur.Prev
-		tail = cur
-		if cur.Next == head {
-			break
-		}
-		cur = cur.Next
-	}
-	return tail
-}
-
-// bridgeHoleIntoRing merges the hole ring into the outer ring with a
-// visibility bridge. holesPolys are the original hole polygons (including
-// hole itself) used for visibility checks.
-func bridgeHoleIntoRing(outer, hole *Node, holesPolys [][]Point2D) *Node {
-	holeNode := leftmostNode(hole)
-	if holeNode == nil || outer == nil {
-		return outer
-	}
-	bridge := findBridgeTarget(outer, holeNode, holesPolys)
-	if bridge == nil {
-		// No visible vertex: leave the hole unmerged (degenerate input).
-		return outer
-	}
-	return splitPolygon(bridge, holeNode)
-}
-
 func leftmostNode(head *Node) *Node {
 	best := head
 	for cur := head.Next; cur != head; cur = cur.Next {

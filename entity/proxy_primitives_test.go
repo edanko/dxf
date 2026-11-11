@@ -65,7 +65,7 @@ func TestDecodeProxyPrimitives(t *testing.T) {
 	textBody = append(textBody, []byte("LABEL\x00")...)
 
 	transform := make([]byte, 128)
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		v := 0.0
 		if i%5 == 0 {
 			v = 1

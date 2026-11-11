@@ -14,10 +14,9 @@ import (
 type EntityLoader func(tags lldxf.Tags) (Entity, error)
 
 var (
-	registryMu       sync.RWMutex
-	entityLoaders    = map[string]EntityLoader{}
-	defaultLoader    EntityLoader
-	untypedTypeCount int
+	registryMu    sync.RWMutex
+	entityLoaders = map[string]EntityLoader{}
+	defaultLoader EntityLoader
 )
 
 // Register associates a DXF type name with its loader. Registration is

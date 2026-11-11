@@ -34,7 +34,7 @@ func cmdStandards(args []string) error {
 	}
 	rules := standards.NewRuleSet(standards.NewLayerNameRule(*layerPattern, severity))
 	if *disable != "" {
-		for _, code := range strings.Split(*disable, ",") {
+		for code := range strings.SplitSeq(*disable, ",") {
 			code = strings.TrimSpace(code)
 			if code == "" {
 				continue

@@ -2,13 +2,38 @@ package drawing
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/edanko/dxf/entity"
 )
+
+// JSONEnvelopeVersion is the version of the JSON document envelope emitted by
+// ToJSON. FromJSON rejects any other version.
+const JSONEnvelopeVersion = 1
+
+// JSONEnvelopeFormat identifies the embedded payload encoding.
+const JSONEnvelopeFormat = "dxf-ascii"
+
+// jsonEnvelope is the versioned wrapper around a document's ASCII DXF
+// payload. The summary fields are for human inspection only; the payload is
+// the source of truth for FromJSON.
+type jsonEnvelope struct {
+	Version     int              `json:"version"`
+	Format      string           `json:"format"`
+	FileName    string           `json:"file_name,omitempty"`
+	LayerCount  int              `json:"layer_count"`
+	StyleCount  int              `json:"style_count"`
+	EntityCount int              `json:"entity_count"`
+	Statistics  map[string]any   `json:"statistics,omitempty"`
+	Entities    []map[string]any `json:"entities,omitempty"`
+	Payload     string           `json:"payload"`
+}
 
 type SerializationOptions struct {
 	IncludeHandles     bool
@@ -26,18 +51,24 @@ func NewSerializationOptions() *SerializationOptions {
 	}
 }
 
+// ToJSON serializes the drawing into a versioned JSON envelope. The envelope
+// embeds the document's ASCII DXF payload plus summary metadata. An error is
+// returned when the document cannot be represented as ASCII DXF, rather than
+// emitting an envelope that silently loses state.
 func (d *Drawing) ToJSON(opts *SerializationOptions) ([]byte, error) {
+	if d == nil {
+		return nil, fmt.Errorf("ToJSON: nil drawing")
+	}
 	if opts == nil {
 		opts = NewSerializationOptions()
 	}
 
-	type DrawingJSON struct {
-		FileName    string           `json:"file_name,omitempty"`
-		LayerCount  int              `json:"layer_count"`
-		StyleCount  int              `json:"style_count"`
-		EntityCount int              `json:"entity_count"`
-		Statistics  map[string]any   `json:"statistics,omitempty"`
-		Entities    []map[string]any `json:"entities"`
+	var payload bytes.Buffer
+	if _, err := d.WriteTo(&payload); err != nil {
+		return nil, fmt.Errorf("ToJSON: encode DXF payload: %w", err)
+	}
+	if payload.Len() == 0 {
+		return nil, fmt.Errorf("ToJSON: document produced an empty DXF payload")
 	}
 
 	stats := d.GetDrawingStatistics()
@@ -45,23 +76,61 @@ func (d *Drawing) ToJSON(opts *SerializationOptions) ([]byte, error) {
 
 	entitiesJSON := make([]map[string]any, 0, len(entities))
 	for _, e := range entities {
-		entMap := entityToMap(e, opts)
-		entitiesJSON = append(entitiesJSON, entMap)
+		entitiesJSON = append(entitiesJSON, entityToMap(e, opts))
 	}
 
-	dj := DrawingJSON{
+	env := jsonEnvelope{
+		Version:     JSONEnvelopeVersion,
+		Format:      JSONEnvelopeFormat,
 		FileName:    d.fileName,
 		LayerCount:  len(d.Layers),
 		StyleCount:  len(d.Styles),
 		EntityCount: len(entities),
 		Statistics:  stats,
 		Entities:    entitiesJSON,
+		Payload:     payload.String(),
 	}
 
 	if opts.Compact {
-		return json.Marshal(dj)
+		return json.Marshal(env)
 	}
-	return json.MarshalIndent(dj, "", "  ")
+	return json.MarshalIndent(env, "", "  ")
+}
+
+// FromJSON loads a versioned JSON envelope produced by ToJSON into the
+// receiver. The envelope version and payload are validated first; the payload
+// is then loaded with the registered document loader. The receiver is replaced
+// only after a successful load, so malformed or unsupported input leaves it
+// unchanged.
+func (d *Drawing) FromJSON(data []byte) error {
+	if d == nil {
+		return fmt.Errorf("FromJSON: nil drawing")
+	}
+	var env jsonEnvelope
+	if err := json.Unmarshal(data, &env); err != nil {
+		return fmt.Errorf("FromJSON: invalid JSON: %w", err)
+	}
+	if env.Version != JSONEnvelopeVersion {
+		return fmt.Errorf("FromJSON: unsupported envelope version %d (want %d)", env.Version, JSONEnvelopeVersion)
+	}
+	if env.Format != "" && env.Format != JSONEnvelopeFormat {
+		return fmt.Errorf("FromJSON: unsupported payload format %q (want %q)", env.Format, JSONEnvelopeFormat)
+	}
+	if env.Payload == "" {
+		return fmt.Errorf("FromJSON: missing payload")
+	}
+	if documentLoader == nil {
+		return fmt.Errorf("FromJSON: document loader is not registered")
+	}
+	loaded, err := documentLoader(strings.NewReader(env.Payload))
+	if err != nil {
+		return fmt.Errorf("FromJSON: load payload: %w", err)
+	}
+	if loaded == nil {
+		return fmt.Errorf("FromJSON: loader returned a nil drawing")
+	}
+	*d = *loaded
+	return nil
 }
 
 func entityToMap(e entity.Entity, opts *SerializationOptions) map[string]any {
@@ -77,10 +146,6 @@ func entityToMap(e entity.Entity, opts *SerializationOptions) map[string]any {
 	}
 
 	return result
-}
-
-func (d *Drawing) FromJSON(data []byte) error {
-	return nil
 }
 
 func (d *Drawing) ToBinary() ([]byte, error) {
@@ -154,21 +219,19 @@ func ExportEntitiesToHex(entities []entity.Entity) (string, error) {
 	return hex.EncodeToString(data), nil
 }
 
+// HashDrawing returns a stable content hash of the drawing: the ASCII DXF
+// payload is serialized and digested with SHA-256.
 func HashDrawing(d *Drawing) (string, error) {
-	data, err := d.ToBinary()
-	if err != nil {
-		return "", err
+	var payload bytes.Buffer
+	if _, err := d.WriteTo(&payload); err != nil {
+		return "", fmt.Errorf("HashDrawing: encode DXF payload: %w", err)
 	}
-	return hashBytes(data), nil
+	return hashBytes(payload.Bytes()), nil
 }
 
 func hashBytes(data []byte) string {
-	hash := 0
-	for i, b := range data {
-		hash = (hash<<8 + int(b)) % 1000000007
-		_ = i
-	}
-	return ""
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 type DrawingDiff struct {
@@ -209,7 +272,29 @@ func CompareDrawings(original, modified *Drawing) *DrawingDiff {
 	return diff
 }
 
-func (d *Drawing) DeepCopy() *Drawing {
-	_ = d
-	return nil
+// DeepCopy returns an independent copy of the drawing. The drawing is
+// serialized to its ASCII DXF payload and reloaded through the registered
+// document loader, so every entity, table entry, and block is re-parsed into
+// fresh objects with no shared pointers. It reports an error when
+// serialization or the reload fails, or when no document loader is
+// registered.
+func (d *Drawing) DeepCopy() (*Drawing, error) {
+	if d == nil {
+		return nil, fmt.Errorf("DeepCopy: nil drawing")
+	}
+	if documentLoader == nil {
+		return nil, fmt.Errorf("DeepCopy: document loader is not registered")
+	}
+	var payload bytes.Buffer
+	if _, err := d.WriteTo(&payload); err != nil {
+		return nil, fmt.Errorf("DeepCopy: encode DXF payload: %w", err)
+	}
+	copied, err := documentLoader(&payload)
+	if err != nil {
+		return nil, fmt.Errorf("DeepCopy: reload payload: %w", err)
+	}
+	if copied == nil {
+		return nil, fmt.Errorf("DeepCopy: loader returned no drawing")
+	}
+	return copied, nil
 }

@@ -71,7 +71,7 @@ func ClusterMembership(points []Vec2, maxDistance float64) []int {
 	}
 
 	threshold := maxDistance
-	for i := 0; i < n; i++ {
+	for i := range n {
 		for j := i + 1; j < n; j++ {
 			if points[i].DistanceSquared(points[j]) <= threshold*threshold {
 				union(i, j)

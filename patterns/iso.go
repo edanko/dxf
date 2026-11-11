@@ -1,5 +1,7 @@
 package patterns
 
+import "maps"
+
 // ISO hatch patterns use the ACAD_ISOxxW100 naming convention and metric
 // pattern units. They are registered into PredefinedPatterns at init time.
 var isoPatterns = map[string]PatternDefinition{
@@ -61,7 +63,5 @@ func isoPattern(name, description string, lines []PatternLine) PatternDefinition
 }
 
 func init() {
-	for name, definition := range isoPatterns {
-		PredefinedPatterns[name] = definition
-	}
+	maps.Copy(PredefinedPatterns, isoPatterns)
 }

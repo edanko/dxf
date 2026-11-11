@@ -142,9 +142,10 @@ func GroupTagsBySection(tags Tags) (map[string]Tags, error) {
 		switch tag.Code() {
 		case 0:
 			value := fmt.Sprintf("%v", tag.Value())
-			if value == "SECTION" {
+			switch value {
+			case "SECTION":
 				inSection = true
-			} else if value == "ENDSEC" {
+			case "ENDSEC":
 				inSection = false
 				currentSection = ""
 			}

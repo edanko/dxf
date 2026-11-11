@@ -8,7 +8,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -79,36 +78,6 @@ func DetectFormat(data []byte) (string, error) {
 	return lldxf.DetectDXFFormat(data)
 }
 
-func buildEntitiesFromLoader(d *drawing.Drawing, loader *lldxf.Loader) error {
-	entities := loader.GetEntities()
-	type entityHandle struct {
-		handle string
-		tags   lldxf.Tags
-	}
-	var entityList []entityHandle
-	for handle, tags := range entities {
-		entityList = append(entityList, entityHandle{handle: handle, tags: tags})
-	}
-	sort.Slice(entityList, func(i, j int) bool {
-		return entityList[i].handle < entityList[j].handle
-	})
-	for _, eh := range entityList {
-		tags := eh.tags
-		dxfType, _ := tags.GetFirstValue(0)
-		if dxfType == nil {
-			continue
-		}
-		typeStr := fmt.Sprintf("%v", dxfType)
-
-		e, err := loadEntity(typeStr, tags)
-		if err != nil {
-			continue
-		}
-		e.SetBlockRecord(nil)
-		d.AddEntity(e)
-	}
-	return nil
-}
 
 // loadEntity dispatches to the entity loader registry. All 29 typed loaders
 // register themselves from this package's init; unregistered types fall back
@@ -1262,7 +1231,6 @@ func loadHatch(tags lldxf.Tags) *entity.Hatch {
 					// new boundary path; the vertex count follows as 93.
 					if curPath != nil {
 						paths = append(paths, curPath)
-						curPath = nil
 					}
 					curPath = entity.NewPolylinePath(v, false, false)
 					isPolylinePath = true
@@ -2369,7 +2337,7 @@ func loadMeshVertexCache(tags lldxf.Tags) *entity.MeshVertexCache {
 				vz = v
 				if mode == cacheVertices {
 					cache.AddVertex(dxfmath.NewVec3(vx, vy, vz))
-					vx, vy, vz = 0, 0, 0
+					vx, vy = 0, 0
 				}
 			}
 		case 11:
@@ -2385,7 +2353,7 @@ func loadMeshVertexCache(tags lldxf.Tags) *entity.MeshVertexCache {
 				nz = v
 				if mode == cacheNormals {
 					cache.AddNormal(dxfmath.NewVec3(nx, ny, nz))
-					nx, ny, nz = 0, 0, 0
+					nx, ny = 0, 0
 				}
 			}
 		case 12:
@@ -2397,7 +2365,7 @@ func loadMeshVertexCache(tags lldxf.Tags) *entity.MeshVertexCache {
 				ty = v
 				if mode == cacheTexCoords {
 					cache.AddTexCoord(dxfmath.NewVec2(tx, ty))
-					tx, ty = 0, 0
+					tx = 0
 				}
 			}
 		}
@@ -2606,24 +2574,6 @@ func loadPlaneSurface(tags lldxf.Tags) *entity.PlaneSurface {
 		}
 	}
 	return ps
-}
-
-// acisPayload extracts the text SAT payload: code 90 line count, then code 10
-// lines. Payload-bearing ACIS records are retained whole (RawWholeRecord).
-func acisPayload(tags lldxf.Tags) []string {
-	var lines []string
-	for _, tag := range tags {
-		if int(tag.Code()) != 10 {
-			continue
-		}
-		switch v := tag.Value().(type) {
-		case string:
-			lines = append(lines, v)
-		default:
-			_ = v
-		}
-	}
-	return lines
 }
 
 // acdbEntityTags returns the tags belonging to the AcDbEntity subclass, which
@@ -3044,19 +2994,6 @@ func loadRegion(tags lldxf.Tags) *entity.Region {
 	return r
 }
 
-// acisRawPairs keeps the complete record (minus code 0) for whole-record
-// retention of payload-bearing ACIS entities.
-func acisRawPairs(tags lldxf.Tags) []entity.TagPair {
-	raw := make([]entity.TagPair, 0, len(tags))
-	for _, tag := range tags {
-		code := int(tag.Code())
-		if code == 0 {
-			continue
-		}
-		raw = append(raw, entity.TagPair{Code: code, Value: tagStringValue(tag)})
-	}
-	return raw
-}
 
 func loadBody(tags lldxf.Tags) *entity.Body {
 	b := entity.NewBody()
@@ -3209,7 +3146,7 @@ func setExtrusionComponent(e interface {
 		return
 	}
 	cur := e.Extrusion()
-	if cur == nil || len(cur) < 3 {
+	if len(cur) < 3 {
 		cur = []float64{0, 0, 1}
 	}
 	cur[idx] = v

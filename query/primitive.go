@@ -417,10 +417,7 @@ func arcPath(center []float64, radius, startDeg, endDeg float64) *path.Path {
 		endDeg += 360
 	}
 	span := (endDeg - startDeg) * math.Pi / 180
-	segments := int(math.Ceil(math.Abs(span) / (math.Pi / 2)))
-	if segments < 1 {
-		segments = 1
-	}
+	segments := max(int(math.Ceil(math.Abs(span)/(math.Pi/2))), 1)
 	p := path.NewPath()
 	step := span / float64(segments)
 	start := startDeg * math.Pi / 180

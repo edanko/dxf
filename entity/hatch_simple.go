@@ -202,8 +202,16 @@ func (p *PolylinePath) ExportDXF(writer lldxf.TagWriter, ocs math.OCS, elevation
 	// Boundary path header
 	tags = tags.Add(lldxf.NewDXFTag(92, fmt.Sprintf("%d", p.Type())))
 	tags = tags.Add(lldxf.NewDXFTag(93, p.PathTypeFlags()))
-	tags = tags.Add(lldxf.NewDXFTag(72, 0)) // No bulge
-	tags = tags.Add(lldxf.NewDXFTag(73, 0)) // Default closed flag
+	bulgeFlag := 0
+	if p.hasBulge {
+		bulgeFlag = 1
+	}
+	closedFlag := 0
+	if p.isClosed {
+		closedFlag = 1
+	}
+	tags = tags.Add(lldxf.NewDXFTag(72, bulgeFlag))
+	tags = tags.Add(lldxf.NewDXFTag(73, closedFlag))
 	tags = tags.Add(lldxf.NewDXFTag(97, 0)) // No source objects
 
 	// Polyline vertices

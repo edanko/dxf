@@ -26,14 +26,17 @@ func (esi *EntitySpatialIndex) Insert(ent entity.Entity) {
 	if len(min) < 2 || len(max) < 2 {
 		return
 	}
-	box := NewBoundingBox(min[0], min[1], max[0], max[1])
-	esi.rtree.Insert(box, ent)
-	esi.entityBox[ent] = box
+	esi.InsertWithBBox(ent, min[0], min[1], max[0], max[1])
 }
 
 func (esi *EntitySpatialIndex) InsertWithBBox(ent entity.Entity, minX, minY, maxX, maxY float64) {
 	if ent == nil {
 		return
+	}
+	// Reinserting an entity replaces its previous entry instead of
+	// leaving a stale duplicate in the tree.
+	if _, exists := esi.entityBox[ent]; exists {
+		esi.rtree.RemoveByData(ent)
 	}
 	box := NewBoundingBox(minX, minY, maxX, maxY)
 	esi.rtree.Insert(box, ent)
@@ -71,8 +74,11 @@ func (esi *EntitySpatialIndex) QueryNearest(x, y float64) (entity.Entity, float6
 }
 
 func (esi *EntitySpatialIndex) Remove(ent entity.Entity) {
-	if box, ok := esi.entityBox[ent]; ok {
-		esi.rtree.Query(box)
+	if ent == nil {
+		return
+	}
+	if _, ok := esi.entityBox[ent]; ok {
+		esi.rtree.RemoveByData(ent)
 		delete(esi.entityBox, ent)
 	}
 }

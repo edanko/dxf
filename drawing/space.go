@@ -11,7 +11,6 @@ import (
 	"github.com/edanko/dxf/block"
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/entity"
-	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
 	"github.com/edanko/dxf/internal/blockadapter"
 	dxfmath "github.com/edanko/dxf/math"
@@ -224,14 +223,6 @@ func (s *Space) Add(e entity.Entity, opts ...EntityOption) error {
 		s.drawing.assignLayout(e.Handle(), s.spaceName)
 	}
 	return nil
-}
-
-// blockEntity is the interface satisfied by entities storable in a block.
-type blockEntity interface {
-	IsEntity() bool
-	Format(f format.Formatter)
-	Handle() string
-	DXFType() string
 }
 
 // AddGeneric creates an entity of the given DXF type from an attribute map
@@ -452,10 +443,3 @@ func (d *Drawing) EntitySpace(handleString string) string {
 	return "Model"
 }
 
-// layoutNameFilter is shared by selection helpers.
-func normalizeLayoutName(name string) string {
-	if strings.EqualFold(name, "model") {
-		return "Model"
-	}
-	return name
-}

@@ -162,7 +162,7 @@ func collectTagStats(data []byte) (analyzeTagStats, error) {
 	return stats, nil
 }
 
-func objectTypeName(o interface{}) string {
+func objectTypeName(o any) string {
 	if named, ok := o.(interface{ WireType() string }); ok {
 		if name := named.WireType(); name != "" {
 			return name

@@ -98,7 +98,7 @@ func MakePath(ent entity.Entity, opts ...Option) (*Path, error) {
 }
 
 // lineToPath converts a line entity to a path
-func lineToPath(line *entity.Line, options *Options) (*Path, error) {
+func lineToPath(line *entity.Line, _ *Options) (*Path, error) {
 	path := NewPath()
 	start := dxfmath.NewVec3(
 		getCoord(line.Start, 0),
@@ -235,10 +235,7 @@ func ellipseToPath(ellipse *entity.Ellipse, options *Options) (*Path, error) {
 	}
 	span := endDeg - startDeg
 
-	segments := max(int(math.Ceil(span/7.5)), 16)
-	if segments > 256 {
-		segments = 256
-	}
+	segments := min(max(int(math.Ceil(span/7.5)), 16), 256)
 	if options.Segments > 0 {
 		segments = options.Segments
 	}
@@ -255,14 +252,6 @@ func ellipseToPath(ellipse *entity.Ellipse, options *Options) (*Path, error) {
 	return path, nil
 }
 
-// vertexToVec3 converts a vertex entity to a Vec3
-func vertexToVec3(vertex *entity.Vertex) dxfmath.Vec3 {
-	coords := vertex.Coord
-	if len(coords) >= 3 {
-		return dxfmath.NewVec3(coords[0], coords[1], coords[2])
-	}
-	return dxfmath.NewVec3(0, 0, 0)
-}
 
 // getCoord extracts coordinate from slice with bounds checking
 func getCoord(coords []float64, index int) float64 {

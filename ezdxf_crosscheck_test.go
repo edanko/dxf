@@ -303,7 +303,7 @@ func floatString(v float64) string { return strconv.FormatFloat(v, 'f', 4, 64) }
 
 func pointString(p []float64) string {
 	parts := make([]string, 3)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if i < len(p) {
 			parts[i] = floatString(p[i])
 		} else {
@@ -433,22 +433,13 @@ func parityMismatch(want, got parityDump) string {
 	wantLines := strings.Split(string(wantJSON), "\n")
 	gotLines := strings.Split(string(gotJSON), "\n")
 
-	limit := len(wantLines)
-	if len(gotLines) < limit {
-		limit = len(gotLines)
-	}
+	limit := min(len(gotLines), len(wantLines))
 	for i := 0; i < limit; i++ {
 		if wantLines[i] == gotLines[i] {
 			continue
 		}
-		start := i - 4
-		if start < 0 {
-			start = 0
-		}
-		end := i + 6
-		if end > limit {
-			end = limit
-		}
+		start := max(i-4, 0)
+		end := min(i+6, limit)
 		return fmt.Sprintf("first difference at line %d\nezdxf:\n%s\nGo:\n%s",
 			i+1,
 			strings.Join(wantLines[start:end], "\n"),

@@ -40,6 +40,19 @@ func (hg *HandleGenerator) String() string {
 	return fmt.Sprintf("%X", hg.handle)
 }
 
+// Value returns the current handle counter value.
+func (hg *HandleGenerator) Value() int {
+	return hg.handle
+}
+
+// ObserveValue advances the generator past an existing integer handle value so
+// new handles cannot collide with it.
+func (hg *HandleGenerator) ObserveValue(v int) {
+	if v >= hg.handle {
+		hg.handle = v + 1
+	}
+}
+
 // Next generates the next handle in the sequence, and increments the handle counter.
 func (hg *HandleGenerator) Next() string {
 	nextHandle := hg.handle

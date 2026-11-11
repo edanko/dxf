@@ -33,7 +33,7 @@ func TestPerlinSeedChangesOutput(t *testing.T) {
 	a := NewPerlin(1)
 	b := NewPerlin(2)
 	diff := 0
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		x := float64(i) * 0.37
 		if a.Noise2D(x, x) != b.Noise2D(x, x) {
 			diff++
@@ -46,7 +46,7 @@ func TestPerlinSeedChangesOutput(t *testing.T) {
 
 func TestPerlinRange2D(t *testing.T) {
 	p := NewPerlin(99)
-	for i := 0; i < 2000; i++ {
+	for i := range 2000 {
 		x := float64(i) * 0.1113
 		y := float64(i) * -0.0719
 		v := p.Noise2D(x, y)
@@ -58,7 +58,7 @@ func TestPerlinRange2D(t *testing.T) {
 
 func TestPerlinRange3D(t *testing.T) {
 	p := NewPerlin(123)
-	for i := 0; i < 2000; i++ {
+	for i := range 2000 {
 		x := float64(i) * 0.1113
 		y := float64(i) * -0.0719
 		z := float64(i) * 0.0331
@@ -72,8 +72,8 @@ func TestPerlinRange3D(t *testing.T) {
 func TestPerlinLatticeValue2D(t *testing.T) {
 	// At integer lattice points the gradient dot products are zero.
 	p := NewPerlin(5)
-	for x := 0; x < 5; x++ {
-		for y := 0; y < 5; y++ {
+	for x := range 5 {
+		for y := range 5 {
 			if got := p.Noise2D(float64(x), float64(y)); math.Abs(got) > 1e-12 {
 				t.Fatalf("expected zero at lattice point %d,%d, got %v", x, y, got)
 			}
@@ -91,7 +91,7 @@ func TestNoise2DFunc(t *testing.T) {
 
 func TestOctaveNoise2DRange(t *testing.T) {
 	f := OctaveNoise2D(3, 4, 0.5)
-	for i := 0; i < 500; i++ {
+	for i := range 500 {
 		x := float64(i) * 0.13
 		v := f(x, x*0.7)
 		if v < -1.0-1e-9 || v > 1.0+1e-9 {

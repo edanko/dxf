@@ -421,9 +421,7 @@ func (d *Drawing) DeleteEntity(handle string) error {
 	}
 
 	// Remove from the ENTITIES section and layout assignment.
-	if _, assigned := d.entityLayout[handle]; assigned {
-		delete(d.entityLayout, handle)
-	}
+	delete(d.entityLayout, handle)
 	filtered := d.entitiesSection[:0]
 	for _, e := range d.entitiesSection {
 		if e.Handle() == handle {
@@ -761,43 +759,6 @@ func (d *Drawing) CloneBlock(sourceName, targetName string) (*block.Block, error
 	// Add to blocks section
 	d.blocksSection = d.blocksSection.Add(clone)
 	return clone, nil
-}
-
-// PurgeUnusedBlocks removes unused blocks and returns count of removed blocks
-func (d *Drawing) PurgeUnusedBlocks() int {
-	if d.entityDatabase == nil {
-		return 0
-	}
-
-	// Find all INSERT entities to determine which blocks are used
-	usedBlocks := make(map[string]bool)
-	entities := d.entityDatabase.GetEntitiesByType("INSERT")
-	for _, ent := range entities {
-		// This is simplified - in reality we'd need to extract block name from INSERT entity
-		// For now, this is a placeholder for the concept
-		attrs := ent.GetAttributes()
-		if blockName, ok := attrs["name"]; ok {
-			usedBlocks[fmt.Sprintf("%v", blockName)] = true
-		}
-	}
-
-	// Remove unused blocks (skip standard blocks)
-	removedCount := 0
-	filteredBlocks := make([]*block.Block, 0, len(d.blocksSection))
-	for _, block := range d.blocksSection {
-		// Keep standard blocks and used blocks
-		if block.Name == "*Model_Space" ||
-			block.Name == "*Paper_Space" ||
-			block.Name == "*Paper_Space0" ||
-			usedBlocks[block.Name] {
-			filteredBlocks = append(filteredBlocks, block)
-		} else {
-			removedCount++
-		}
-	}
-
-	d.blocksSection = filteredBlocks
-	return removedCount
 }
 
 // setHandle sets all the handles contained in Drawing.

@@ -43,6 +43,15 @@ completion. Run `dxf <command> --help` for command-specific options;
 | `version` | print the CLI version |
 | `completion` | print a shell completion script (`--shell bash\|zsh\|fish\|powershell`) |
 
+## Library API parity
+
+`dxf audit` runs the same audit check registry used by
+`audit.ComprehensiveAuditor.AuditFile`, which loads files through the
+library's normal DXF loader; missing, unreadable, or malformed files fail with
+the load error. JSON document serialization (`Drawing.ToJSON`/`FromJSON`
+versioned envelope with an embedded ASCII DXF payload) is a Go library API and
+has no CLI surface.
+
 ## Exit codes
 
 | Code | Meaning |

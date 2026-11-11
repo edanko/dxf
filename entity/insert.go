@@ -288,7 +288,7 @@ func (i *Insert) SetGrid(cols, rows int, colSpacing, rowSpacing float64) {
 	i.rowCount = rows
 	i.columnSpacing = colSpacing
 	i.rowSpacing = rowSpacing
-	i.isMultiple = (cols > 1 || rows > 1)
+	i.isMultiple = cols > 1 || rows > 1
 }
 
 // BlockDef returns the resolved block definition, when bound.
@@ -554,7 +554,6 @@ func (i *Insert) Transform(m dxfmath.Matrix44) error {
 func (i *Insert) InsertMatrix() dxfmath.Matrix44 { return i.insertMatrix() }
 
 func (i *Insert) insertMatrix() dxfmath.Matrix44 {
-	m := dxfmath.NewMatrix44()
 	scl := dxfmath.Scale(i.xScale, i.yScale, i.zScale)
 	rot := dxfmath.RotationZ(i.rotation * math.Pi / 180)
 	trl := dxfmath.Translation(i.insertPoint.X(), i.insertPoint.Y(), i.insertPoint.Z())
@@ -565,7 +564,7 @@ func (i *Insert) insertMatrix() dxfmath.Matrix44 {
 	// Application order: base offset, then scale, rotation, insertion point.
 	// The composition places the first-applied factor rightmost (the library's
 	// MulVec applies the composed matrix directly).
-	m = trl.Mul(rot).Mul(scl).Mul(off)
+	m := trl.Mul(rot).Mul(scl).Mul(off)
 	return m
 }
 

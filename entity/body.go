@@ -459,28 +459,21 @@ func (b *Body) SetLump(lump *BodyLump) {
 	b.Lump = lump
 }
 
-// SetTransform sets the transformation matrix
+// SetTransform sets the transformation matrix and derives the inverse
+// transform from it.
 func (b *Body) SetTransform(transform *ACASTransform) {
 	b.Transform = transform
-
-	// Calculate inverse transform
-	// This is a simplified inverse calculation
-	// In practice, would need full 4x4 matrix inversion
-	b.InverseTransform = NewACASTransform() // Placeholder
+	if inv, ok := transform.Inverse(); ok {
+		b.InverseTransform = inv
+		return
+	}
+	b.InverseTransform = nil
 }
 
-// GetBoundingBox calculates and returns the bounding box
+// GetBoundingBox returns the cached bounding box, or nil when no bounding
+// box is stored. The ACIS payload geometry is not decoded, so no box can be
+// derived from the placement alone; callers must handle nil.
 func (b *Body) GetBoundingBox() *ACISBoundingBox {
-	if b.boundingBox != nil {
-		return b.boundingBox
-	}
-
-	// Calculate from geometry if not cached
-	// This is a simplified calculation
-	// In practice, would analyze all geometry
-	min := dxfmath.NewVec3(-1e6, -1e6, -1e6)
-	max := dxfmath.NewVec3(1e6, 1e6, 1e6)
-	b.boundingBox = NewACISBoundingBox(min, max)
 	return b.boundingBox
 }
 
@@ -667,9 +660,13 @@ func (b *Body) SetCenter(center dxfmath.Vec3) {
 	b.center = center
 }
 
-// BBox returns bounding box
+// BBox returns the cached bounding box; a zero-size box at the origin when
+// no box is stored (the ACIS payload geometry is not decoded).
 func (b *Body) BBox() ([]float64, []float64) {
 	bb := b.GetBoundingBox()
+	if bb == nil {
+		return []float64{0, 0, 0}, []float64{0, 0, 0}
+	}
 	return []float64{bb.Min.X(), bb.Min.Y(), bb.Min.Z()}, []float64{bb.Max.X(), bb.Max.Y(), bb.Max.Z()}
 }
 

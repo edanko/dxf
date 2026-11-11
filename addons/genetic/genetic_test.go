@@ -102,9 +102,9 @@ func TestOptimizerMaximizesBitFitness(t *testing.T) {
 
 func TestThresholdFilterAndSelections(t *testing.T) {
 	candidates := []DNA{
-		&BitDNA{dnaBase: dnaBase{fitness: 1, hasFitness: true}, data: []bool{true}},
-		&BitDNA{dnaBase: dnaBase{fitness: 10, hasFitness: true}, data: []bool{true}},
-		&BitDNA{dnaBase: dnaBase{fitness: 20, hasFitness: true}, data: []bool{true}},
+		&BitDNA{fitness: 1, hasFitness: true, data: []bool{true}},
+		&BitDNA{fitness: 10, hasFitness: true, data: []bool{true}},
+		&BitDNA{fitness: 20, hasFitness: true, data: []bool{true}},
 	}
 	filtered := ThresholdFilter(candidates, 20, 0.4)
 	if len(filtered) != 2 {

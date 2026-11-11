@@ -335,7 +335,7 @@ func (ext *ExtendedTags) String() string {
 func (ext *ExtendedTags) DebugInfo() string {
 	var builder strings.Builder
 
-	builder.WriteString(fmt.Sprintf("ExtendedTags Debug Info:\n"))
+	builder.WriteString("ExtendedTags Debug Info:\n")
 	builder.WriteString(fmt.Sprintf("  Entity Type: %s\n", ext.entityType))
 	builder.WriteString(fmt.Sprintf("  Handle: %s\n", ext.handle))
 	builder.WriteString(fmt.Sprintf("  Total Tags: %d\n", len(ext.tags)))

@@ -119,7 +119,7 @@ func ParseSATMetadata(lines []string) ACISMetadata {
 	if len(data) > 3 {
 		body = strings.Join(data[3:], " ")
 	}
-	for _, record := range strings.Split(body, "#") {
+	for record := range strings.SplitSeq(body, "#") {
 		record = strings.TrimSpace(record)
 		if record == "" {
 			continue

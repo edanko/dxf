@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 
 	"github.com/edanko/dxf/block"
@@ -126,6 +125,7 @@ func FromReaderWithOptions(r io.Reader, options *LoadOptions) (*drawing.Drawing,
 		}
 		report.Issues = append(report.Issues, err.Error())
 	}
+	d.ObserveLoadedHandles()
 	if cp := d.Codepage(); cp != "" && !format.Profile(d.NormalizedVersion()).UTF8 {
 		redecodeStrings(loader, d, cp)
 	}
@@ -219,6 +219,7 @@ func FromBinaryReaderWithOptions(r io.Reader, options *LoadOptions) (*drawing.Dr
 		}
 		report.Issues = append(report.Issues, err.Error())
 	}
+	d.ObserveLoadedHandles()
 	d.SetRecoveryReport(report)
 	return d, nil
 }
@@ -415,10 +416,6 @@ func (b *documentBinder) readBlock(tags lldxf.Tags, i *int) *block.Block {
 	}
 	blk.SetRawTags(toBlockTagPairs(rawStream))
 	return blk
-}
-
-func pairToTag(code int, value string) lldxf.Tag {
-	return lldxf.NewDXFTag(lldxf.GroupCode(code), value)
 }
 
 func toBlockTagPairs(tags lldxf.Tags) []block.TagPair {
@@ -1068,12 +1065,6 @@ func tagValueFloat(tags lldxf.Tags, code int) (float64, bool) {
 		}
 	}
 	return 0, false
-}
-
-// sortedHandles is used by tests and diagnostics that need stable ordering.
-func sortedHandles(handles []string) []string {
-	sort.Strings(handles)
-	return handles
 }
 
 func tagStringValue(tag lldxf.Tag) string {

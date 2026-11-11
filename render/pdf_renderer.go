@@ -83,7 +83,8 @@ func (r *PDFRenderer) DrawPath(p *path.Path) error {
 	st, fi := r.style.Stroke, r.style.Fill
 	if fi.A > 0 {
 		r.useGState(st.A, fi.A)
-		r.content.WriteString(pdfColor(fi) + " rg\n")
+		r.content.WriteString(pdfColor(fi))
+		r.content.WriteString(" rg\n")
 		r.content.WriteString(ops)
 		if r.style.FillRule == "evenodd" {
 			r.content.WriteString("f*\n")
@@ -93,14 +94,17 @@ func (r *PDFRenderer) DrawPath(p *path.Path) error {
 	}
 	if st.A > 0 {
 		r.useGState(st.A, fi.A)
-		r.content.WriteString(pdfColor(st) + " RG\n")
-		r.content.WriteString(pdfNum(r.style.Width) + " w\n")
+		r.content.WriteString(pdfColor(st))
+		r.content.WriteString(" RG\n")
+		r.content.WriteString(pdfNum(r.style.Width))
+		r.content.WriteString(" w\n")
 		if len(r.style.Dash) > 0 {
 			r.content.WriteString(pdfDash(r.style.Dash))
 		} else {
 			r.content.WriteString("[] 0 d\n")
 		}
-		r.content.WriteString(pdfCapJoin(r.style) + "\n")
+		r.content.WriteString(pdfCapJoin(r.style))
+		r.content.WriteString("\n")
 		r.content.WriteString(ops)
 		r.content.WriteString("S\n")
 	}
@@ -115,7 +119,8 @@ func (r *PDFRenderer) FillGradient(bnd *path.Path, g *GradientFill) error {
 	}
 	c1 := gradientRGBA(g.Color1)
 	r.useGState(255, 255)
-	r.content.WriteString(pdfColor(c1) + " rg\n")
+	r.content.WriteString(pdfColor(c1))
+	r.content.WriteString(" rg\n")
 	r.content.WriteString(pathOps(bnd))
 	r.content.WriteString("f\n")
 	return nil

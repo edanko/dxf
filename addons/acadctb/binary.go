@@ -186,8 +186,8 @@ func (p *plotStyleParser) parseMapping(nested bool) map[string]any {
 			return out
 		}
 		p.pos++
-		if strings.HasSuffix(line, "{") {
-			name := strings.TrimSpace(strings.TrimSuffix(line, "{"))
+		if before, ok := strings.CutSuffix(line, "{"); ok {
+			name := strings.TrimSpace(before)
 			out[name] = p.parseMapping(true)
 			continue
 		}
@@ -203,8 +203,8 @@ func (p *plotStyleParser) parseMapping(nested bool) map[string]any {
 
 func sanitizePlotStyleValue(value string) string {
 	value = strings.TrimSpace(value)
-	if strings.HasPrefix(value, "\"") {
-		return strings.TrimPrefix(value, "\"")
+	if after, ok := strings.CutPrefix(value, "\""); ok {
+		return after
 	}
 	// AutoCAD may append binary trailer data after the numeric value.
 	if strings.HasSuffix(value, ")") {

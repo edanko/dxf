@@ -587,7 +587,7 @@ func (m *MText) ParseFormattingCode(text string) (*MTextFormattingCode, int) {
 	}
 
 	code := &MTextFormattingCode{}
-	consumed := 1
+	var consumed int
 
 	switch text[1] {
 	// Single character commands
@@ -677,190 +677,6 @@ const (
 	SpecialCharDegree    SpecialCharEncoding = iota // %%d = °
 	SpecialCharPlusMinus SpecialCharEncoding = iota // %%p = ±
 )
-
-// decodeCaretNotation decodes caret-encoded special characters
-func (m *MText) decodeCaretNotation(text string) string {
-	result := text
-	// Decode caret notation
-	replacePairs := []struct {
-		from string
-		to   string
-	}{
-		{"^I", "\t"}, // Tab
-		{"^J", "\n"}, // Line feed
-		{"^M", "\r"}, // Carriage return
-	}
-
-	for _, pair := range replacePairs {
-		result = strings.ReplaceAll(result, pair.from, pair.to)
-	}
-	return result
-}
-
-// encodeCaretNotation encodes special characters using caret notation
-func (m *MText) encodeCaretNotation(text string) string {
-	result := text
-	replacePairs := []struct {
-		from string
-		to   string
-	}{
-		{"\t", "^I"}, // Tab
-		{"\n", "^J"}, // Line feed
-		{"\r", "^M"}, // Carriage return
-	}
-
-	for _, pair := range replacePairs {
-		result = strings.ReplaceAll(result, pair.from, pair.to)
-	}
-	return result
-}
-
-// decodeSpecialCharacters decodes %% special character encodings
-func (m *MText) decodeSpecialCharacters(text string) string {
-	result := text
-	replacePairs := []struct {
-		from string
-		to   string
-	}{
-		{"%%c", "Ø"}, // Diameter symbol
-		{"%%d", "°"}, // Degree symbol
-		{"%%p", "±"}, // Plus-minus symbol
-	}
-
-	for _, pair := range replacePairs {
-		result = strings.ReplaceAll(result, pair.from, pair.to)
-	}
-	return result
-}
-
-// encodeSpecialCharacters encodes special characters using %% notation
-func (m *MText) encodeSpecialCharacters(text string) string {
-	result := text
-	replacePairs := []struct {
-		from string
-		to   string
-	}{
-		{"Ø", "%%c"}, // Diameter symbol
-		{"°", "%%d"}, // Degree symbol
-		{"±", "%%p"}, // Plus-minus symbol
-	}
-
-	for _, pair := range replacePairs {
-		result = strings.Replace(result, pair.from, pair.to, -1)
-	}
-	return result
-}
-
-// extractPlainText removes all formatting codes to return plain text
-func (m *MText) extractPlainText(text string, fast bool) string {
-	if fast {
-		// Fast mode - simple backslash removal
-		result := strings.Builder{}
-		i := 0
-		for i < len(text) {
-			if text[i] == '\\' && i+1 < len(text) {
-				// Skip formatting code and its argument
-				i += 2
-				// Skip to next semicolon for multi-character codes
-				if i < len(text) && strings.ContainsRune("ACFfHcQSTWp", rune(text[i])) {
-					for i < len(text) && text[i] != ';' {
-						i++
-					}
-					if i < len(text) {
-						i++ // Skip semicolon
-					}
-				}
-			} else {
-				result.WriteByte(text[i])
-				i++
-			}
-		}
-		return m.decodeCaretNotation(m.decodeSpecialCharacters(result.String()))
-	}
-
-	// Accurate mode - full parsing
-	fragments := m.ParseTextContent()
-	result := strings.Builder{}
-	for _, fragment := range fragments {
-		result.WriteString(fragment.Text)
-	}
-	return result.String()
-}
-
-// estimateTextExtents estimates text dimensions with basic font metrics
-func (m *MText) estimateTextExtents(text string, font *MTextFont, width float64) (float64, float64) {
-	if font == nil {
-		font = &MTextFont{Name: "Arial"}
-	}
-
-	// Basic font metrics estimation
-	charWidth := m.Height * 0.6 // Average character width multiplier
-	if font.Pitch > 0 {
-		charWidth = font.Pitch
-	}
-
-	// Count actual characters (excluding formatting)
-	plainText := m.extractPlainText(text, false)
-	charCount := float64(len(plainText))
-
-	textWidth := charCount * charWidth
-	if width > 0 {
-		textWidth = width // Use specified width if available
-	}
-
-	// Estimate lines needed
-	lines := 1.0
-	if textWidth > width && width > 0 {
-		lines = math.Ceil(textWidth / width)
-	}
-
-	textHeight := m.Height * lines
-	return textWidth, textHeight
-}
-
-// wrapText wraps text to specified width using AutoCAD-compatible word breaking
-func (m *MText) wrapText(text string, width float64, font *MTextFont) []string {
-	if width <= 0 {
-		return []string{text}
-	}
-
-	plainText := m.extractPlainText(text, false)
-	words := strings.Fields(plainText)
-
-	lines := []string{""}
-	currentLine := strings.Builder{}
-	currentWidth := 0.0
-
-	charWidth := m.Height * 0.6 // Average character width
-	if font != nil && font.Pitch > 0 {
-		charWidth = font.Pitch
-	}
-
-	for _, word := range words {
-		wordWidth := float64(len(word)) * charWidth
-
-		if currentWidth+wordWidth <= width {
-			if currentLine.Len() > 0 {
-				currentLine.WriteString(" ")
-				currentWidth += charWidth
-			}
-			currentLine.WriteString(word)
-			currentWidth += wordWidth
-		} else {
-			// Word doesn't fit, start new line
-			lines = append(lines, currentLine.String())
-			currentLine.Reset()
-			currentLine.WriteString(word)
-			currentWidth = wordWidth
-		}
-	}
-
-	if currentLine.Len() > 0 {
-		lines = append(lines, currentLine.String())
-	}
-
-	return lines
-}
 
 // parseLongCommand handles multi-character formatting commands
 func (m *MText) parseLongCommand(text string) (*MTextFormattingCode, int) {
@@ -1147,10 +963,11 @@ func (m *MText) parseTabStops(tabStr string) []MTextTabStop {
 
 		tabStop := MTextTabStop{Type: MTextTabLeft}
 
-		if tab[0] == 'c' {
+		switch tab[0] {
+		case 'c':
 			tabStop.Type = MTextTabCenter
 			tab = tab[1:]
-		} else if tab[0] == 'r' {
+		case 'r':
 			tabStop.Type = MTextTabRight
 			tab = tab[1:]
 		}
@@ -1236,16 +1053,6 @@ func (m *MText) BBox() ([]float64, []float64) {
 	}
 
 	return []float64{minX, minY, minZ}, []float64{maxX, maxY, maxZ}
-}
-
-// Helper functions for legacy compatibility
-
-func (t *MText) togglegenflag(val int) {
-	if t.GenFlag&val != 0 {
-		t.GenFlag &= ^val
-	} else {
-		t.GenFlag |= val
-	}
 }
 
 // Anchor sets anchor point flags (legacy compatibility)

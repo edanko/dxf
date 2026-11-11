@@ -7,41 +7,6 @@ import (
 	dxfmath "github.com/edanko/dxf/math"
 )
 
-// Helper functions for Min/Max of multiple values
-func min3(a, b, c float64) float64 {
-	if a < b {
-		if a < c {
-			return a
-		}
-		return c
-	}
-	if b < c {
-		return b
-	}
-	return c
-}
-
-func max3(a, b, c float64) float64 {
-	if a > b {
-		if a > c {
-			return a
-		}
-		return c
-	}
-	if b > c {
-		return b
-	}
-	return c
-}
-
-func min4(a, b, c, d float64) float64 {
-	return math.Min(math.Min(a, b), math.Min(c, d))
-}
-
-func max4(a, b, c, d float64) float64 {
-	return math.Max(math.Max(a, b), math.Max(c, d))
-}
-
 // Tools provides advanced path operations similar to Python ezdxf path/tools.py
 type Tools struct {
 	path *Path

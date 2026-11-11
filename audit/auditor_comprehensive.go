@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/edanko/dxf"
 	"github.com/edanko/dxf/drawing"
 )
 
@@ -142,7 +143,6 @@ func (ca *ComprehensiveAuditor) AuditDrawing(doc *drawing.Drawing) (*AuditResult
 func (ca *ComprehensiveAuditor) AuditFile(filename string) (*AuditResult, error) {
 	ca.logger.LogMessage(fmt.Sprintf("Auditing DXF file: %s", filename))
 
-	// Load drawing using a placeholder function
 	doc, err := ca.loadDrawing(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load DXF file: %w", err)
@@ -156,24 +156,36 @@ func (ca *ComprehensiveAuditor) AuditFile(filename string) (*AuditResult, error)
 	return result, nil
 }
 
-// loadDrawing is a placeholder for loading DXF files
+// loadDrawing loads a DXF file through the library's normal loader so audits
+// see the same entities, tables, blocks, and objects as any other reader.
 func (ca *ComprehensiveAuditor) loadDrawing(filename string) (*drawing.Drawing, error) {
-	// This would use the actual DXF loading function
-	// For now, return a placeholder
-	return nil, fmt.Errorf("DXF file loading not implemented in this context")
+	doc, err := dxf.FromFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return doc, nil
 }
 
-// detectBlockCycles performs block cycle detection
+// detectBlockCycles detects block INSERT cycles through the same block-graph
+// check the audit registry uses (checkBlockCycles): cycles are reported in
+// result.Cycles with their count in result.CyclesDetected and an error entry
+// each.
 func (ca *ComprehensiveAuditor) detectBlockCycles(doc *drawing.Drawing, result *AuditResult) error {
 	ca.logger.LogMessage("Detecting block reference cycles")
 
-	// For now, we'll add a placeholder implementation
-	// In a real implementation, this would use the BlockCycleDetector
-
-	// Placeholder cycle detection
-	// result.Cycles = append(result.Cycles, []string{"BLOCK1", "BLOCK2", "BLOCK1"})
-	// result.CyclesDetected = len(result.Cycles)
-
+	cycles := findBlockCycles(blockGraph(NewContext(doc)))
+	if len(cycles) == 0 {
+		return nil
+	}
+	result.Cycles = append(result.Cycles, cycles...)
+	result.CyclesDetected = len(result.Cycles)
+	for _, cycle := range cycles {
+		result.Errors = append(result.Errors, &AuditError{
+			Code:     ErrorInvalidBlockReferenceCycle,
+			Severity: SeverityError,
+			Message:  "block INSERT cycle: " + strings.Join(cycle, " -> "),
+		})
+	}
 	return nil
 }
 
