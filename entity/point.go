@@ -2,6 +2,7 @@ package entity
 
 import (
 	"github.com/edanko/dxf/format"
+	dxfmath "github.com/edanko/dxf/math"
 )
 
 // Point represents POINT Entity.
@@ -40,23 +41,33 @@ func NewPoint(coord ...float64) *Point {
 func (p *Point) Format(f format.Formatter) {
 	p.entity.Format(f)
 	f.WriteString(100, "AcDbPoint")
-	for i := 0; i < 3; i++ {
+	if p.thickness != 0 {
+		f.WriteFloat(39, p.thickness)
+	}
+	for i := range 3 {
 		f.WriteFloat((i+1)*10, p.Coord[i])
 	}
-}
-
-// String outputs data using default formatter.
-func (p *Point) String() string {
-	f := format.NewASCII()
-	return p.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (p *Point) FormatString(f format.Formatter) string {
-	p.Format(f)
-	return f.Output()
+	p.entity.FormatBaseExtrusion(f)
 }
 
 func (p *Point) BBox() ([]float64, []float64) {
 	return []float64{p.Coord[0], p.Coord[1], p.Coord[2]}, []float64{p.Coord[0], p.Coord[1], p.Coord[2]}
+}
+
+// SetCoord sets the point coordinates
+func (p *Point) SetCoord(coord dxfmath.Vec3) {
+	p.Coord = []float64{coord.X(), coord.Y(), coord.Z()}
+}
+
+// Transform applies an affine matrix to the point coordinates.
+func (p *Point) Transform(m dxfmath.Matrix44) error {
+	p.Coord = TransformPoint(m, p.Coord)
+	return nil
+}
+
+// Copy creates a deep copy of the Point entity
+func (p *Point) Copy() Entity {
+	point := NewPoint(p.Coord[0], p.Coord[1], p.Coord[2])
+	point.entity = p.entity.clone()
+	return point
 }

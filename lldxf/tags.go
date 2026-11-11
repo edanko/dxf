@@ -1,0 +1,532 @@
+package lldxf
+
+import (
+	"encoding/hex"
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+)
+
+// GroupCode represents a DXF group code
+type GroupCode int
+
+// Tag interface for all DXF tag types
+type Tag interface {
+	Code() GroupCode
+	Value() any
+	String() string
+	Clone() Tag
+}
+
+// DXFTag represents a single DXF tag (group code, value pair)
+type DXFTag struct {
+	code  GroupCode
+	value any
+}
+
+// SetValue replaces the tag's value.
+func (t *DXFTag) SetValue(v any) { t.value = v }
+
+// NewDXFTag creates a new DXF tag with automatic type casting
+func NewDXFTag(code GroupCode, value any) Tag {
+	// Special case: if value is already a coordinate array and code is a point code, preserve it
+	if coords, ok := value.([]float64); ok && isPointCode(code) {
+		return &DXFVertex{DXFTag{code: code, value: coords}}
+	}
+
+	castValue := castTagValue(code, value)
+
+	// Create specialized tag types based on group code
+	switch {
+	case isBinaryDataCode(code):
+		return &DXFBinaryTag{DXFTag{code: code, value: castValue}}
+	case isPointCode(code):
+		return &DXFVertex{DXFTag{code: code, value: castValue}}
+	default:
+		return &DXFTag{code: code, value: castValue}
+	}
+}
+
+// Code returns the group code
+func (t *DXFTag) Code() GroupCode {
+	return t.code
+}
+
+// Value returns the tag value
+func (t *DXFTag) Value() any {
+	return t.value
+}
+
+// String returns the DXF string representation
+func (t *DXFTag) String() string {
+	var valueStr string
+	switch v := t.value.(type) {
+	case float64:
+		valueStr = strconv.FormatFloat(v, 'f', -1, 64)
+	case float32:
+		valueStr = strconv.FormatFloat(float64(v), 'f', -1, 64)
+	case string:
+		valueStr = v
+	case []byte:
+		valueStr = string(v)
+	default:
+		valueStr = fmt.Sprintf("%v", v)
+	}
+	return fmt.Sprintf("%d\n%s\n", t.code, valueStr)
+}
+
+// Clone creates a deep copy of the tag
+func (t *DXFTag) Clone() Tag {
+	return &DXFTag{code: t.code, value: t.value}
+}
+
+// DXFBinaryTag represents binary data tags (310-319, 1004)
+type DXFBinaryTag struct {
+	DXFTag
+}
+
+// String returns the binary tag string representation
+// String renders the tag for ASCII DXF output: binary payloads are hex-encoded
+// uppercase, matching the wire form.
+func (t *DXFBinaryTag) String() string {
+	if b, ok := t.value.([]byte); ok {
+		return fmt.Sprintf("%d\n%s\n", t.code, strings.ToUpper(hex.EncodeToString(b)))
+	}
+	return fmt.Sprintf("%d\n%s\n", t.code, t.value)
+}
+
+// BinaryTagFromHex builds a binary data tag (codes 260/261/310-319/1004) from
+// an ASCII hex payload string (as found in DXF text streams), decoding it to
+// raw bytes. Non-hex payloads are kept as their raw byte form.
+func BinaryTagFromHex(code GroupCode, hexPayload string) Tag {
+	data := decodeHexPayload(hexPayload)
+	if data == nil {
+		data = []byte(hexPayload)
+	}
+	return &DXFBinaryTag{DXFTag{code: code, value: data}}
+}
+
+// IsBinaryDataCode is documented on the unexported predicate.
+var _ = IsBinaryDataCode
+
+// FormatValue renders a tag value in its canonical text form for the string
+// model and ASCII output: binary data payloads (codes 260/261, 310-319, 1004)
+// become uppercase hex matching the wire form; other values use %v. Keeping
+// every tag-to-string conversion on this path makes retained tags stable
+// across repeated round trips.
+func FormatValue(tag Tag) string {
+	if bin, ok := tag.(*DXFBinaryTag); ok {
+		if b, ok := bin.value.([]byte); ok {
+			return strings.ToUpper(hex.EncodeToString(b))
+		}
+	}
+	if lldxfSelfIsBinary(isBinaryDataCode(tag.Code())) {
+		if b, ok := tag.Value().([]byte); ok {
+			return strings.ToUpper(hex.EncodeToString(b))
+		}
+	}
+	return fmt.Sprintf("%v", tag.Value())
+}
+
+func lldxfSelfIsBinary(v bool) bool { return v }
+
+// Clone creates a deep copy of the binary tag
+func (t *DXFBinaryTag) Clone() Tag {
+	return &DXFBinaryTag{DXFTag{code: t.code, value: t.value}}
+}
+
+// DXFVertex represents coordinate tags (10-19, 110-119, 210-219, etc.)
+type DXFVertex struct {
+	DXFTag
+}
+
+// String returns the vertex tag string representation
+func (t *DXFVertex) String() string {
+	var valueStr string
+	switch v := t.value.(type) {
+	case float64:
+		valueStr = strconv.FormatFloat(v, 'f', -1, 64)
+	case float32:
+		valueStr = strconv.FormatFloat(float64(v), 'f', -1, 64)
+	case string:
+		valueStr = v
+	case []byte:
+		valueStr = string(v)
+	default:
+		valueStr = fmt.Sprintf("%v", v)
+	}
+	return fmt.Sprintf("%d\n%s\n", t.code, valueStr)
+}
+
+// Clone creates a deep copy of the vertex tag
+func (t *DXFVertex) Clone() Tag {
+	return &DXFVertex{DXFTag{code: t.code, value: t.value}}
+}
+
+// Tags represents a collection of DXF tags
+type Tags []Tag
+
+// NewTags creates an empty Tags collection
+func NewTags() Tags {
+	return make(Tags, 0)
+}
+
+// Add appends a tag to the collection
+func (t Tags) Add(tag Tag) Tags {
+	return append(t, tag)
+}
+
+// GetFirstValue returns the value of the first tag with the specified group code
+func (t Tags) GetFirstValue(code GroupCode) (any, bool) {
+	for _, tag := range t {
+		if tag.Code() == code {
+			return tag.Value(), true
+		}
+	}
+	return nil, false
+}
+
+// FindAll returns all tags with the specified group code
+func (t Tags) FindAll(code GroupCode) Tags {
+	result := make(Tags, 0)
+	for _, tag := range t {
+		if tag.Code() == code {
+			result = append(result, tag)
+		}
+	}
+	return result
+}
+
+// SetFirst updates the first tag with the specified group code, or adds it if not found
+func (t Tags) SetFirst(tag Tag) {
+	for i, existing := range t {
+		if existing.Code() == tag.Code() {
+			t[i] = tag
+			return
+		}
+	}
+	t.Add(tag)
+}
+
+// GetHandle returns the entity handle (group code 5 or 105)
+func (t Tags) GetHandle() string {
+	if handle, found := t.GetFirstValue(5); found {
+		return fmt.Sprintf("%v", handle)
+	}
+	if handle, found := t.GetFirstValue(105); found {
+		return fmt.Sprintf("%v", handle)
+	}
+	return ""
+}
+
+// DXFType returns the entity type (group code 0)
+func (t Tags) DXFType() string {
+	if dtype, found := t.GetFirstValue(0); found {
+		return fmt.Sprintf("%v", dtype)
+	}
+	return ""
+}
+
+// String returns the string representation of all tags
+func (t Tags) String() string {
+	var builder strings.Builder
+	for _, tag := range t {
+		builder.WriteString(tag.String())
+	}
+	return builder.String()
+}
+
+// castTagValue converts tag values to appropriate types based on group code
+func castTagValue(code GroupCode, value any) any {
+	// Point codes carry floats, but ACIS payloads (3DSOLID/REGION/BODY) reuse
+	// them for text lines. Preserve strings that do not parse as numbers so
+	// the payload survives round trips; numeric parsing stays unchanged.
+	if isPointCode(code) || (code >= 10 && code <= 17) {
+		if str, ok := value.(string); ok && str != "" {
+			if _, err := strconv.ParseFloat(str, 64); err != nil {
+				return str
+			}
+		}
+	}
+	switch {
+	case isFloatCode(code):
+		return castToFloat(value)
+	case isInt16Code(code):
+		return castToInt16(value)
+	case isInt32Code(code):
+		return castToInt32(value)
+	case isInt64Code(code):
+		return castToInt64(value)
+	case isBinaryDataCode(code):
+		return castToBinary(value)
+	default:
+		return castToString(value)
+	}
+}
+
+// Helper functions for group code classification
+
+// IsBinaryDataCode reports group codes carrying hex-encoded binary payloads
+// (310-319, 1004).
+func IsBinaryDataCode(code GroupCode) bool { return isBinaryDataCode(code) }
+
+func isBinaryDataCode(code GroupCode) bool {
+	binaryCodes := []GroupCode{260, 261, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 1004}
+	return slices.Contains(binaryCodes, code)
+}
+
+func isPointCode(code GroupCode) bool {
+	pointCodes := []GroupCode{10, 11, 12, 13, 14, 15, 16, 17, 18, 110, 111, 112, 210, 211, 212, 213, 1010, 1011, 1012, 1013}
+	return slices.Contains(pointCodes, code)
+}
+
+func isFloatCode(code GroupCode) bool {
+	// Group codes that typically contain floating-point values
+	// Based on DXF specification
+	floatCodes := []GroupCode{
+		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, // X coordinates
+		20, 21, 22, 23, 24, 25, 26, 27, 28, 29, // Y coordinates
+		30, 31, 32, 33, 34, 35, 36, 37, 38, 39, // Z coordinates
+		40, 41, 42, 43, 44, 45, 46, 47, 48, 49, // Radii, angles, etc.
+		50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+		110, 111, 112, 113, 114, 115, 116, 117, 118, 119, // More X coords
+		120, 121, 122, 123, 124, 125, 126, 127, 128, 129, // More Y coords
+		130, 131, 132, 133, 134, 135, 136, 137, 138, 139, // More Z coords
+		140, 141, 142, 143, 144, 145, 146, 147, 148, 149, // Dimension floats
+		210, 211, 212, 213, 214, 215, 216, 217, 218, 219, // Extrusion vectors
+		460, 461, 462, 463, 464, 465, 466, 467, 468, 469, // More floats
+		1010, 1011, 1012, 1013, // XDATA floats
+		1040, 1041, 1042, // XDATA floats
+	}
+	return slices.Contains(floatCodes, code)
+}
+
+func isInt16Code(code GroupCode) bool {
+	// Group codes that typically contain 16-bit integers
+	// Based on DXF specification
+	int16Codes := []GroupCode{
+		60, 61, 62, 63, 64, 65, 66, 67, 68, 69, // Status, color, etc.
+		70, 71, 72, 73, 74, 75, 76, 77, 78, 79, // Flags, counts
+		170, 171, 172, 173, 174, 175, 176, 177, 178, 179, // More flags
+		270, 271, 272, 273, 274, 275, 276, 277, 278, 279, // More flags
+		280, 281, 282, 283, 284, 285, 286, 287, 288, 289, // Booleans, small ints
+		290, 291, 292, 293, 294, 295, 296, 297, 298, 299, // Booleans
+		370, 371, 372, 373, 374, 375, 376, 377, 378, 379, // More flags
+		380, 381, 382, 383, 384, 385, 386, 387, 388, 389, // More small ints
+		400, 401, 402, 403, 404, 405, 406, 407, 408, 409, // More flags
+		1060, 1061, 1062, 1063, 1064, 1065, 1066, 1067, 1068, 1069, // XDATA ints
+		1070, // XDATA int
+	}
+	return slices.Contains(int16Codes, code)
+}
+
+func isInt32Code(code GroupCode) bool {
+	// Group codes that typically contain 32-bit integers
+	// Based on DXF specification
+	int32Codes := []GroupCode{
+		90, 91, 92, 93, 94, 95, 96, 97, 98, 99, // Counts, handles
+		420, 421, 422, 423, 424, 425, 426, 427, 428, 429, // Annotation related
+		430, 431, 432, 433, 434, 435, 436, 437, 438, 439, // Dictionary handles
+		440, 441, 442, 443, 444, 445, 446, 447, 448, 449, // More ints
+		450, 451, 452, 453, 454, 455, 456, 457, 458, 459, // More ints
+		480, 481, 482, 483, 484, 485, 486, 487, 488, 489, // More handles
+		1071, // XDATA int32
+	}
+	return slices.Contains(int32Codes, code)
+}
+
+func isInt64Code(code GroupCode) bool {
+	// Group codes that typically contain 64-bit integers
+	// Based on DXF specification
+	int64Codes := []GroupCode{
+		160, 161, 162, 163, 164, 165, 166, 167, 168, 169, // Lengths, counts (int64 in binary DXF)
+	}
+	return slices.Contains(int64Codes, code)
+}
+
+// Type casting functions
+
+func castToFloat(value any) float64 {
+	switch v := value.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case string:
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+		return 0.0
+	default:
+		return 0.0
+	}
+}
+
+func castToInt16(value any) int16 {
+	switch v := value.(type) {
+	case int16:
+		return v
+	case int:
+		return int16(v)
+	case int64:
+		return int16(v)
+	case float64:
+		return int16(v)
+	case string:
+		if i, err := strconv.ParseInt(v, 10, 16); err == nil {
+			return int16(i)
+		}
+		return 0
+	default:
+		return 0
+	}
+}
+
+func castToInt32(value any) int32 {
+	switch v := value.(type) {
+	case int32:
+		return v
+	case int:
+		return int32(v)
+	case int64:
+		return int32(v)
+	case float64:
+		return int32(v)
+	case string:
+		if i, err := strconv.ParseInt(v, 10, 32); err == nil {
+			return int32(i)
+		}
+		return 0
+	default:
+		return 0
+	}
+}
+
+func castToInt64(value any) int64 {
+	switch v := value.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case int32:
+		return int64(v)
+	case float64:
+		return int64(v)
+	case string:
+		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return i
+		}
+		return 0
+	default:
+		return 0
+	}
+}
+
+func castToString(value any) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// decodeHexPayload converts an ASCII DXF binary payload (hex digits, optional
+// spaces) to raw bytes. Non-hex input is returned as nil so callers can fall
+// back to the string form.
+func decodeHexPayload(s string) []byte {
+	var digits []byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == ' ' || c == '\t' {
+			continue
+		}
+		digits = append(digits, c)
+	}
+	if len(digits)%2 != 0 {
+		return nil
+	}
+	out := make([]byte, len(digits)/2)
+	for i := range out {
+		hi, ok1 := hexDigit(digits[2*i])
+		lo, ok2 := hexDigit(digits[2*i+1])
+		if !ok1 || !ok2 {
+			return nil
+		}
+		out[i] = hi<<4 | lo
+	}
+	return out
+}
+
+func hexDigit(c byte) (byte, bool) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0', true
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10, true
+	case c >= 'A' && c <= 'F':
+		return c - 'A' + 10, true
+	}
+	return 0, false
+}
+
+func castToBinary(value any) []byte {
+	switch v := value.(type) {
+	case []byte:
+		return v
+	case string:
+		return []byte(v)
+	default:
+		return []byte(fmt.Sprintf("%v", v))
+	}
+}
+
+// BinaryValueKind classifies how a group code's value is encoded in binary DXF.
+type BinaryValueKind int
+
+const (
+	BinaryString BinaryValueKind = iota // null-terminated UTF-16LE string
+	BinaryFloat                         // 64-bit double
+	BinaryInt16                         // 16-bit little-endian integer
+	BinaryInt32                         // 32-bit little-endian integer
+	BinaryInt64                         // 64-bit little-endian integer
+	BinaryRaw                           // int32 byte count followed by raw bytes
+)
+
+// BinaryKindFor returns the binary encoding kind for a group code, matching
+// castTagValue: the value type a tag holds after casting is determined here.
+func BinaryKindFor(code GroupCode) BinaryValueKind {
+	switch {
+	case isBinaryDataCode(code):
+		return BinaryRaw
+	case isFloatCode(code):
+		return BinaryFloat
+	case isInt64Code(code):
+		return BinaryInt64
+	case isInt32Code(code):
+		return BinaryInt32
+	case isInt16Code(code):
+		return BinaryInt16
+	case IsBinaryBoolCode(code):
+		return BinaryInt16
+	default:
+		return BinaryString
+	}
+}
+
+// IsBinaryBoolCode reports whether a code stores a boolean (as int16) in binary DXF.
+func IsBinaryBoolCode(code GroupCode) bool {
+	for c := GroupCode(290); c <= GroupCode(299); c++ {
+		if code == c {
+			return true
+		}
+	}
+	return false
+}

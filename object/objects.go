@@ -3,20 +3,13 @@ package object
 
 import (
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 )
-
-// Object is interface for OBJECT.
-type Object interface {
-	IsObject() bool
-	Format(f format.Formatter)
-	Handle() int
-	SetHandle(*int)
-}
 
 // Objects represents OBJECTS section.
 type Objects []Object
 
-// New create a new Objects.
+// New creates a new Objects.
 func New() Objects {
 	o := make([]Object, 0)
 	return o
@@ -39,8 +32,8 @@ func (os Objects) Add(o Object) Objects {
 }
 
 // SetHandle sets handles to each object.
-func (os Objects) SetHandle(v *int) {
+func (os Objects) SetHandle(hg *handle.HandleGenerator) {
 	for _, o := range os {
-		o.SetHandle(v)
+		o.SetHandle(hg)
 	}
 }

@@ -2,14 +2,14 @@ package table
 
 import (
 	"github.com/edanko/dxf/format"
-	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/lldxf"
 )
 
 // UCS represents UCS SymbolTable.
 type Ucs struct {
-	handle int
-	owner  handle.Handler
-	name   string // 2
+	EntryBase
+
+	name string // 2
 }
 
 // NewUCS creates a new Ucs.
@@ -26,42 +26,16 @@ func (u *Ucs) IsSymbolTable() bool {
 
 // Format writes data to formatter.
 func (u *Ucs) Format(f format.Formatter) {
-	f.WriteString(0, "UCS")
-	f.WriteHex(5, u.handle)
-	if u.owner != nil {
-		f.WriteHex(330, u.owner.Handle())
-	}
-	f.WriteString(100, "AcDbSymbolTableRecord")
+	u.FormatCommon(f, "UCS", "AcDbUCSTableRecord")
 	f.WriteString(100, "AcDbUCSTableRecord")
 	f.WriteString(2, u.name)
+	u.FormatCommonTail(f)
 }
 
-// String outputs data using default formatter.
-func (u *Ucs) String() string {
-	f := format.NewASCII()
-	return u.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (u *Ucs) FormatString(f format.Formatter) string {
-	u.Format(f)
-	return f.Output()
-}
-
-// Handle returns a handle value.
-func (u *Ucs) Handle() int {
-	return u.handle
-}
-
-// SetHandle sets a handle.
-func (u *Ucs) SetHandle(h *int) {
-	u.handle = *h
-	(*h)++
-}
-
-// SetOwner sets an owner.
-func (u *Ucs) SetOwner(h handle.Handler) {
-	u.owner = h
+// RetainTags records UCS codes the typed model does not emit.
+func (u *Ucs) RetainTags(tags lldxf.Tags) {
+	emitted := map[int]bool{0: true, 2: true, 5: true, 70: true, 100: true, 330: true}
+	u.RetainUnhandled(tags, emitted)
 }
 
 // Name returns a name of UCS (code 2).

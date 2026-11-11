@@ -4,18 +4,21 @@ import (
 	"github.com/edanko/dxf/color"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/lldxf"
 )
 
 // Layer represents LAYER SymbolTable.
 type Layer struct {
-	handle    int
-	owner     handle.Handler
-	name      string
-	flag      int
-	Color     color.ColorNumber
-	LineType  *LineType
-	lineWidth int
-	PlotStyle handle.Handler
+	EntryBase
+
+	name         string
+	Color        color.ColorNumber
+	LineType     *LineType
+	lineWidth    int
+	PlotStyle    handle.Handler
+	transparency int // -3 by default, 0-100 percent
+	plottable    bool
+	trueColor    int // 420 (RGB), -1 = not set
 }
 
 // NewLayer creates a new Layer.
@@ -25,6 +28,9 @@ func NewLayer(name string, color color.ColorNumber, lt *LineType) *Layer {
 	l.Color = color
 	l.LineType = lt
 	l.lineWidth = -3
+	l.transparency = -3
+	l.plottable = true
+	l.trueColor = -1
 	return l
 }
 
@@ -35,53 +41,42 @@ func (l *Layer) IsSymbolTable() bool {
 
 // Format writes data to formatter.
 func (l *Layer) Format(f format.Formatter) {
-	f.WriteString(0, "LAYER")
-	f.WriteHex(5, l.handle)
-	if l.owner != nil {
-		f.WriteHex(330, l.owner.Handle())
-	}
-	f.WriteString(100, "AcDbSymbolTableRecord")
-	f.WriteString(100, "AcDbLayerTableRecord")
+	l.FormatCommon(f, "LAYER", "AcDbLayerTableRecord")
 	f.WriteString(2, l.name)
-	f.WriteInt(70, l.flag)
+	f.WriteInt(70, l.flags)
 	f.WriteInt(62, int(l.Color))
-	f.WriteString(6, l.LineType.Name())
+	if l.LineType != nil {
+		f.WriteString(6, l.LineType.Name())
+	}
 	f.WriteInt(370, l.lineWidth)
-	f.WriteHex(390, l.PlotStyle.Handle())
+	if l.transparency > -3 {
+		f.WriteInt(440, l.transparency)
+	}
+	if !l.plottable {
+		f.WriteInt(290, 0)
+	}
+	if l.trueColor >= 0 {
+		f.WriteInt(420, l.trueColor)
+	}
+	if l.PlotStyle != nil {
+		f.WriteString(390, l.PlotStyle.Handle())
+	}
+	l.FormatCommonTail(f)
 }
 
-// String outputs data using default formatter.
-func (l *Layer) String() string {
-	f := format.NewASCII()
-	return l.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (l *Layer) FormatString(f format.Formatter) string {
-	l.Format(f)
-	return f.Output()
-}
-
-// Handle returns a handle value.
-func (l *Layer) Handle() int {
-	return l.handle
-}
-
-// SetHandle sets a handle.
-func (l *Layer) SetHandle(v *int) {
-	l.handle = *v
-	(*v)++
-}
-
-// SetOwner sets an owner.
-func (l *Layer) SetOwner(h handle.Handler) {
-	l.owner = h
+// RetainTags records LAYER codes the typed model does not emit.
+func (l *Layer) RetainTags(tags lldxf.Tags) {
+	emitted := map[int]bool{0: true, 2: true, 5: true, 6: true, 62: true, 70: true, 100: true, 290: true, 330: true, 370: true, 390: true, 420: true, 440: true}
+	l.RetainUnhandled(tags, emitted)
 }
 
 // Name returns a name of LAYER (code 2).
 func (l *Layer) Name() string {
 	return l.name
 }
+
+// SetName sets the layer name.
+func (l *Layer) SetName(name string) { l.name = name }
 
 // SetLineWidth sets line width.
 // As DXF has limitation in line width,
@@ -112,9 +107,35 @@ func (l *Layer) SetLineWidth(w int) int {
 	return minkey
 }
 
+// LineWidth returns the layer line width code (negative values are defaults).
+func (l *Layer) LineWidth() int { return l.lineWidth }
+
+// Transparency returns the layer transparency (-3 default, 0-100).
+func (l *Layer) Transparency() int { return l.transparency }
+
+// SetTransparency sets the layer transparency.
+func (l *Layer) SetTransparency(v int) { l.transparency = v }
+
+// TrueColor returns the RGB true color (code 420, -1 when unset).
+func (l *Layer) TrueColor() int { return l.trueColor }
+
+// SetTrueColor sets the RGB true color; -1 clears it.
+func (l *Layer) SetTrueColor(v int) { l.trueColor = v }
+
+// Plottable reports whether the layer is plottable (code 290).
+func (l *Layer) Plottable() bool { return l.plottable }
+
+// SetPlottable sets the plot flag.
+func (l *Layer) SetPlottable(v bool) { l.plottable = v }
+
 // SetPlotStyle sets plot style by a handle.
 func (l *Layer) SetPlotStyle(ps handle.Handler) {
 	l.PlotStyle = ps
+}
+
+// SetLineType sets the layer line type.
+func (l *Layer) SetLineType(lt *LineType) {
+	l.LineType = lt
 }
 
 // SetFlag sets standard flags.
@@ -126,25 +147,25 @@ func (l *Layer) SetPlotStyle(ps handle.Handler) {
 //	32 = If this bit and bit 16 are both set, the externally dependent xref has been successfully resolved.
 //	64 = If set, the table entry was referenced by at least one entity in the drawing the last time the drawing was edited. (This flag is for the benefit of AutoCAD commands. It can be ignored by most programs that read DXF files and need not be set by programs that write DXF files.)
 func (l *Layer) SetFlag(val int) {
-	l.flag = val
+	l.flags = val
 }
 
 // Freeze freezes Layer.
 func (l *Layer) Freeze() {
-	l.flag |= 1
+	l.flags |= 1
 }
 
 // UnFreeze unfreezes Layer.
 func (l *Layer) UnFreeze() {
-	l.flag &= ^1
+	l.flags &= ^1
 }
 
 // Lock locks Layer.
 func (l *Layer) Lock() {
-	l.flag |= 4
+	l.flags |= 4
 }
 
 // UnLock unlocks Layer.
 func (l *Layer) UnLock() {
-	l.flag &= ^4
+	l.flags &= ^4
 }

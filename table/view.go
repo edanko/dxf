@@ -2,14 +2,14 @@ package table
 
 import (
 	"github.com/edanko/dxf/format"
-	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/lldxf"
 )
 
 // View represents VIEW SymbolTable.
 type View struct {
-	handle int
-	owner  handle.Handler
-	name   string // 2
+	EntryBase
+
+	name string // 2
 }
 
 // NewView creates a new View.
@@ -26,42 +26,16 @@ func (v *View) IsSymbolTable() bool {
 
 // Format writes data to formatter.
 func (v *View) Format(f format.Formatter) {
-	f.WriteString(0, "VIEW")
-	f.WriteHex(5, v.handle)
-	if v.owner != nil {
-		f.WriteHex(330, v.owner.Handle())
-	}
-	f.WriteString(100, "AcDbSymbolTableRecord")
+	v.FormatCommon(f, "VIEW", "AcDbViewTableRecord")
 	f.WriteString(100, "AcDbViewTableRecord")
 	f.WriteString(2, v.name)
+	v.FormatCommonTail(f)
 }
 
-// String outputs data using default formatter.
-func (v *View) String() string {
-	f := format.NewASCII()
-	return v.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (v *View) FormatString(f format.Formatter) string {
-	v.Format(f)
-	return f.Output()
-}
-
-// Handle returns a handle value.
-func (v *View) Handle() int {
-	return v.handle
-}
-
-// SetHandle sets a handle.
-func (v *View) SetHandle(h *int) {
-	v.handle = *h
-	(*h)++
-}
-
-// SetOwner sets an owner.
-func (v *View) SetOwner(h handle.Handler) {
-	v.owner = h
+// RetainTags records VIEW codes the typed model does not emit.
+func (v *View) RetainTags(tags lldxf.Tags) {
+	emitted := map[int]bool{0: true, 2: true, 5: true, 70: true, 100: true, 330: true}
+	v.RetainUnhandled(tags, emitted)
 }
 
 // Name returns a name of VIEW (code 2).

@@ -9,8 +9,8 @@ import (
 type SymbolTable interface {
 	IsSymbolTable() bool
 	Format(format.Formatter)
-	Handle() int
-	SetHandle(*int)
 	SetOwner(handle.Handler)
 	Name() string
+
+	handle.Handler
 }

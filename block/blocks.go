@@ -3,6 +3,7 @@ package block
 
 import (
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 	"github.com/edanko/dxf/table"
 )
 
@@ -38,8 +39,8 @@ func (bs Blocks) Add(b *Block) Blocks {
 }
 
 // SetHandle sets handles to each block.
-func (bs Blocks) SetHandle(v *int) {
+func (bs Blocks) SetHandle(hg *handle.HandleGenerator) {
 	for _, b := range bs {
-		b.SetHandle(v)
+		b.SetHandle(hg)
 	}
 }

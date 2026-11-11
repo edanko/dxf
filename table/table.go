@@ -1,16 +1,22 @@
 package table
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/handle"
 )
+
+type nameSetter interface {
+	SetName(string)
+}
 
 // Table represents each TABLE.
 type Table struct {
 	name   string // 2
-	handle int    // 5
+	handle string // 5
 	size   int    // 70
 	tables []SymbolTable
 }
@@ -26,45 +32,39 @@ func NewTable(name string) *Table {
 func (t *Table) Format(f format.Formatter) {
 	f.WriteString(0, "TABLE")
 	f.WriteString(2, t.name)
-	f.WriteHex(5, t.handle)
+	f.WriteString(5, t.handle)
 	f.WriteString(100, "AcDbSymbolTable")
-	f.WriteInt(70, t.size)
+	f.WriteInt(70, len(t.tables))
 	if t.name == "DIMSTYLE" {
 		f.WriteString(100, "AcDbDimStyleTable")
-		f.WriteInt(71, t.size)
-		for i := 0; i < t.size; i++ {
-			f.WriteHex(340, t.tables[i].Handle())
-		}
+		// AutoCAD writes the style count and 340 links in the table header,
+		// before the records; ParseTables captures that tail and attaches it
+		// to the last record, which emits it verbatim at its end.
 	}
-	for i := 0; i < t.size; i++ {
-		t.tables[i].Format(f)
+	for _, e := range t.tables {
+		e.Format(f)
 	}
 	f.WriteString(0, "ENDTAB")
 }
 
-// String outputs data using default formatter.
-func (t *Table) String() string {
-	f := format.NewASCII()
-	return t.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (t *Table) FormatString(f format.Formatter) string {
-	t.Format(f)
-	return f.Output()
+// SetEntries replaces the symbol table records and updates the declared size.
+func (t *Table) SetEntries(entries []SymbolTable) {
+	t.tables = entries
+	t.size = len(entries)
 }
 
 // Handle returns a handle value of TABLE.
-func (t *Table) Handle() int {
+func (t *Table) Handle() string {
 	return t.handle
 }
 
 // SetHandle sets handles to TABLE itself and each SymbolTable.
-func (t *Table) SetHandle(v *int) {
-	t.handle = *v
-	(*v)++
+func (t *Table) SetHandle(hg *handle.HandleGenerator) {
+	if t.handle == "" {
+		t.handle = hg.Next()
+	}
 	for i := 0; i < t.size; i++ {
-		t.tables[i].SetHandle(v)
+		t.tables[i].SetHandle(hg)
 	}
 }
 
@@ -89,4 +89,58 @@ func (t *Table) Contains(name string) (SymbolTable, error) {
 		}
 	}
 	return nil, fmt.Errorf("%s doesn't exist", name)
+}
+
+// Lookup returns the entry with the given name (case-insensitive).
+func (t *Table) Lookup(name string) (SymbolTable, error) { return t.Contains(name) }
+
+// Len returns the number of entries.
+func (t *Table) Len() int { return len(t.tables) }
+
+// ErrDuplicateEntry is returned when adding an entry whose name exists.
+var ErrDuplicateEntry = errors.New("duplicate table entry name")
+
+// ErrEntryNotFound is returned by Remove/Rename for unknown names.
+var ErrEntryNotFound = errors.New("table entry not found")
+
+// AddChecked adds an entry, rejecting duplicate names (case-insensitive).
+func (t *Table) AddChecked(st SymbolTable) error {
+	for _, e := range t.tables {
+		if strings.EqualFold(e.Name(), st.Name()) {
+			return fmt.Errorf("%w: %s in %s", ErrDuplicateEntry, st.Name(), t.name)
+		}
+	}
+	t.Add(st)
+	return nil
+}
+
+// Remove deletes the named entry.
+func (t *Table) Remove(name string) error {
+	for i, e := range t.tables {
+		if strings.EqualFold(e.Name(), name) {
+			t.tables = append(t.tables[:i], t.tables[i+1:]...)
+			t.size = len(t.tables)
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %s in %s", ErrEntryNotFound, name, t.name)
+}
+
+// Rename changes an entry's name, rejecting collisions.
+func (t *Table) Rename(oldName, newName string) error {
+	for _, e := range t.tables {
+		if strings.EqualFold(e.Name(), newName) && !strings.EqualFold(e.Name(), oldName) {
+			return fmt.Errorf("%w: %s in %s", ErrDuplicateEntry, newName, t.name)
+		}
+	}
+	e, err := t.Lookup(oldName)
+	if err != nil {
+		return fmt.Errorf("%w: %s in %s", ErrEntryNotFound, oldName, t.name)
+	}
+	rn, ok := e.(nameSetter)
+	if !ok {
+		return fmt.Errorf("entry %s does not support rename", oldName)
+	}
+	rn.SetName(newName)
+	return nil
 }

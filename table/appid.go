@@ -2,14 +2,14 @@ package table
 
 import (
 	"github.com/edanko/dxf/format"
-	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/lldxf"
 )
 
 // AppID represents APPID SymbolTable.
 type AppID struct {
-	handle int
-	owner  handle.Handler
-	name   string
+	EntryBase
+
+	name string
 }
 
 // NewAppID create a new AppID.
@@ -26,43 +26,17 @@ func (a *AppID) IsSymbolTable() bool {
 
 // Format writes data to formatter.
 func (a *AppID) Format(f format.Formatter) {
-	f.WriteString(0, "APPID")
-	f.WriteHex(5, a.handle)
-	if a.owner != nil {
-		f.WriteHex(330, a.owner.Handle())
-	}
-	f.WriteString(100, "AcDbSymbolTableRecord")
+	a.FormatCommon(f, "APPID", "AcDbRegAppTableRecord")
 	f.WriteString(100, "AcDbRegAppTableRecord")
 	f.WriteString(2, a.name)
-	f.WriteInt(70, 0)
+	f.WriteInt(70, a.flags)
+	a.FormatCommonTail(f)
 }
 
-// String outputs data using default formatter.
-func (a *AppID) String() string {
-	f := format.NewASCII()
-	return a.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (a *AppID) FormatString(f format.Formatter) string {
-	a.Format(f)
-	return f.Output()
-}
-
-// Handle returns a handle value.
-func (a *AppID) Handle() int {
-	return a.handle
-}
-
-// SetHandle sets a handle.
-func (a *AppID) SetHandle(v *int) {
-	a.handle = *v
-	(*v)++
-}
-
-// SetOwner sets an owner.
-func (a *AppID) SetOwner(h handle.Handler) {
-	a.owner = h
+// RetainTags records APPID codes the typed model does not emit.
+func (a *AppID) RetainTags(tags lldxf.Tags) {
+	emitted := map[int]bool{0: true, 2: true, 5: true, 70: true, 100: true, 330: true}
+	a.RetainUnhandled(tags, emitted)
 }
 
 // Name returns a name of APPID (code 2).

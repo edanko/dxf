@@ -29,9 +29,9 @@ func SetExtrusion(e Extruder, d []float64) {
 	before := [][]float64{bx, by, b}
 	after := [][]float64{dx, dy, d}
 	newcoord := make([]float64, 3)
-	for i := 0; i < 3; i++ {
-		for j := 0; j < 3; j++ {
-			for k := 0; k < 3; k++ {
+	for i := range 3 {
+		for j := range 3 {
+			for k := range 3 {
 				newcoord[i] += n[j] * before[j][k] * after[i][k]
 			}
 		}

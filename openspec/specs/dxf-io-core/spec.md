@@ -1,0 +1,161 @@
+# dxf-io-core Specification
+
+## Purpose
+Defines how the library loads, binds, preserves, and writes a complete DXF
+document so that real-world drawings can be read and modified without data loss.
+
+## Requirements
+
+### Requirement: Load binds every document section
+
+The loader SHALL parse and bind HEADER, CLASSES, TABLES, BLOCKS, ENTITIES, and
+OBJECTS sections into the drawing document, not only ENTITIES.
+
+#### Scenario: Loading a document with tables and blocks
+
+- **WHEN** a DXF file containing layers, linetypes, blocks, and model-space
+  entities is loaded
+- **THEN** the returned drawing exposes the same layers, linetypes, block
+  definitions, and entities that the file declares
+
+#### Scenario: Loading a document with objects
+
+- **WHEN** a DXF file containing a DICTIONARY, XRECORD, or LAYOUT object is
+  loaded
+- **THEN** those objects are present in the drawing's OBJECTS section and are
+  retrievable by handle
+
+### Requirement: Unknown content is preserved
+
+The loader and writer SHALL preserve unknown entities, unknown object types, and
+unknown group codes as raw tags so they survive a load/save round trip.
+
+#### Scenario: Unknown entity survives round trip
+
+- **WHEN** a document contains an entity type the library does not model and it
+  is loaded then saved
+- **THEN** the saved document still contains that entity with its original group
+  codes and values
+
+#### Scenario: Unknown group code on a known entity survives
+
+- **WHEN** a known entity contains an unrecognized group code and it is loaded
+  then saved
+- **THEN** the saved entity still contains that group code and value
+
+### Requirement: Round trip is semantically stable
+
+Loading a valid document, saving it, and loading the saved document SHALL
+produce an equivalent document: same entity types and handles, same table
+entries, same block names, same object handles, and same unknown tags.
+
+#### Scenario: Round trip of the test corpus
+
+- **WHEN** each fixture in `testdata/` is loaded, saved, and loaded again
+- **THEN** the two loaded documents report equal entity counts, table entry
+  names, block names, and object handles
+
+### Requirement: Comments are preserved
+
+The loader SHALL retain code 999 comment tags and the writer SHALL emit them in
+their original sections unless comment stripping is explicitly requested.
+
+#### Scenario: Comment survives save
+
+- **WHEN** a document containing code 999 comments is loaded and saved without
+  stripping
+- **THEN** the saved document contains the same comment text
+
+### Requirement: Opaque sections are retained
+
+THUMBNAILIMAGE and ACDSDATA sections SHALL be retained as opaque tag blocks and
+written back unchanged when present.
+
+#### Scenario: Thumbnail round trip
+
+- **WHEN** a document with a THUMBNAILIMAGE section is loaded and saved
+- **THEN** the saved document contains an equivalent THUMBNAILIMAGE section
+
+### Requirement: Recovery mode tolerates damaged input
+
+A recovery load mode SHALL load as much valid content as possible from a
+truncated or inconsistent file, SHALL NOT panic, and SHALL report the recovered
+and skipped structures.
+
+#### Scenario: Truncated file
+
+- **WHEN** a DXF file is truncated in the middle of an entity
+- **THEN** recovery mode returns a drawing with the preceding complete content
+  and a non-empty recovery report
+
+#### Scenario: Missing ENDSEC
+
+- **WHEN** a section is missing its ENDSEC marker
+- **THEN** recovery mode closes the section, keeps its content, and reports the
+  repair
+
+### Requirement: Section ordering and handles are maintained
+
+The writer SHALL emit sections in DXF order (HEADER, CLASSES, TABLES, BLOCKS,
+ENTITIES, OBJECTS, optional THUMBNAILIMAGE/ACDSDATA) and SHALL assign unique
+handles to all newly created objects.
+
+#### Scenario: Saved file has valid section order
+
+- **WHEN** a new document is created and saved
+- **THEN** section markers appear in DXF order and every handle in the file is
+  unique
+
+### Requirement: Unhandled tags survive on typed records
+
+Typed table entries, blocks, and objects SHALL retain every tag they do not model and SHALL re-emit those tags on save in their original relative order.
+
+#### Scenario: Unknown table entry code survives
+
+- **WHEN** a LAYER entry containing an unmodelled group code is loaded and saved
+- **THEN** the saved entry contains that code with its original value
+
+#### Scenario: Unknown object code survives
+
+- **WHEN** a DICTIONARY object containing an unmodelled group code is loaded and saved
+- **THEN** the saved object contains that code with its original value
+
+### Requirement: Comments retain position
+
+Comment records SHALL be preserved at their original position relative to surrounding tags within a section.
+
+#### Scenario: Comment between entities keeps order
+
+- **WHEN** a comment appears between two entities and the document is saved
+- **THEN** the comment appears between the same two entities in the output
+
+#### Scenario: Stripping removes all comments
+
+- **WHEN** comments are stripped during load
+- **THEN** no comment records appear in the saved document
+
+### Requirement: Raw section loading exposes grouped tags
+The system SHALL load ASCII or binary DXF content into named sections of ordered raw tags without constructing or binding a document.
+
+#### Scenario: Raw sections
+- **WHEN** a DXF file containing HEADER, TABLES, and ENTITIES sections is loaded raw
+- **THEN** each section is returned with its tags in source order
+
+#### Scenario: Truncated raw section
+- **WHEN** the input ends before an ENDSEC
+- **THEN** raw loading returns the tags read so far with an error naming the open section
+
+### Requirement: JSON serialization round-trips supported document state
+The system SHALL serialize and reconstruct supported entities, tables, blocks, and objects through `ToJSON` and `FromJSON`, or return an explicit unsupported error instead of reporting success.
+
+#### Scenario: Document round trip
+- **WHEN** a drawing with entities, layers, blocks, and typed objects is serialized and loaded back
+- **THEN** the reconstructed drawing has the same entity types, handles, layers, block names, and object handles
+
+#### Scenario: Unsupported JSON shape
+- **WHEN** `FromJSON` receives data without the required document fields
+- **THEN** it returns an error naming the missing or unsupported field and does not modify the drawing
+
+#### Scenario: Explicitly unsupported state
+- **WHEN** the document contains state the JSON format cannot represent
+- **THEN** `ToJSON` returns an error identifying that state rather than emitting data that loses it silently

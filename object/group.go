@@ -4,16 +4,57 @@ import (
 	"github.com/edanko/dxf/entity"
 	"github.com/edanko/dxf/format"
 	"github.com/edanko/dxf/handle"
+	"github.com/edanko/dxf/lldxf"
 )
 
 // Group represents GROUP Object.
 type Group struct {
-	Name        string
-	Description string
-	handle      int
-	owner       handle.Handler
-	entities    []entity.Entity
-	selectable  bool
+	Name          string
+	Description   string
+	handle        string
+	owner         handle.Handler
+	reactors      []string // parsed {ACAD_REACTORS links; Format re-emits the group
+	groupTags     int      // number of reactor-group tags in the source record
+	entities      []entity.Entity
+	entityHandles []string
+	selectable    bool
+	retained      lldxf.Tags
+}
+
+// SetReactorHandles stores the parsed reactor links and their source tag span.
+func (g *Group) SetReactorHandles(hs []string, groupTags int) {
+	g.reactors = hs
+	g.groupTags = groupTags
+}
+
+// SetRetainedTags records tags the typed model does not emit.
+func (g *Group) SetRetainedTags(tags lldxf.Tags) { g.retained = tags }
+
+// RetainedTags returns the retained tag stream.
+func (g *Group) RetainedTags() lldxf.Tags { return g.retained }
+
+// SetHandleString sets an explicit handle loaded from a file.
+func (g *Group) SetHandleString(h string) { g.handle = h }
+
+// SetEntityHandles records entity handles until the entity database is bound.
+func (g *Group) SetEntityHandles(hs []string) { g.entityHandles = hs }
+
+// EntityHandles returns the entity handles recorded for the group.
+func (g *Group) EntityHandles() []string { return g.entityHandles }
+
+// Entities returns the group member entities attached at runtime.
+func (g *Group) Entities() []entity.Entity { return g.entities }
+
+// Handle returns the group's handle.
+func (g *Group) Handle() string {
+	return g.handle
+}
+
+// SetHandle sets the group's handle.
+func (g *Group) SetHandle(hg *handle.HandleGenerator) {
+	if g.handle == "" {
+		g.handle = hg.Next()
+	}
 }
 
 // IsObject is for Object interface.
@@ -26,7 +67,6 @@ func NewGroup(name, desc string, es ...entity.Entity) *Group {
 	g := &Group{
 		Name:        name,
 		Description: desc,
-		handle:      0,
 		owner:       nil,
 		entities:    es,
 		selectable:  true,
@@ -35,19 +75,26 @@ func NewGroup(name, desc string, es ...entity.Entity) *Group {
 }
 
 // SetOwner sets an owner(Dictionary).
-func (g *Group) SetOwner(d *Dictionary) {
+func (g *Group) SetOwner(d *Dictionary) error {
 	g.owner = d
 	d.AddItem(g.Name, g)
+	return nil
 }
 
 // Format writes data to formatter.
 func (g *Group) Format(f format.Formatter) {
 	f.WriteString(0, "GROUP")
-	f.WriteHex(5, g.handle)
-	f.WriteString(102, "{ACAD_REACTORS")
-	f.WriteHex(330, g.owner.Handle())
-	f.WriteString(102, "}")
-	f.WriteHex(330, g.owner.Handle())
+	f.WriteString(5, g.handle)
+	if len(g.reactors) > 0 {
+		f.WriteString(102, "{ACAD_REACTORS")
+		for _, r := range g.reactors {
+			f.WriteString(330, r)
+		}
+		f.WriteString(102, "}")
+	}
+	if g.owner != nil {
+		f.WriteString(330, g.owner.Handle())
+	}
 	f.WriteString(100, "AcDbGroup")
 	f.WriteString(300, g.Description)
 	f.WriteInt(70, 0)
@@ -57,31 +104,14 @@ func (g *Group) Format(f format.Formatter) {
 		f.WriteInt(71, 0)
 	}
 	for _, e := range g.entities {
-		f.WriteHex(340, e.Handle())
+		f.WriteString(340, e.Handle())
 	}
-}
-
-// String outputs data using default formatter.
-func (g *Group) String() string {
-	f := format.NewASCII()
-	return g.FormatString(f)
-}
-
-// FormatString outputs data using given formatter.
-func (g *Group) FormatString(f format.Formatter) string {
-	g.Format(f)
-	return f.Output()
-}
-
-// Handle returns a handle value.
-func (g *Group) Handle() int {
-	return g.handle
-}
-
-// SetHandle sets a handle.
-func (g *Group) SetHandle(v *int) {
-	g.handle = *v
-	(*v)++
+	for _, h := range g.entityHandles {
+		f.WriteString(340, h)
+	}
+	for _, tag := range g.retained {
+		f.WriteString(int(tag.Code()), lldxf.FormatValue(tag))
+	}
 }
 
 // AddEntity adds entities to Group.

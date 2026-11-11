@@ -9,17 +9,17 @@ import (
 )
 
 func main() {
-	d := dxf.NewDrawing()
+	d, _ := dxf.NewDrawing()
 	d.Header().LtScale = 100.0
-	d.AddLayer("Toroidal", color.White, d.LtContinuous(), true)
-	d.AddLayer("Poloidal", color.Red, d.LtHidden(), true)
+	d.AddLayer("Toroidal", color.White, d.LtContinuous())
+	d.AddLayer("Poloidal", color.Red, d.LtHidden())
 	z := 0.0
 	r1 := 200.0
 	r2 := 500.0
 	ndiv := 16
 	dtheta := 2.0 * math.Pi / float64(ndiv)
 	theta := 0.0
-	for i := 0; i < ndiv; i++ {
+	for range ndiv {
 		d.ChangeLayer("Toroidal")
 		d.Circle(0.0, 0.0, z+r1*math.Cos(theta), r2-r1*math.Sin(theta))
 		d.ChangeLayer("Poloidal")

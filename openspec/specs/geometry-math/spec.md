@@ -1,0 +1,261 @@
+# geometry-math Specification
+
+## Purpose
+Defines the geometric and linear-algebra primitives the library exposes, their
+coordinate conventions, and the numeric tolerance guarantees callers can rely on.
+
+## Requirements
+
+### Requirement: Vector algebra
+
+The library SHALL provide 2D and 3D vectors with addition, subtraction, scaling,
+dot product, cross product, length, normalization, distance, angle, and
+component-wise operations.
+
+#### Scenario: 3D cross product
+
+- **WHEN** the cross product of two non-parallel 3D vectors is computed
+- **THEN** the result is perpendicular to both input vectors
+
+#### Scenario: Normalize zero vector
+
+- **WHEN** a zero-length vector is normalized
+- **THEN** the operation returns a documented zero or error result, never NaN
+
+### Requirement: Matrix transforms
+
+The library SHALL provide 4x4 matrices with composition, inversion, point and
+vector transformation, and decomposition into translation, rotation, scale, and
+shear.
+
+#### Scenario: Compose and invert
+
+- **WHEN** a transform is composed with its inverse and applied to a point
+- **THEN** the original point is recovered within tolerance
+
+#### Scenario: Singular matrix
+
+- **WHEN** a singular matrix is inverted
+- **THEN** the operation reports failure rather than returning invalid numbers
+
+### Requirement: Coordinate systems
+
+The library SHALL convert points, vectors, and directions between WCS, UCS, and
+OCS using an explicit axis and elevation.
+
+#### Scenario: OCS round trip
+
+- **WHEN** a point is converted from WCS to OCS and back
+- **THEN** the original point is recovered within tolerance
+
+#### Scenario: Direction versus point
+
+- **WHEN** a direction is transformed between coordinate systems
+- **THEN** translation is not applied to it
+
+### Requirement: Bounding boxes
+
+The library SHALL provide 2D and 3D bounding boxes with expansion, union,
+intersection, containment, center, size, and transformation.
+
+#### Scenario: Union
+
+- **WHEN** two boxes are unioned
+- **THEN** the result contains both inputs
+
+#### Scenario: Transform
+
+- **WHEN** a box is transformed
+- **THEN** the resulting axis-aligned box encloses all transformed corners
+
+### Requirement: Bezier curves
+
+The library SHALL evaluate Bezier curves, compute derivatives, split them, and
+report their bounding box and arc length approximation.
+
+#### Scenario: Endpoint interpolation
+
+- **WHEN** a cubic Bezier is evaluated at parameters 0 and 1
+- **THEN** the results equal its first and last control points
+
+### Requirement: BSpline and NURBS
+
+The library SHALL evaluate rational and non-rational BSpline curves and surfaces,
+compute derivatives, insert knots, and support clamped and periodic forms.
+
+#### Scenario: Clamped curve endpoints
+
+- **WHEN** a clamped BSpline is evaluated at its parameter limits
+- **THEN** the results equal its first and last control points
+
+#### Scenario: Rational circle
+
+- **WHEN** a NURBS representation of a circle is evaluated
+- **THEN** all sampled points lie on the circle within tolerance
+
+### Requirement: Curve intersections
+
+The library SHALL compute line-line, line-curve, curve-curve, and ray-plane
+intersections with explicit handling for parallel, coincident, and tangent cases.
+
+#### Scenario: Line-line intersection
+
+- **WHEN** two non-parallel lines intersect
+- **THEN** the reported point lies on both lines within tolerance
+
+#### Scenario: Parallel lines
+
+- **WHEN** two parallel non-coincident lines are intersected
+- **THEN** the result reports no intersection rather than a spurious point
+
+### Requirement: Curve offset
+
+The library SHALL offset lines, arcs, circles, polylines, and splines by a signed
+distance, with configurable join handling for corners.
+
+#### Scenario: Offset a polyline
+
+- **WHEN** an open polyline is offset by a positive distance
+- **THEN** the result is parallel at that distance and preserves endpoint
+  orientation according to the documented join rule
+
+### Requirement: Polygon operations
+
+The library SHALL compute polygon area, centroid, orientation, point containment,
+convex hull, and clipping against a rectangle or convex polygon.
+
+#### Scenario: Area of a square
+
+- **WHEN** the area of a unit square is computed
+- **THEN** the result is 1 within tolerance regardless of vertex order
+
+#### Scenario: Point in polygon
+
+- **WHEN** a point inside a simple polygon is tested
+- **THEN** containment returns true; a point outside returns false
+
+### Requirement: Triangulation
+
+The library SHALL triangulate simple polygons with holes and point sets, and SHALL
+handle degenerate and collinear input without panicking.
+
+#### Scenario: Polygon with hole
+
+- **WHEN** a polygon with one hole is triangulated
+- **THEN** the triangles cover the polygon area and exclude the hole
+
+#### Scenario: Degenerate input
+
+- **WHEN** collinear or duplicate points are triangulated
+- **THEN** the operation returns a valid, possibly empty, result
+
+### Requirement: Bulge and arc conversion
+
+The library SHALL convert between bulge values, arcs, and center/radius/angle
+representations in both directions.
+
+#### Scenario: Bulge round trip
+
+- **WHEN** a bulge value is converted to an arc and back
+- **THEN** the original bulge is recovered within tolerance
+
+### Requirement: Numeric tolerance is documented
+
+The library SHALL define and document a default absolute tolerance and SHALL
+accept caller-supplied tolerances for comparisons and intersections.
+
+#### Scenario: Custom tolerance
+
+- **WHEN** a comparison is made with a caller-supplied tolerance
+- **THEN** the supplied value governs the result
+
+### Requirement: Perlin noise is deterministic
+
+The system SHALL generate Perlin noise for 2D and 3D coordinates from a caller-provided seed, producing identical output for identical inputs.
+
+#### Scenario: Repeatable output
+
+- **WHEN** the same seed and coordinate are used twice
+- **THEN** both noise values are identical
+- **AND** values stay within the documented range.
+
+### Requirement: Point clustering is supported
+
+The system SHALL group points into clusters using a documented distance criterion and SHALL expose cluster membership and centroids.
+
+#### Scenario: Two distant groups
+
+- **WHEN** points form two well-separated groups
+- **THEN** clustering returns two clusters
+- **AND** each point belongs to exactly one cluster.
+
+### Requirement: Shape container represents closed boundaries
+
+The system SHALL provide a Shape container that stores an outer boundary and zero or more holes, preserves orientation, and computes area and containment.
+
+#### Scenario: Polygon with hole
+
+- **WHEN** a shape is built from an outer ring and one inner ring
+- **THEN** its area is the outer area minus the hole area
+- **AND** a point inside the hole is outside the shape.
+
+### Requirement: Portal clipping clips segments
+
+The system SHALL clip line and curve segments against a rectangular portal and return only the visible segments.
+
+#### Scenario: Segment crossing a portal
+
+- **WHEN** a line starts outside a portal and ends inside it
+- **THEN** clipping returns the portion inside the portal
+- **AND** segments entirely outside are removed.
+
+### Requirement: Triangulation preserves polygon area
+
+The system SHALL triangulate polygons with holes so that the sum of triangle areas equals the input area within the documented tolerance.
+
+#### Scenario: Centered hole
+
+- **WHEN** a polygon contains a centered hole
+- **THEN** triangulation covers the polygon without a bay outside the boundary
+- **AND** the area check passes.
+
+### Requirement: Julian date conversion matches civil date
+The system SHALL convert between civil date-time values and Julian dates using the documented astronomical convention.
+
+#### Scenario: Known epoch
+- **WHEN** the civil date 2000-01-01 12:00 UTC is converted
+- **THEN** the Julian date is 2451545.0 within one second
+
+#### Scenario: Round trip
+- **WHEN** a civil date-time is converted to Julian date and back
+- **THEN** the original date-time is recovered within one second
+
+### Requirement: Boolean mesh operations produce operation-specific geometry
+The system SHALL return correct union, intersection, difference, and symmetric-difference geometry for supported closed triangle meshes, either directly or through the supported CSG implementation.
+
+#### Scenario: Intersection of overlapping cubes
+- **WHEN** two overlapping closed cube meshes are intersected
+- **THEN** the resulting mesh covers only the shared volume and has a finite positive volume
+
+#### Scenario: Difference removes the second mesh
+- **WHEN** one cube is subtracted from another overlapping cube
+- **THEN** the result excludes the second cube's volume
+
+#### Scenario: Unsupported input
+- **WHEN** an input mesh is not closed or has duplicate or degenerate faces
+- **THEN** the operation returns an error naming the invalid mesh instead of returning an input mesh unchanged
+
+### Requirement: Spatial indexing uses entity bounds
+The system SHALL index each entity by its actual bounding box and answer range, intersection, nearest, update, and removal queries from those bounds.
+
+#### Scenario: Range query excludes distant entity
+- **WHEN** two entities are indexed far apart and a range around one is queried
+- **THEN** only the entity whose bounds intersect the range is returned
+
+#### Scenario: Nearest uses geometry
+- **WHEN** nearest is queried from a point
+- **THEN** the distance is measured to the entity bounds and the nearest entity is returned
+
+#### Scenario: Remove and reinsert
+- **WHEN** an entity is removed and the tree is queried again
+- **THEN** it is absent, and a later reinsert makes it queryable again
