@@ -248,7 +248,8 @@ func sceneExtents(d *drawing.Drawing, opts *SceneOptions, paths []StyledPath) (f
 func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg color.RGBA, opts *SceneOptions, nt *sceneNotes) []StyledPath {
 	switch t := e.(type) {
 	case *entity.Text:
-		p, fontName := runText(t.Value, t.Height, t.Coord1[0], t.Coord1[1], t.Rotation)
+		dx, dy := textAnchorOffset(t)
+		p, fontName := runText(t.Value, t.Height, t.Coord1[0]+dx, t.Coord1[1]+dy, t.Rotation)
 		if p == nil {
 			return nil
 		}
@@ -259,7 +260,8 @@ func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg 
 		}
 		return []StyledPath{{Path: p, Style: stt}}
 	case *entity.MText:
-		p, fontName := multiLineText(t.Value, t.Height, t.Width, t.Coord1[0], t.Coord1[1], t.Rotation, nt)
+		dx, dy := mtextAnchorOffset(t)
+		p, fontName := multiLineText(t.Value, t.Height, t.Width, t.Coord1[0]+dx, t.Coord1[1]+dy, t.Rotation, nt)
 		if p == nil {
 			return nil
 		}
@@ -315,6 +317,10 @@ func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg 
 			return []StyledPath{{Path: p, Style: st}}
 		}
 		hf := hatchFill(t, 1, 0)
+		if t.PatternName() != "" && (hf == nil || hf.Pattern == nil) {
+			nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("HATCH %s: pattern %q not found; boundary retained", t.Handle(), t.PatternName()))
+			hf = &HatchFill{Pattern: &PatternFill{Name: t.PatternName()}, Scale: 1}
+		}
 		return []StyledPath{{Path: p, Style: st, FillHatch: hf}}
 	case *entity.HatchEnhanced:
 		p := hatchBoundaryPath(t)
@@ -329,21 +335,12 @@ func entityPaths(d *drawing.Drawing, e entity.Entity, st Style, dev float64, bg 
 			hf := gradientFillFromEnhanced(t)
 			return []StyledPath{{Path: p, Style: st, FillHatch: hf}}
 		case t.PatternName != "":
-			hf := hatchFill(&entity.Hatch{}, t.PatternScale, t.PatternAngle)
-			if hf != nil && hf.Pattern != nil {
-				hf.Pattern.Name = t.PatternName
-				if def, ok := patterns.GetPatternDefinition(t.PatternName); ok {
-					hf.Pattern.Name = def.Name
-					hf.Pattern.Lines = nil
-					for _, l := range def.Lines {
-						hf.Pattern.Lines = append(hf.Pattern.Lines, PatternLine{
-							Angle:  l.Angle,
-							Base:   v2f(l.BasePoint),
-							Offset: v2f(l.Offset),
-							Dashes: l.DashLengthItems,
-						})
-					}
-				}
+			hf := &HatchFill{Scale: t.PatternScale, Angle: t.PatternAngle}
+			if def, ok := patterns.LookupPattern(t.PatternName); ok {
+				hf.Pattern = patternFillFromDefinition(def)
+			} else {
+				hf.Pattern = &PatternFill{Name: t.PatternName}
+				nt.fallbacks = append(nt.fallbacks, fmt.Sprintf("HATCH %s: pattern %q not found; boundary retained", t.Handle(), t.PatternName))
 			}
 			return []StyledPath{{Path: p, Style: st, FillHatch: hf}}
 		default:
@@ -543,22 +540,20 @@ func faceEntityPaths(faces [][]dxfmath.Vec3, st Style) []StyledPath {
 }
 
 // hatchFill maps a non-solid hatch entity to pattern filling. Known pattern
-// definitions win; otherwise the library's default hatch lines are used.
+// definitions win. A named but unknown pattern reports no fill so the caller
+// can preserve the boundary and report the missing definition; unnamed
+// hatches fall back to the library default lines.
 func hatchFill(t *entity.Hatch, scale, angle float64) *HatchFill {
-	if def, ok := patterns.GetPatternDefinition(t.PatternName()); ok {
-		pf := &PatternFill{Name: def.Name}
-		for _, l := range def.Lines {
-			pf.Lines = append(pf.Lines, PatternLine{
-				Angle:  l.Angle,
-				Base:   v2f(l.BasePoint),
-				Offset: v2f(l.Offset),
-				Dashes: l.DashLengthItems,
-			})
+	name := t.PatternName()
+	if name != "" {
+		def, ok := patterns.LookupPattern(name)
+		if !ok {
+			return nil
 		}
-		return &HatchFill{Pattern: pf, Scale: scale, Angle: angle}
+		return &HatchFill{Pattern: patternFillFromDefinition(def), Scale: scale, Angle: angle}
 	}
 	if lines := entity.DefaultPatternLines(); len(lines) > 0 {
-		pf := &PatternFill{Name: t.PatternName()}
+		pf := &PatternFill{Name: name}
 		for _, l := range lines {
 			pf.Lines = append(pf.Lines, PatternLine{
 				Angle:  l.Angle,
@@ -570,6 +565,19 @@ func hatchFill(t *entity.Hatch, scale, angle float64) *HatchFill {
 		return &HatchFill{Pattern: pf, Scale: scale, Angle: angle}
 	}
 	return nil
+}
+
+func patternFillFromDefinition(def patterns.PatternDefinition) *PatternFill {
+	pf := &PatternFill{Name: def.Name}
+	for _, l := range def.Lines {
+		pf.Lines = append(pf.Lines, PatternLine{
+			Angle:  l.Angle,
+			Base:   v2f(l.BasePoint),
+			Offset: v2f(l.Offset),
+			Dashes: append([]float64(nil), l.DashLengthItems...),
+		})
+	}
+	return pf
 }
 
 func pv2(v dxfmath.Vec2) [2]float64 { return [2]float64{v[0], v[1]} }
@@ -755,7 +763,8 @@ func MTextToPath(t *entity.MText) *path.Path {
 	if len(t.Coord1) >= 2 {
 		x, y = t.Coord1[0], t.Coord1[1]
 	}
-	p, _ := multiLineText(text, t.Height, t.Width, x, y, t.Rotation, nil)
+	dx, dy := mtextAnchorOffset(t)
+	p, _ := multiLineText(text, t.Height, t.Width, x+dx, y+dy, t.Rotation, nil)
 	return p
 }
 
@@ -848,6 +857,73 @@ func textStyle(st Style) Style {
 	out.Stroke = color.RGBA{}
 	out.FillRule = "evenodd"
 	return out
+}
+
+// textAnchorOffset returns the measured offset from a TEXT insertion point to
+// the baseline origin used by the glyph layout.
+func textAnchorOffset(t *entity.Text) (float64, float64) {
+	if t == nil {
+		return 0, 0
+	}
+	wf := t.WidthFactor
+	if wf <= 0 {
+		wf = 1
+	}
+	w := text2path.MeasureAdvance(t.Value, t.Height) * wf
+	dx := 0.0
+	switch t.HorizontalFlag % 3 {
+	case 1:
+		dx = -w / 2
+	case 2:
+		dx = -w
+	}
+	dy := 0.0
+	switch t.VerticalFlag {
+	case 2:
+		dy = -t.Height / 2
+	case 3:
+		dy = -t.Height
+	}
+	return dx, dy
+}
+
+// mtextAnchorOffset returns the measured offset from an MTEXT insertion point
+// to the top-left origin used by multiLineText.
+func mtextAnchorOffset(t *entity.MText) (float64, float64) {
+	if t == nil {
+		return 0, 0
+	}
+	lines := text2path.LayoutMText(t.Value, t.Height, t.Width)
+	width := 0.0
+	for _, line := range lines {
+		if w := text2path.MeasureAdvance(line, t.Height); w > width {
+			width = w
+		}
+	}
+	height := float64(len(lines)) * text2pathLinePitch(t)
+	dx := 0.0
+	switch t.AttachmentPoint {
+	case entity.MTextTopCenter, entity.MTextMiddleCenter, entity.MTextBottomCenter:
+		dx = -width / 2
+	case entity.MTextTopRight, entity.MTextMiddleRight, entity.MTextBottomRight:
+		dx = -width
+	}
+	dy := 0.0
+	switch t.AttachmentPoint {
+	case entity.MTextMiddleLeft, entity.MTextMiddleCenter, entity.MTextMiddleRight:
+		dy = height / 2
+	case entity.MTextBottomLeft, entity.MTextBottomCenter, entity.MTextBottomRight:
+		dy = height
+	}
+	return dx, dy
+}
+
+func text2pathLinePitch(t *entity.MText) float64 {
+	spacing := t.LineSpacingFactor
+	if spacing <= 0 {
+		spacing = 1
+	}
+	return 1.6714 * t.Height * spacing
 }
 
 // runText lays out single-line TEXT, preferring system TrueType outlines

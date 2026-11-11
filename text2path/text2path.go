@@ -23,6 +23,9 @@ type TextMetrics struct {
 	Descent  float64
 	BearingX float64
 	BearingY float64
+	// Advance is the total pen advance. It equals Width for ordinary text
+	// and is reported separately by the text-size APIs.
+	Advance float64
 }
 
 // Glyph represents a single character path

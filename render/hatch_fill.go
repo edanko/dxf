@@ -45,14 +45,10 @@ func HatchFillSegments(boundary *path.Path, hf *HatchFill, strokeWidth, deviatio
 		nx, ny := -uy, ux
 		bx := (l.Base[0]) * scale
 		by := (l.Base[1]) * scale
-		bx = cr*bx - sr*by
-		by = sr*bx + cr*by
-		bx += 0
-		by += 0
+		bx, by = cr*bx-sr*by, sr*bx+cr*by
 		ox := l.Offset[0] * scale
 		oy := l.Offset[1] * scale
-		ox = cr*ox - sr*oy
-		oy = sr*ox + cr*oy
+		ox, oy = cr*ox-sr*oy, sr*ox+cr*oy
 		// spacing between successive pattern lines along the normal
 		sp := ox*nx + oy*ny
 		// family index range covering the bbox along the normal
@@ -69,17 +65,11 @@ func HatchFillSegments(boundary *path.Path, hf *HatchFill, strokeWidth, deviatio
 		} else {
 			kMin, kMax = 0, 0 // single line (no offset spacing)
 		}
-		// dash cycle along the line
+		// dash cycle along the line; an empty cycle is one solid run.
 		dash := l.Dashes
-		if len(dash) == 0 {
-			dash = []float64{1e-9}
-		}
 		period := 0.0
 		for _, d := range dash {
 			period += math.Abs(d) * scale
-		}
-		if period <= 0 {
-			period = 1e-9
 		}
 		// parameter range along the line covering the bbox
 		tMin := ux*(minX-diag) + uy*(minY-diag) - (ux*bx + uy*by)
@@ -88,6 +78,17 @@ func HatchFillSegments(boundary *path.Path, hf *HatchFill, strokeWidth, deviatio
 		for k := kMin; k <= kMax; k++ {
 			oxk := bx + float64(k)*ox
 			oyk := by + float64(k)*oy
+			if len(dash) == 0 || period <= 1e-12 {
+				x0 := oxk + tMin*ux
+				y0 := oyk + tMin*uy
+				x1 := oxk + tMax*ux
+				y1 := oyk + tMax*uy
+				if insideBoundary(polys, (x0+x1)/2, (y0+y1)/2) {
+					out.MoveTo(x0, y0)
+					out.LineTo(x1, y1)
+				}
+				continue
+			}
 			// phase: dashes start at the pattern origin projection
 			start := math.Floor(tMin/period)*period - period
 			t := start

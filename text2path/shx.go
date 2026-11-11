@@ -98,6 +98,7 @@ func (f *SHXFont) Measure(text string, height float64) TextMetrics {
 		Height:  height,
 		Ascent:  maxY * scale,
 		Descent: -minY * scale,
+		Advance: advance * scale,
 	}
 }
 

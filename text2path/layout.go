@@ -3,6 +3,7 @@ package text2path
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // StripCodes removes common MText formatting codes from text,
@@ -59,31 +60,25 @@ func StripCodes(text string) string {
 
 // LayoutMText splits MText content into rendered text lines:
 // paragraph breaks (\P) become line breaks, and lines wrap greedily at
-// the column width using the grid glyph metrics (character width is
-// 5/6 of the text height). A non-positive width disables wrapping.
+// the column width using measured font advances. A non-positive width
+// disables wrapping.
 func LayoutMText(text string, height, width float64) []string {
 	cleaned := StripCodes(text)
 	lines := strings.Split(cleaned, "\n")
 	if width <= 0 || height <= 0 {
 		return lines
 	}
-	charWidth := height * 100.0 / 120.0
-	maxChars := max(int(width/charWidth), 1)
 	var out []string
 	for _, line := range lines {
-		if len(line) <= maxChars {
-			out = append(out, line)
-			continue
-		}
 		current := ""
 		words := strings.FieldsSeq(line)
 		for w := range words {
-			if current == "" {
-				current = w
-				continue
+			candidate := w
+			if current != "" {
+				candidate = current + " " + w
 			}
-			if len(current)+1+len(w) <= maxChars {
-				current += " " + w
+			if current == "" || MeasureAdvance(candidate, height) <= width {
+				current = candidate
 				continue
 			}
 			out = append(out, current)
@@ -91,9 +86,24 @@ func LayoutMText(text string, height, width float64) []string {
 		}
 		if current != "" {
 			out = append(out, current)
+		} else if line == "" {
+			out = append(out, "")
 		}
 	}
 	return out
+}
+
+// MeasureAdvance returns the measured pen advance of one line of text at the
+// requested height. It uses the system font metrics when available and the
+// built-in vector-font advance (5/6 of the height per rune) as a fallback.
+func MeasureAdvance(text string, height float64) float64 {
+	if text == "" || height <= 0 {
+		return 0
+	}
+	if m, _, err := MeasureTTF(text, height); err == nil {
+		return m.Advance
+	}
+	return float64(utf8.RuneCountInString(text)) * height * 5 / 6
 }
 
 // IsSpace reports r as layout whitespace (exposed for tests).

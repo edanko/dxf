@@ -1,7 +1,7 @@
 # ezdxf Feature Parity Roadmap (Go `dxf`)
 
-Status: implementation complete for roadmap changes 1–14; remaining gaps are tracked as follow-up OpenSpec changes.
-Last updated: 2026-11-10.
+Status: implementation complete for roadmap changes 1–18 plus the `core-fidelity-parity` and `tooling-completeness-parity` follow-ups; remaining gaps are tracked as follow-up OpenSpec changes.
+Last updated: 2026-11-11.
 
 This document is the durable entry point for continuing the "Go `dxf` should match
 Python `ezdxf`" effort across sessions and agents. Read this first, then read the
@@ -96,7 +96,8 @@ openspec instructions <artifact> --change "<name>" --json
 | `xref` | xref manager and loader | `DONE` — attach/detach/bind/reload, relative paths + search paths, nested loading with cycle detection, BLOCK_RECORD xref flags (`xref_parity_e2e_test.go`) |
 | `factory` | entity factory/registry | usable |
 | `csg` | mesh boolean CSG | `DONE` — triangle-level booleans, primitives, volume (`csg/boolean_test.go`) |
-| `patterns` | hatch pattern definitions | lookup tables only |
+| `patterns` | hatch pattern definitions | `DONE` — predefined ANSI/ISO tables, `.pat` parser with recoverable file/line errors, case-insensitive custom registry preserving source names, non-mutating scaling and measurement conversion (`patterns/pat_test.go`) |
+| `edges` | edge topology and hatch boundary construction | `DONE` — immutable edges, tolerance spatial-hash graph (degree/leaves/components), closed-loop and open-chain analysis preserving source orientation, ordered LWPOLYLINE/POLYLINE creation, hatch boundary from closed loops with `ErrOpenChain` (`edges/edges_test.go`) |
 | `xdata`, `class`, `color`, `insunit`, `handle`, `geometry` | support packages | usable subsets |
 
 ## Status legend
@@ -200,7 +201,9 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | MATERIAL, VISUALSTYLE, SUN, LIGHT, GEODATA | `entities/material.py`, `visualstyle.py`, `sun.py`, `light.py`, `geodata.py` | `PARTIAL` — typed name/description/flags, retained round trip |
 | SPATIAL_FILTER, IDBUFFER, RASTERVARIABLES, WIPEOUTVARIABLES | `entities/spatial_filter.py`, `idbuffer.py` | `PARTIAL` — typed models, retained round trip; RASTERVARIABLES constructor (`object.NewRasterVariables`) |
 | SORTENTSTABLE, FIELDLIST, IMAGEDEF, IMAGEDEF_REACTOR, UNDERLAYDEFINITION, PDF/DWF/DGN DEFINITION | `entities/sortentstable.py`, `field.py`, `image.py`, `underlay.py` | `DONE` — typed sort order, entity handles, filename/size plus constructors and the Page accessor (`object.NewImageDef`, `object.NewUnderlayDef`, `TestImageDefPathAndSize`, `TestSortEntsTableOrder`, `TestUnderlayEntityRoundTrip`) |
-| ACAD_PROXY_ENTITY, ACAD_XREC_ROUNDTRIP | `entities/acad_proxy_entity.py` | `PARTIAL` |
+| ACAD_PROXY_ENTITY, ACAD_XREC_ROUNDTRIP | `entities/acad_proxy_entity.py` | `DONE` — embedded entity records extract through `entity.ExtractProxyGraphics`; `entity.DecodeProxyPrimitives` decodes circle/arc/polyline/text/colour/transform opcodes, applies the matrix stack, and reports unknown opcodes with their byte offset while keeping earlier primitives (`TestDecodeProxyPrimitives`) |
+| Dynamic block read helpers | `dynblkhelper.py` | `DONE` — `Drawing.ResolveDynamicBlock` resolves a direct dynamic INSERT or follows `AcDbBlockRepBTag` from an anonymous block to the named definition, returning GUID, true name, record handle, and XDATA metadata without modifying the drawing; ordinary blocks return no definition (`drawing/dynamic_block_test.go`) |
+| User and binary XRECORD data | `entities/xrecord.py` | `DONE` — `entity.UserRecord` compiles and parses strings, integers, floats, points, nested lists, and dictionaries with explicit errors for newlines and overlong strings; `entity.BinaryRecord` hex-encodes arbitrary payloads in code-310 chunks; both preserve unrelated XRECORD tags via `ApplyTo` (`entity/user_record_test.go`) |
 | Extension dictionary/reactors on every entity | `xdict.py`, `appdata.py` | `DONE` — typed on entities, table entries, and objects; unknown groups retained verbatim (`TestEntityExtensionDictionaryAndReactors`, `TestObjectExtensionDictionaryAndReactors`, `TestCollectionExtensionDictionary`) |
 | LAYER_FILTER, VBA_PROJECT | `entities/layer.py`, `dxfobjects/vba.py` | `DONE` — typed layer handles/names/expressions and VBA payload with retained unknown tags (`TestLayerFilterTyped`, `TestVBAProjectTyped`) |
 
@@ -247,9 +250,10 @@ reactors, extension dictionaries, copy/clone semantics, and `Format` output.
 | SVG/PDF backends | `addons/drawing/backend.py`, `pymupdf.py` | `DONE` — unified `Renderer` interface (Begin/SetStyle/DrawPath/Clip/FillGradient/End) with registry; compact SVG path data, PDF content streams with xref tables (`TestSVGPathGeometryAndStyle`, `TestPDFStructure`) |
 | matplotlib/PyQt/PyMuPDF backends | `addons/drawing/*` | `N/A` in Go; provided native raster backend instead: PNG with supersampled anti-aliasing, background, clipping, dash patterns (`TestPNGRenderedViaRegistry`, `TestRasterStyleColorWidthDash`) |
 | Linetype rendering | `render/_linetypes.py`, `linetypes.py` | `DONE` — dash patterns baked from layer linetype x linetype scale, device-scaled, stroked by all backends (`TestRasterStyleColorWidthDash`) |
-| Hatch rendering | `render/hatching.py` | `DONE` — solid fill, predefined ANSI31–38 and ISO `ACAD_ISO02W100`–`ACAD_ISO15W100` patterns expanded to clipped segments (`HatchFillSegments`), gradients: SVG linearGradient, PNG axis lerp, PDF first color (`TestSceneHatchFill`, `TestHatchPatternExpanded`, `TestISOHatchPatternExpanded`, `TestFillGradientBackends`) |
+| Hatch rendering | `render/hatching.py` | `DONE` — solid fill, predefined ANSI31–38 and ISO `ACAD_ISO02W100`–`ACAD_ISO15W100`, and custom `.pat` patterns expanded to clipped segments (`HatchFillSegments`); unknown named patterns keep the boundary stroke and report handle plus name in scene fallbacks; gradients: SVG linearGradient, PNG axis lerp, PDF first color (`TestSceneHatchFill`, `TestHatchPatternExpanded`, `TestISOHatchPatternExpanded`, `TestParsedPatternExpandsToClippedSegments`, `TestUnknownHatchPatternKeepsBoundaryAndReports`, `TestFillGradientBackends`) |
+| Edge topology and boundaries | `explode.py`, `boundary.py` equivalents | `DONE` — `edges.BuildGraph` merges endpoints within tolerance, reports degree/leaves/components, extracts loops and chains, builds ordered LWPOLYLINE/POLYLINE and hatch boundaries, and preserves/reverses source orientation (`edges/edges_test.go`) |
 | Dimension rendering | `render/dimension.py`, `dim_*.py` | `DONE` — DIMENSION entities render referenced dimension block content through the path converter, falling back to exploded geometry with measured text; arrowheads use the complete arrow-style set (`TestDimensionRendersReferencedBlock`, `TestDimensionFallbackUsesMeasurementText`) |
-| MTEXT rendering | `render/abstract_mtext_renderer.py`, `tools/text_layout.py` | `DONE` — inline codes stripped (`StripCodes`), greedy word wrap at column width (`LayoutMText`), paragraph pitch 1.6714x height, TrueType glyph outlines via system fonts with marching-squares contours and built-in vector font fallback (`TestTextToPathsTTF`, `TestLayoutMTextWrap`, `TestTextOutlines`) |
+| MTEXT rendering | `render/abstract_mtext_renderer.py`, `tools/text_layout.py` | `DONE` — inline codes stripped (`StripCodes`), greedy word wrap at measured font advances (`LayoutMText`/`MeasureAdvance`), paragraph pitch 1.6714x height, alignment offsets from measured advances, TrueType glyph outlines via system fonts with marching-squares contours and built-in vector font fallback (`TestTextToPathsTTF`, `TestLayoutMTextWrap`, `TestTextAlignmentUsesMeasuredAdvance`, `TestTextOutlines`) |
 | Mesh rendering | `render/mesh.py`, `mesh_builder.py` | `DONE` — MESH and POLYFACE/POLYMESH faces emitted as closed paths (filled or wireframe); invalid/degenerate faces skipped (`TestMeshRendersClosedFaces`, `TestPolyfaceRendersClosedFaces`) |
 | Arrow heads | `render/arrows.py` | `DONE` — closed/open, arch tick, oblique, box, box-filled, diamond, circle, dot and dot-small geometries with closed/filled flags (`TestArrowHeadGeometryStyles`) |
 | MLeader/MLine rendering | `render/mleader.py`, `mline.py` | `DONE` — converted to path geometry (leader arrows via path, mline style lines) and rendered by all backends (converter tests in `path/converter_ext_test.go`, corpus conformance) |
@@ -278,6 +282,7 @@ Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB f
 | Explode INSERT/POLYLINE/MTEXT/etc. | `explode.py`, `addons/mtextsurrogate` | `DONE` — INSERT, POLYLINE, HATCH, LEADER, MLEADER and DIMENSION (extension lines, dimension line, arrow ticks, text); MText surrogate formatting is not modelled (MText explodes to itself); `TestExplodeDimension` and the dimension test in `query/parity_test.go` |
 | Bounding box of entities/layouts | `bbox.py` | `DONE` — per-entity `BBox()` feeds `query.EntityContext`/`Selection.Bounds` and layout extents (`Drawing.Extents`, `LayoutExtents`); decoded proxy geometry contributes its real box, and geometry-less records report no extents rather than zero-origin bounds (`TestProxyBBoxFromDecodedGraphics`, `TestEmptySelectionBounds`) |
 | Disassemble to primitives | `disassemble.py` | `DONE` — `query.Disassemble` flattens nested inserts through composed insert matrices, clears handles and reports cycles; `Drawing.DisassembleModel`; nested/cycle tests in `query/parity_test.go` |
+| Primitive decomposition | `disassemble.py`, `explode.py` | `DONE` — `query.MakePrimitive` maps LINE/ARC/CIRCLE/ELLIPSE/SPLINE/POLYLINE/MESH/TEXT/MTEXT/SOLID/INSERT/POINT to kind, handle, vertices, optional path or mesh, and diagnostics; `query.RecursiveDecompose` expands nested INSERT and HATCH paths with depth/cycle guards; `ToVertices`/`ToPaths`/`ToMeshes`/`ToControlVertices` convert the stream (`query/primitive_test.go`) |
 | Upright/rotate-to-view | `upright.py` | `DONE` — `entity.MakeUpright` for TEXT, MTEXT (attachment corner mirroring) and ATTRIB, `Drawing.MakeUprightAll`; `TestQuerySelectionsAndTransformsE2E` |
 | Reorder/seqend repair | `reorder.py` | `DONE` — `Drawing.DrawOrder`/`SendToBack`/`BringToFront`/`SetDrawOrder` persisted as `SORTENTSTABLE` (`object.NewSortEntsTable`, applied on load by `Drawing.ApplySortEntsTables`); pre-R13 drawings fall back to physical entity order; `TestDrawOrderRoundTripE2E`, `TestDrawOrderR12Fallback`; SEQEND repair is not applicable (no SEQEND model) |
 | Block reference traversal | `blkrefs.py` | `DONE` — `query.TraverseBlockRefs` depth-first insert walk with cycle reporting, exposed as `Drawing.TraverseBlockRefs`; traversal/cycle tests in `query/parity_test.go` |
@@ -305,14 +310,14 @@ Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB f
 | `acadctb` | `addons/acadctb.py` | `DONE` — text STB and binary CTB/STB parse into a shared plot-style model with color, true color, lineweight, screening and linetype overrides; `Apply` and render-scene integration (`TestParseBinaryCTB`, `TestParseBinarySTBNamedStyles`, `TestNamedPlotStyleOverridesRendering`) |
 | `pycsg` | `addons/pycsg.py` | `DONE` — real triangle-level booleans + Box/Sphere primitives + `csg.Volume` (`csg/boolean_test.go`) |
 | `MTextExplode` | `addons/mtextsurrogate` | `DONE` — `addons/mtxpl` Lines/Explode → positioned TEXT entities |
-| `text2path` | `addons/text2path.py` | `DONE` — `addons/text2path` TTF/OTF outlines via system fonts plus built-in vector fallback; SHX font loader with glyph metadata and text metrics; TTF metrics API (`text2path/shx.go`, `text2path/metrics.go`) |
+| `text2path` | `addons/text2path.py` | `DONE` — `addons/text2path` TTF/OTF outlines via system fonts plus built-in vector fallback; `Size`/`MTextSize` report measured width, height, ascent, descent, advance, wrapped line count and rotated bounds with an explicit fallback reason; SHX font loader with glyph metadata and text metrics; TTF metrics API (`text2path/shx.go`, `text2path/metrics.go`, `addons/text2path/size.go`, `addons/text2path/size_test.go`) |
 | `geo` | `addons/geo.py` | `DONE` — `addons/geo.ExportGeoJSON` + `CRSFunc` transform |
-| `meshex` | `addons/meshex.py` | `DONE` — `addons/meshex.ExportOBJ` |
-| `openscad` | `addons/openscad.py` | `DONE` — `addons/meshex.ExportOpenSCAD` polyhedron source |
+| `meshex` | `addons/meshex.py` | `DONE` — `addons/meshex.ExportOBJ`/`ExportOpenSCAD` route direct meshes and decoded ACIS SAT bodies through `Geometry`; `ExportOBJWithLoops`/`ExportOpenSCADWithLoops` append closed linked-edge loops in source order (`addons/meshex/geometry_test.go`) |
+| `openscad` | `addons/openscad.py` | `DONE` — `addons/meshex.ExportOpenSCAD` polyhedron source, with decoded ACIS and linked-edge loop geometry |
 | `odafc` | `addons/odafc.py` | `DONE` — `addons/odafc` CommandRunner + actionable missing-tool error |
 | `browser` | `addons/browser` | `DONE` — `addons/browser.Extract` exposes document, layout and entity inspection data (handle, type, layer, bbox) grouped by layout and type (`addons/browser/browser_test.go`) |
 | `acisbrowser` | `addons/acisbrowser` | `DONE` — `addons/acisbrowser.Extract` exposes ACIS SAT/SAB payloads and metadata for REGION/BODY/SOLID3D without a GUI (`addons/acisbrowser/acisbrowser_test.go`) |
-| `dwg` | `addons/dwg` | `DONE` — `addons/dwg.Converter` delegates DWG→DXF conversion to a configurable external `CommandRunner`, names the missing tool on failure and leaves no partial output (`addons/dwg/dwg_test.go`) |
+| `dwg` | `addons/dwg` | `DONE` — `addons/dwg.Converter` delegates DWG→DXF conversion to a configurable external `CommandRunner`, names the missing tool on failure and leaves no partial output (`addons/dwg/dwg_test.go`); native `addons/dwg.ReadMetadata`/`ReadMetadataFile` additionally read version, release, maintenance/codepage, and the R13–R2000 section locator without writing or converting (`addons/dwg/metadata_test.go`) |
 | `r12export` | `addons/r12export.py` | `DONE` — streaming R12 exporter converts SPLINE/ELLIPSE/LWPOLYLINE to POLYLINE, MTEXT to TEXT, MESH to POLYFACE and reports conversions (`addons/r12export/r12export_test.go`) |
 | `dimlines` | `addons/dimlines.py` | `DONE` — `addons/dimlines` builds linear and angular dimension lines from LINE/TEXT primitives with configurable style (`addons/dimlines/dimlines_test.go`) |
 | `genetic_algorithm` | `addons/genetic_algorithm.py` | `DONE` — `addons/genetic` DNA types, mutation/crossover strategies, selections and maximizing optimizer with deterministic RNG support (`addons/genetic/genetic_test.go`) |
@@ -329,7 +334,10 @@ Plot style tables are modeled by `addons/acadctb`: text STB and binary CTB/STB f
 | `ezdxf` CLI (`info`, `audit`, `draw`, `browse`, `convert`, `strip`, `view`, `pp`) | `commands.py`, `__main__.py` | `DONE` — `cmd/dxf` provides info/analyze/difftags/debug/audit/convert/draw/query/explode/fix/strip/header/layers/browse/standards/zip/unzip/version/completion, text+JSON, exit codes 0/1/2/3 (`cmd/dxf/main_test.go`, `cmd/dxf/devtools_test.go`, `cmd/dxf/zip_test.go`, `docs/cli.md`) |
 | App settings / config | `appsettings.py`, `_options.py` | `DONE` — `appsettings` with defaults < file < `DXF_*` env precedence |
 | Comments | `comments.py` | `DONE` — preserve per section and strip via `comments.StripComments` |
-| Fonts, SHX/TTF, text metrics | `fonts/*`, `tools/text*.py` | `DONE` — TTF/OTF outlines via system fonts; SHX shape/unifont loader with glyph metrics (`text2path/shx.go`); TTF advance/ascent/descent metrics (`text2path/metrics.go`, `TestParseSHXShapesAndMeasure`, `TestMeasureTTF`) |
+| Native DWG metadata | LibreDWG R13–R2018 header equivalents | `DONE` — read-only version/release detection, maintenance and codepage fields, R13–R2000 section locator names/addresses/sizes, and diagnostics for unsupported sections; R2004+ reports the encrypted/compressed section map as unsupported instead of guessing. The external ODA `Converter` is unchanged, and native parsing never writes DWG output (`addons/dwg/metadata_test.go`) |
+| Raw section loading | `lldxf/loader.py` equivalents | `DONE` — `lldxf.ParseRawSections` tags ASCII or binary DXF into ordered, named section bodies without binding; truncated input returns the tags read so far and an error naming the open section (`lldxf/raw_sections_test.go`) |
+| Julian date conversion | `tools/julian.py` equivalents | `DONE` — `math.JulianDate`, `TimeFromJulian`, `CivilToJulian`, and `JulianToCivil`; J2000 is `2451545.0` at 2000-01-01T12:00Z and round trips within one second (`math/julian_test.go`) |
+| Fonts, SHX/TTF, text metrics | `fonts/*`, `tools/text*.py` | `DONE` — TTF/OTF outlines via system fonts; SHX shape/unifont loader with glyph metrics (`text2path/shx.go`); TTF advance/ascent/descent metrics and TEXT/MTEXT measured size APIs (`text2path/metrics.go`, `addons/text2path/size.go`, `TestParseSHXShapesAndMeasure`, `TestMeasureTTF`, `TestTextSizeReportsMeasuredExtents`) |
 | ISO hatch patterns / standards | `tools/_iso_pattern.py`, `standards.py` | `DONE` — ANSI31–38 and ISO `ACAD_ISO02W100`–`ACAD_ISO15W100` patterns with category lookup and render expansion (`TestISOPatterns`, `TestISOHatchPatternExpanded`); standards rule engine and `dxf standards` implemented (`standards` package, `standards_test.go`) |
 | Revcloud | `revcloud.py` | `DONE` — `query.RevCloudRectangle`/`RevCloudArcs` (closed bulged LWPOLYLINE, configurable arc chord and bulge) plus `Space.AddRevCloud`/`Drawing.AddRevCloud`; revcloud tests in `query/parity_test.go` and `TestQuerySelectionsAndTransformsE2E` |
 | Zoom/extents helpers | `zoom.py` | `DONE` — `drawing.FitExtentsToViewport` and `Drawing.FitView`/`FitLayoutView`; `TestQuerySelectionsAndTransformsE2E` |
@@ -422,7 +430,12 @@ on complete data; add-ons and CLI depend on everything.
 4. **Behavioural tests.** Port ezdxf tests where practical, especially
    `tests/test_*.py` for math, path, query, audit, transform, xref, rendering.
 5. **Fuzzing.** Fuzz the tagger/loader/parser with truncated and malformed files;
-   recover mode must not panic.
+   recover mode must not panic. Dedicated fuzz targets cover native DWG metadata
+   (`FuzzReadMetadata`), PAT parsing (`FuzzParsePAT`) and proxy primitive
+   decoding (`FuzzDecodeProxyPrimitives`), in addition to the tagger/loader and
+   audit targets. `tooling_fixture_test.go` exercises decomposition, measured
+   text size, custom patterns, edge loops and binding-free raw section loading
+   on `testdata/tooling_fixture.dxf`.
 6. **Performance smoke tests.** `iterdxf`-style streaming must keep memory bounded.
 
 ## Known WIP and hazards
@@ -436,8 +449,18 @@ on complete data; add-ons and CLI depend on everything.
   handle are left unchanged (the target is ambiguous by construction); the
   original duplicate issue and any unresolved owner/reactor issues stay in the
   report for manual follow-up.
-- Add-on/tool gaps: none from changes 16 and 17; `xqt` is intentionally not
-  ported because the Go package has no Qt dependency.
+- Tooling scope completed by `tooling-completeness-parity`: primitive
+  decomposition, dynamic-block read helpers, user/binary XRECORD data, proxy
+  primitive decoding, measured TEXT/MTEXT sizing, `.pat` parsing, linked-edge
+  topology, read-only native DWG metadata, Julian conversion, raw section
+  loading, and ACIS SAT mesh export. Remaining limitations: ACIS SAT decoding
+  handles flat polygonal faces only (SAB payloads and curved surfaces are
+  retained but not triangulated); DWG R2004+ section maps are diagnostic-only
+  and conversion still requires the external ODA converter; proxy decoding
+  covers the documented opcode subset and reports unknown opcodes with offsets;
+  `.pat` parsing supports the documented simple pattern-line subset.
+- Add-on/tool gaps: `xqt` is intentionally not ported because the Go package
+  has no Qt dependency.
 - The repository has a large untracked `.agents/`, `.dsh/`, `.zcode/` skill
   configuration. Treat as tooling, not library code.
 
@@ -469,5 +492,6 @@ on complete data; add-ons and CLI depend on everything.
 | 2026-11-10 | change 18 `dev-tools-parity` | done | `dxf analyze` tag/entity/table/block/object statistics; `dxf difftags` structural added/removed/changed tag paths with non-zero exit on differences; `dxf debug` version/encoding/section/loader/recovery diagnostics; reusable `standards` rule engine with structured violations, configurable severities and `dxf standards`; ZIP manager with atomic creation/extraction, per-entry path traversal and symlink rejection, plus `dxf zip`/`dxf unzip`. Tests: `cmd/dxf/devtools_test.go`, `cmd/dxf/zip_test.go`, `standards/standards_test.go`, `filemanagement/zip_test.go`. |
 | 2026-11-11 | change 16 `render-plot-font-parity` | done | DIMENSION entities render referenced dimension blocks fully with measured text fallback; MESH and POLYFACE/POLYMESH faces emit closed filled or wireframe paths; all arrow-head styles (closed/open, arch tick, oblique, box, diamond, circle, dot) implemented; shared STB/binary CTB plot-style model with color, true color, lineweight and screening overrides applied during scene building; SHX shape/unifont loader with glyph metrics and TTF advance/ascent/descent metrics API; ISO `ACAD_ISO02W100`–`ACAD_ISO15W100` hatch patterns with lookup and render expansion. Tests: `render/entities_parity_test.go`, `render/render_test.go`, `addons/acadctb/binary_test.go`, `addons/acadctb/stb_test.go`, `text2path/shx_test.go`, `text2path/metrics_test.go`, `patterns/patterns_test.go`. |
 | 2026-11-11 | change `core-fidelity-parity` | done | Ordered per-record retention for entities/tables/blocks/objects; positioned comments; per-type entity/table/object conformance matrices and golden round trips; deep-copy isolation for base tags/XDATA, ACIS bodies/regions, and MPolygon state; decoded proxy bounding boxes and empty-selection bounds; pre-bind tag validation and recover repair (terminators, handles, ranges); deterministic duplicate-handle and block-cycle repair. Remaining limitation: ambiguous references to a repaired duplicate handle are left unresolved and reported. Tests: `retention_comments_test.go`, `conformance_test.go`, `table_object_conformance_test.go`, `entity/copy_isolation_test.go`, `entity/proxy_bbox_test.go`, `query/empty_bounds_test.go`, `tag_validation_test.go`, `audit/block_cycle_fix_test.go`. |
+| 2026-11-11 | change `tooling-completeness-parity` | done | `query.MakePrimitive`/`RecursiveDecompose` with path, mesh and diagnostic conversions; dynamic-block resolution; `entity.UserRecord`/`BinaryRecord`; proxy graphics primitive opcodes; measured TEXT/MTEXT `Size`/`MTextSize` and anchor layout; PAT parser/registry/scaling/measurement conversion and clipped hatch expansion; immutable `edges` graph with loops/chains/entity boundaries; native DWG version/section metadata; Julian conversion; raw section loading; ACIS SAT mesh decoding and meshex geometry/loop export. Fuzz targets cover DWG metadata, PAT and proxy decoding; `testdata/tooling_fixture.dxf` exercises the combined scope. Tests: `query/primitive_test.go`, `drawing/dynamic_block_test.go`, `entity/user_record_test.go`, `entity/proxy_primitives_test.go`, `addons/text2path/size_test.go`, `patterns/pat_test.go`, `edges/edges_test.go`, `addons/dwg/metadata_test.go`, `math/julian_test.go`, `lldxf/raw_sections_test.go`, `entity/acis_mesh_test.go`, `addons/meshex/geometry_test.go`, `tooling_fixture_test.go`. |
 
 Append a row whenever a change moves state. Keep the matrix above in sync.

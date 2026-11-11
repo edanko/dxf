@@ -36,6 +36,7 @@ func MeasureTTF(text string, height float64) (TextMetrics, string, error) {
 		Height:  height,
 		Ascent:  float64(m.Ascent) / 64,
 		Descent: float64(m.Descent) / 64,
+		Advance: float64(pen) / 64,
 	}, name, nil
 }
 

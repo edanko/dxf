@@ -218,3 +218,14 @@ The system SHALL triangulate polygons with holes so that the sum of triangle are
 - **WHEN** a polygon contains a centered hole
 - **THEN** triangulation covers the polygon without a bay outside the boundary
 - **AND** the area check passes.
+
+### Requirement: Julian date conversion matches civil date
+The system SHALL convert between civil date-time values and Julian dates using the documented astronomical convention.
+
+#### Scenario: Known epoch
+- **WHEN** the civil date 2000-01-01 12:00 UTC is converted
+- **THEN** the Julian date is 2451545.0 within one second
+
+#### Scenario: Round trip
+- **WHEN** a civil date-time is converted to Julian date and back
+- **THEN** the original date-time is recovered within one second

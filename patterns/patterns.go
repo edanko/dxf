@@ -110,10 +110,10 @@ var PredefinedPatterns = map[string]PatternDefinition{
 	},
 }
 
-// GetPatternDefinition retrieves a predefined pattern by name
+// GetPatternDefinition retrieves a pattern by name. Lookup is
+// case-insensitive and includes custom patterns registered from .pat files.
 func GetPatternDefinition(name string) (PatternDefinition, bool) {
-	pattern, exists := PredefinedPatterns[name]
-	return pattern, exists
+	return LookupPattern(name)
 }
 
 // GetPatternsByCategory returns all patterns in a category
