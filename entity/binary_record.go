@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+
+	"github.com/edanko/dxf/lldxf"
 )
 
 // MaxBinaryRecordChunk is the maximum number of payload bytes encoded in one
@@ -33,7 +35,7 @@ func (r *BinaryRecord) Compile() ([]XRecordTag, error) {
 	tags := []XRecordTag{{Code: 302, Value: binaryRecordOpen}, {Code: 1, Value: r.Name}}
 	for start := 0; start < len(r.Data); start += MaxBinaryRecordChunk {
 		end := min(start+MaxBinaryRecordChunk, len(r.Data))
-		tags = append(tags, XRecordTag{Code: 310, Value: strings.ToUpper(hex.EncodeToString(r.Data[start:end]))})
+		tags = append(tags, XRecordTag{Code: 310, Value: lldxf.UpperHex(r.Data[start:end])})
 	}
 	tags = append(tags, XRecordTag{Code: 302, Value: binaryRecordClose})
 	return tags, nil

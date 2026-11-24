@@ -1,10 +1,8 @@
 package entity
 
 import (
-	"encoding/hex"
-	"strings"
-
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/lldxf"
 )
 
 type VBAProject struct {
@@ -33,7 +31,7 @@ func (v *VBAProject) Format(f format.Formatter) {
 }
 
 func (v *VBAProject) writeBinaryData(f format.Formatter, code int, data []byte) {
-	hexStr := strings.ToUpper(hex.EncodeToString(data))
+	hexStr := lldxf.UpperHex(data)
 	for len(hexStr) > 0 {
 		chunk := hexStr
 		if len(hexStr) > 254 {

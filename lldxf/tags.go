@@ -1,9 +1,7 @@
 package lldxf
 
 import (
-	"encoding/hex"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -91,7 +89,7 @@ type DXFBinaryTag struct {
 // uppercase, matching the wire form.
 func (t *DXFBinaryTag) String() string {
 	if b, ok := t.value.([]byte); ok {
-		return fmt.Sprintf("%d\n%s\n", t.code, strings.ToUpper(hex.EncodeToString(b)))
+		return fmt.Sprintf("%d\n%s\n", t.code, UpperHex(b))
 	}
 	return fmt.Sprintf("%d\n%s\n", t.code, t.value)
 }
@@ -112,24 +110,66 @@ var _ = IsBinaryDataCode
 
 // FormatValue renders a tag value in its canonical text form for the string
 // model and ASCII output: binary data payloads (codes 260/261, 310-319, 1004)
-// become uppercase hex matching the wire form; other values use %v. Keeping
-// every tag-to-string conversion on this path makes retained tags stable
+// become uppercase hex matching the wire form; other values render as %v would.
+// Keeping every tag-to-string conversion on this path makes retained tags stable
 // across repeated round trips.
+//
+// The value is converted with a type switch rather than fmt.Sprintf: %v is
+// defined as 'g' with the shortest representation for floats and base-10 for
+// integers, which strconv renders identically without fmt's reflection cost.
+// This runs once per retained tag on every parse, so the difference is material.
 func FormatValue(tag Tag) string {
-	if bin, ok := tag.(*DXFBinaryTag); ok {
-		if b, ok := bin.value.([]byte); ok {
-			return strings.ToUpper(hex.EncodeToString(b))
+	if b, ok := tag.Value().([]byte); ok {
+		if _, isBinaryTag := tag.(*DXFBinaryTag); isBinaryTag || isBinaryDataCode(tag.Code()) {
+			return UpperHex(b)
 		}
 	}
-	if lldxfSelfIsBinary(isBinaryDataCode(tag.Code())) {
-		if b, ok := tag.Value().([]byte); ok {
-			return strings.ToUpper(hex.EncodeToString(b))
-		}
-	}
-	return fmt.Sprintf("%v", tag.Value())
+	return FormatAnyValue(tag.Value())
 }
 
-func lldxfSelfIsBinary(v bool) bool { return v }
+// FormatAnyValue renders a tag value exactly as fmt's %v verb would, without
+// fmt's reflection cost. It is the canonical text form for tag values, shared
+// by tag formatting and by the tags helpers that read a single scalar.
+func FormatAnyValue(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	case float64:
+		return strconv.FormatFloat(x, 'g', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(x), 'g', -1, 32)
+	case int:
+		return strconv.Itoa(x)
+	case int16:
+		return strconv.FormatInt(int64(x), 10)
+	case int32:
+		return strconv.FormatInt(int64(x), 10)
+	case int64:
+		return strconv.FormatInt(x, 10)
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// UpperHex returns the uppercase hexadecimal encoding of b, the wire form of
+// DXF binary payloads (codes 260/261, 310-319, 1004). Encoding directly avoids
+// the hex.EncodeToString plus strings.ToUpper pair, which allocates twice and
+// rescans the output.
+func UpperHex(b []byte) string {
+	const digits = "0123456789ABCDEF"
+	var sb strings.Builder
+	sb.Grow(len(b) * 2)
+	for _, v := range b {
+		sb.WriteByte(digits[v>>4])
+		sb.WriteByte(digits[v&0x0f])
+	}
+	return sb.String()
+}
 
 // Clone creates a deep copy of the binary tag
 func (t *DXFBinaryTag) Clone() Tag {
@@ -212,10 +252,10 @@ func (t Tags) SetFirst(tag Tag) {
 // GetHandle returns the entity handle (group code 5 or 105)
 func (t Tags) GetHandle() string {
 	if handle, found := t.GetFirstValue(5); found {
-		return fmt.Sprintf("%v", handle)
+		return FormatAnyValue(handle)
 	}
 	if handle, found := t.GetFirstValue(105); found {
-		return fmt.Sprintf("%v", handle)
+		return FormatAnyValue(handle)
 	}
 	return ""
 }
@@ -223,7 +263,7 @@ func (t Tags) GetHandle() string {
 // DXFType returns the entity type (group code 0)
 func (t Tags) DXFType() string {
 	if dtype, found := t.GetFirstValue(0); found {
-		return fmt.Sprintf("%v", dtype)
+		return FormatAnyValue(dtype)
 	}
 	return ""
 }
@@ -272,77 +312,86 @@ func castTagValue(code GroupCode, value any) any {
 func IsBinaryDataCode(code GroupCode) bool { return isBinaryDataCode(code) }
 
 func isBinaryDataCode(code GroupCode) bool {
-	binaryCodes := []GroupCode{260, 261, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 1004}
-	return slices.Contains(binaryCodes, code)
+	// Codes 260/261 (binary flags) and 310-319 (binary chunks), plus the
+	// XDATA binary chunk 1004.
+	if code >= 310 && code <= 319 {
+		return true
+	}
+	return code == 260 || code == 261 || code == 1004
 }
 
 func isPointCode(code GroupCode) bool {
-	pointCodes := []GroupCode{10, 11, 12, 13, 14, 15, 16, 17, 18, 110, 111, 112, 210, 211, 212, 213, 1010, 1011, 1012, 1013}
-	return slices.Contains(pointCodes, code)
+	// Coordinate tags: primary X/Y/Z series and their extrusion counterparts.
+	if code >= 10 && code <= 18 {
+		return true
+	}
+	if code >= 110 && code <= 112 {
+		return true
+	}
+	if code >= 210 && code <= 213 {
+		return true
+	}
+	return code >= 1010 && code <= 1013
 }
 
 func isFloatCode(code GroupCode) bool {
-	// Group codes that typically contain floating-point values
-	// Based on DXF specification
-	floatCodes := []GroupCode{
-		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, // X coordinates
-		20, 21, 22, 23, 24, 25, 26, 27, 28, 29, // Y coordinates
-		30, 31, 32, 33, 34, 35, 36, 37, 38, 39, // Z coordinates
-		40, 41, 42, 43, 44, 45, 46, 47, 48, 49, // Radii, angles, etc.
-		50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
-		110, 111, 112, 113, 114, 115, 116, 117, 118, 119, // More X coords
-		120, 121, 122, 123, 124, 125, 126, 127, 128, 129, // More Y coords
-		130, 131, 132, 133, 134, 135, 136, 137, 138, 139, // More Z coords
-		140, 141, 142, 143, 144, 145, 146, 147, 148, 149, // Dimension floats
-		210, 211, 212, 213, 214, 215, 216, 217, 218, 219, // Extrusion vectors
-		460, 461, 462, 463, 464, 465, 466, 467, 468, 469, // More floats
-		1010, 1011, 1012, 1013, // XDATA floats
-		1040, 1041, 1042, // XDATA floats
+	// Group codes carrying floating-point values, per the DXF specification:
+	// coordinates (10-59, 110-149), extrusion vectors (210-219), and the
+	// remaining float ranges (460-469, 1010-1013, 1040-1042).
+	switch {
+	case code >= 10 && code <= 59:
+		return true
+	case code >= 110 && code <= 149:
+		return true
+	case code >= 210 && code <= 219:
+		return true
+	case code >= 460 && code <= 469:
+		return true
+	case code >= 1010 && code <= 1013:
+		return true
+	case code >= 1040 && code <= 1042:
+		return true
 	}
-	return slices.Contains(floatCodes, code)
+	return false
 }
 
 func isInt16Code(code GroupCode) bool {
-	// Group codes that typically contain 16-bit integers
-	// Based on DXF specification
-	int16Codes := []GroupCode{
-		60, 61, 62, 63, 64, 65, 66, 67, 68, 69, // Status, color, etc.
-		70, 71, 72, 73, 74, 75, 76, 77, 78, 79, // Flags, counts
-		170, 171, 172, 173, 174, 175, 176, 177, 178, 179, // More flags
-		270, 271, 272, 273, 274, 275, 276, 277, 278, 279, // More flags
-		280, 281, 282, 283, 284, 285, 286, 287, 288, 289, // Booleans, small ints
-		290, 291, 292, 293, 294, 295, 296, 297, 298, 299, // Booleans
-		370, 371, 372, 373, 374, 375, 376, 377, 378, 379, // More flags
-		380, 381, 382, 383, 384, 385, 386, 387, 388, 389, // More small ints
-		400, 401, 402, 403, 404, 405, 406, 407, 408, 409, // More flags
-		1060, 1061, 1062, 1063, 1064, 1065, 1066, 1067, 1068, 1069, // XDATA ints
-		1070, // XDATA int
+	// Group codes carrying 16-bit integers: flags, counts, ACI colors and
+	// booleans, including the XDATA 16-bit integer range.
+	switch {
+	case code >= 60 && code <= 79:
+		return true
+	case code >= 170 && code <= 179:
+		return true
+	case code >= 270 && code <= 299:
+		return true
+	case code >= 370 && code <= 389:
+		return true
+	case code >= 400 && code <= 409:
+		return true
+	case code >= 1060 && code <= 1070:
+		return true
 	}
-	return slices.Contains(int16Codes, code)
+	return false
 }
 
 func isInt32Code(code GroupCode) bool {
-	// Group codes that typically contain 32-bit integers
-	// Based on DXF specification
-	int32Codes := []GroupCode{
-		90, 91, 92, 93, 94, 95, 96, 97, 98, 99, // Counts, handles
-		420, 421, 422, 423, 424, 425, 426, 427, 428, 429, // Annotation related
-		430, 431, 432, 433, 434, 435, 436, 437, 438, 439, // Dictionary handles
-		440, 441, 442, 443, 444, 445, 446, 447, 448, 449, // More ints
-		450, 451, 452, 453, 454, 455, 456, 457, 458, 459, // More ints
-		480, 481, 482, 483, 484, 485, 486, 487, 488, 489, // More handles
-		1071, // XDATA int32
+	// Group codes carrying 32-bit integers: counts, handles and true colors,
+	// plus the XDATA 32-bit integer code.
+	switch {
+	case code >= 90 && code <= 99:
+		return true
+	case code >= 420 && code <= 459:
+		return true
+	case code >= 480 && code <= 489:
+		return true
 	}
-	return slices.Contains(int32Codes, code)
+	return code == 1071
 }
 
 func isInt64Code(code GroupCode) bool {
-	// Group codes that typically contain 64-bit integers
-	// Based on DXF specification
-	int64Codes := []GroupCode{
-		160, 161, 162, 163, 164, 165, 166, 167, 168, 169, // Lengths, counts (int64 in binary DXF)
-	}
-	return slices.Contains(int64Codes, code)
+	// Group codes carrying 64-bit integers (lengths and counts in binary DXF).
+	return code >= 160 && code <= 169
 }
 
 // Type casting functions
@@ -442,25 +491,28 @@ func castToString(value any) string {
 // spaces) to raw bytes. Non-hex input is returned as nil so callers can fall
 // back to the string form.
 func decodeHexPayload(s string) []byte {
-	var digits []byte
+	// Decode in one pass instead of first copying the digits without spaces:
+	// the common payload has no separators, so the copy was pure overhead.
+	out := make([]byte, 0, len(s)/2)
+	hi := -1
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		if c == ' ' || c == '\t' {
 			continue
 		}
-		digits = append(digits, c)
-	}
-	if len(digits)%2 != 0 {
-		return nil
-	}
-	out := make([]byte, len(digits)/2)
-	for i := range out {
-		hi, ok1 := hexDigit(digits[2*i])
-		lo, ok2 := hexDigit(digits[2*i+1])
-		if !ok1 || !ok2 {
+		d, ok := hexDigit(c)
+		if !ok {
 			return nil
 		}
-		out[i] = hi<<4 | lo
+		if hi < 0 {
+			hi = int(d)
+			continue
+		}
+		out = append(out, byte(hi<<4|int(d)))
+		hi = -1
+	}
+	if hi >= 0 {
+		return nil // odd number of hex digits
 	}
 	return out
 }
@@ -523,10 +575,5 @@ func BinaryKindFor(code GroupCode) BinaryValueKind {
 
 // IsBinaryBoolCode reports whether a code stores a boolean (as int16) in binary DXF.
 func IsBinaryBoolCode(code GroupCode) bool {
-	for c := GroupCode(290); c <= GroupCode(299); c++ {
-		if code == c {
-			return true
-		}
-	}
-	return false
+	return code >= 290 && code <= 299
 }

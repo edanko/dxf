@@ -894,6 +894,60 @@ func (b *documentBinder) bindOpaqueSections() {
 	b.d.SetOpaqueSections(opaque)
 }
 
+// codeSetFormatter records which group codes an entity emits when formatting.
+// attachRawTags only needs that set, so this formatter marks codes as they are
+// written and discards the text.
+//
+// The previous implementation rendered the whole entity to ASCII and re-parsed
+// the output line by line with fmt.Sscanf, which dominated parse time for
+// tag-dense documents. Embedded *format.ASCII keeps every non-writing method
+// (String/Int/Float/Version and friends) behaving exactly as a real formatter,
+// so entity code that builds strings directly is unaffected.
+type codeSetFormatter struct {
+	*format.ASCII
+	bits   [(maxTrackedGroupCode + 63) / 64]uint64
+	others []int
+}
+
+// maxTrackedGroupCode bounds the constant-size bitmap. Standard DXF group
+// codes span 0..1071; anything outside that range falls back to a small slice.
+const maxTrackedGroupCode = 1088
+
+func newCodeSetFormatter() *codeSetFormatter {
+	return &codeSetFormatter{ASCII: format.NewASCII()}
+}
+
+func (c *codeSetFormatter) mark(code int) {
+	if code >= 0 && code < maxTrackedGroupCode {
+		c.bits[code>>6] |= 1 << uint(code&63)
+		return
+	}
+	for _, existing := range c.others {
+		if existing == code {
+			return
+		}
+	}
+	c.others = append(c.others, code)
+}
+
+// has reports whether the formatter recorded the given group code.
+func (c *codeSetFormatter) has(code int) bool {
+	if code >= 0 && code < maxTrackedGroupCode {
+		return c.bits[code>>6]&(1<<uint(code&63)) != 0
+	}
+	for _, existing := range c.others {
+		if existing == code {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *codeSetFormatter) WriteString(num int, val string) { c.mark(num) }
+func (c *codeSetFormatter) WriteInt(num int, val int)       { c.mark(num) }
+func (c *codeSetFormatter) WriteFloat(num int, val float64) { c.mark(num) }
+func (c *codeSetFormatter) WriteBool(num int, val bool)     { c.mark(num) }
+
 // attachRawTags records group codes that the typed entity model did not emit,
 // so unknown codes survive a load/save round trip.
 func attachRawTags(e entity.Entity, tags lldxf.Tags) {
@@ -907,15 +961,8 @@ func attachRawTags(e entity.Entity, tags lldxf.Tags) {
 	if getter, ok := e.(entity.RawTagReader); ok && len(getter.RawTags()) > 0 {
 		return // raw tags already derived; keep them append-only
 	}
-	f := format.NewASCII()
+	f := newCodeSetFormatter()
 	e.Format(f)
-	emitted := make(map[int]bool)
-	for line := range strings.SplitSeq(f.Output(), "\n") {
-		var code int
-		if _, err := fmt.Sscanf(strings.TrimSpace(line), "%d", &code); err == nil {
-			emitted[code] = true
-		}
-	}
 	raw := make([]entity.TagPair, 0)
 	var reactors []string
 	var xdict string
@@ -976,7 +1023,7 @@ func attachRawTags(e entity.Entity, tags lldxf.Tags) {
 		// 66 is a derived "entities follow" flag for INSERT/POLYLINE that the
 		// typed model emits once vertices/attributes are attached. Retaining it
 		// as an unknown tag duplicates it after attribute binding.
-		if code == 0 || code == 5 || code == 66 || code == 105 || emitted[code] {
+		if code == 0 || code == 5 || code == 66 || code == 105 || f.has(code) {
 			continue
 		}
 		// Owner (330) and extension-dictionary (360) links are re-emitted by

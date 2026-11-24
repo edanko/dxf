@@ -106,7 +106,12 @@ func (l *Loader) groupSections() error {
 
 	for _, tag := range l.tags {
 		code := int(tag.Code())
-		value := fmt.Sprintf("%v", tag.Value())
+		// Only comments (999), record types (0) and section names (2) need the
+		// value as text; this loop walks the whole document.
+		var value string
+		if code == 999 || code == 0 || code == 2 {
+			value = FormatValue(tag)
+		}
 
 		// Comments belong to the section that contains them, not to an entity.
 		if code == 999 {
@@ -241,7 +246,11 @@ func (l *Loader) processTables() error {
 
 	for _, tag := range tablesTags {
 		code := int(tag.Code())
-		value := fmt.Sprintf("%v", tag.Value())
+		// Only record-level tags (0) carry a name this loop inspects.
+		var value string
+		if code == 0 {
+			value = FormatValue(tag)
+		}
 
 		switch {
 		case code == 0 && strings.HasSuffix(value, "TABLE"):
@@ -314,7 +323,11 @@ func (l *Loader) extractEntities(sectionTags Tags, target map[string]Tags) error
 
 	for _, tag := range sectionTags {
 		code := int(tag.Code())
-		value := fmt.Sprintf("%v", tag.Value())
+		// Only handle tags (5/105) need their value as text.
+		var value string
+		if code == 5 || code == 105 {
+			value = FormatValue(tag)
+		}
 
 		if code == 0 {
 			// Save previous entity
