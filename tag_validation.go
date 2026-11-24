@@ -137,14 +137,14 @@ func validateTagStream(tags lldxf.Tags, repair bool) (lldxf.Tags, []tagValidatio
 			blockOpen = false
 		}
 
-		// Copy the record, validating and repairing its handle.
+		// Point at the record in place, validating and repairing its handle.
 		out = append(out, tag)
 		i++
-		record := make(lldxf.Tags, 0, 8)
+		recordStart := i
 		for i < len(tags) && int(tags[i].Code()) != 0 {
-			record = append(record, tags[i])
 			i++
 		}
+		record := tags[recordStart:i]
 		if sectionOpen && sectionName == "" && len(record) > 0 && int(record[0].Code()) == 2 {
 			sectionName = strings.ToUpper(tagStringValue(record[0]))
 		}
@@ -185,6 +185,11 @@ func validateTagStream(tags lldxf.Tags, repair bool) (lldxf.Tags, []tagValidatio
 
 		for _, t := range record {
 			c := int(t.Code())
+			// Only numeric codes are range checked; formatting the value of
+			// every other tag here would allocate a string per tag.
+			if !isNumericTagCode(c) {
+				continue
+			}
 			value := tagStringValue(t)
 			if msg := numericRangeError(c, value); msg != "" {
 				report(c, value, handle, msg, false)

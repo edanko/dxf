@@ -69,7 +69,7 @@ func (v *VBAProject) Format(f format.Formatter) {
 	remaining := v.data
 	for len(remaining) > 0 {
 		n := min(len(remaining), 127)
-		f.WriteString(310, strings.ToUpper(hex.EncodeToString(remaining[:n])))
+		f.WriteString(310, lldxf.UpperHex(remaining[:n]))
 		remaining = remaining[n:]
 	}
 }

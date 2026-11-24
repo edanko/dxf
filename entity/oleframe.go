@@ -1,10 +1,8 @@
 package entity
 
 import (
-	"encoding/hex"
-	"strings"
-
 	"github.com/edanko/dxf/format"
+	"github.com/edanko/dxf/lldxf"
 	dxfmath "github.com/edanko/dxf/math"
 )
 
@@ -72,7 +70,7 @@ func (o *OLE2Frame) Format(f format.Formatter) {
 }
 
 func (o *OLE2Frame) writeBinaryData(f format.Formatter, code int, data []byte) {
-	hexStr := strings.ToUpper(hex.EncodeToString(data))
+	hexStr := lldxf.UpperHex(data)
 	for len(hexStr) > 0 {
 		chunk := hexStr
 		if len(hexStr) > 254 {

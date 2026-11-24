@@ -2,8 +2,8 @@ package format
 
 import (
 	"bytes"
-	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/edanko/dxf/lldxf"
 )
@@ -21,21 +21,33 @@ const (
 )
 
 // ASCII is Formatter for ASCII format.
+//
+// Version-derived flags and the float precision are cached when version or
+// codepage change: every written tag consults them, and resolving
+// format.Profile by version string per tag dominated serialization. The
+// scratch slice is reused for the per-tag text so that writing a tag does not
+// allocate.
 type ASCII struct {
 	buffer   bytes.Buffer
 	float    string
 	version  string
 	codepage string
+	prec     int
+	encode   bool
+	scratch  []byte
 }
 
 // NewASCII creates a new ASCII formatter.
 func NewASCII() *ASCII {
 	var b bytes.Buffer
-	return &ASCII{
+	f := &ASCII{
 		buffer:  b,
 		float:   "%.6f",
+		prec:    6,
 		version: AC1021, // Default to R2004 for MPOLYGON support
 	}
+	f.refresh()
+	return f
 }
 
 // NewASCIIWithVersion creates a new ASCII formatter with specified version.
@@ -43,22 +55,34 @@ func NewASCIIWithVersion(version string) *ASCII {
 	if version == "" {
 		version = AC1021
 	}
-	return &ASCII{
+	f := &ASCII{
 		buffer:  bytes.Buffer{},
 		float:   "%.6f",
+		prec:    6,
 		version: version,
 	}
+	f.refresh()
+	return f
+}
+
+// refresh recomputes the flags derived from version and codepage.
+func (f *ASCII) refresh() {
+	f.encode = !Profile(f.version).UTF8 && f.codepage != ""
 }
 
 // SetVersion sets the DXF version reported by the formatter.
 func (f *ASCII) SetVersion(version string) {
 	if version != "" {
 		f.version = version
+		f.refresh()
 	}
 }
 
 // SetCodepage sets the codepage used to encode strings for pre-R2007 output.
-func (f *ASCII) SetCodepage(name string) { f.codepage = name }
+func (f *ASCII) SetCodepage(name string) {
+	f.codepage = name
+	f.refresh()
+}
 
 // Reset resets the buffer.
 func (f *ASCII) Reset() {
@@ -72,7 +96,8 @@ func (f *ASCII) WriteTo(w io.Writer) (int64, error) {
 
 // SetPrecision sets precision part for outputting floating point values.
 func (f *ASCII) SetPrecision(p int) {
-	f.float = fmt.Sprintf("%%.%df", p)
+	f.float = "%." + strconv.Itoa(p) + "f"
+	f.prec = p
 }
 
 // Output outputs data stored in the buffer in DXF format.
@@ -86,35 +111,71 @@ func (f *ASCII) Output() string {
 // text is encoded in the formatter's codepage; for R2007+ it is emitted as
 // UTF-8.
 func (f *ASCII) String(num int, val string) string {
-	if !Profile(f.version).UTF8 && f.codepage != "" {
+	if f.encode {
 		val = string(lldxf.EncodeCodepageBytes(val, f.codepage))
 	}
-	return fmt.Sprintf("%d\n%s\n", num, val)
+	b := make([]byte, 0, len(val)+16)
+	b = strconv.AppendInt(b, int64(num), 10)
+	b = append(b, '\n')
+	b = append(b, val...)
+	b = append(b, '\n')
+	return string(b)
 }
 
 // Int outputs given code & int in DXF format.
 func (f *ASCII) Int(num int, val int) string {
-	return fmt.Sprintf("%d\n%d\n", num, val)
+	b := make([]byte, 0, 24)
+	b = strconv.AppendInt(b, int64(num), 10)
+	b = append(b, '\n')
+	b = strconv.AppendInt(b, int64(val), 10)
+	b = append(b, '\n')
+	return string(b)
 }
 
 // Float outputs given code & floating point in DXF format.
 func (f *ASCII) Float(num int, val float64) string {
-	return fmt.Sprintf(fmt.Sprintf("%d\n%s\n", num, f.float), val)
+	b := make([]byte, 0, 32)
+	b = strconv.AppendInt(b, int64(num), 10)
+	b = append(b, '\n')
+	b = strconv.AppendFloat(b, val, 'f', f.prec, 64)
+	b = append(b, '\n')
+	return string(b)
+}
+
+// appendTagHeader appends "<code>\n" to dst.
+func appendTagHeader(dst []byte, num int) []byte {
+	dst = strconv.AppendInt(dst, int64(num), 10)
+	return append(dst, '\n')
 }
 
 // WriteString appends string data to the buffer.
 func (f *ASCII) WriteString(num int, val string) {
-	f.buffer.WriteString(f.String(num, val))
+	if f.encode {
+		val = string(lldxf.EncodeCodepageBytes(val, f.codepage))
+	}
+	b := appendTagHeader(f.scratch[:0], num)
+	b = append(b, val...)
+	b = append(b, '\n')
+	f.scratch = b
+	f.buffer.Write(b)
 }
 
 // WriteInt appends int data to the buffer.
 func (f *ASCII) WriteInt(num int, val int) {
-	f.buffer.WriteString(f.Int(num, val))
+	b := appendTagHeader(f.scratch[:0], num)
+	b = strconv.AppendInt(b, int64(val), 10)
+	b = append(b, '\n')
+	f.scratch = b
+	f.buffer.Write(b)
 }
 
 // WriteFloat appends floating point data to the buffer.
 func (f *ASCII) WriteFloat(num int, val float64) {
-	f.buffer.WriteString(f.Float(num, val))
+	b := appendTagHeader(f.scratch[:0], num)
+	b = strconv.AppendFloat(b, val, 'f', f.prec, 64)
+	b = append(b, '\n')
+	f.scratch = b
+	f.buffer.Write(b)
 }
 
 // WriteBool appends boolean data to the buffer.
@@ -123,7 +184,7 @@ func (f *ASCII) WriteBool(num int, val bool) {
 	if val {
 		intVal = 1
 	}
-	f.buffer.WriteString(f.Int(num, intVal))
+	f.WriteInt(num, intVal)
 }
 
 // Version returns the DXF version
